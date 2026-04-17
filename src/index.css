@@ -1,0 +1,122 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Premium Aesthetic Clinic palette */
+    --background: 40 20% 98%;
+    --foreground: 200 25% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 200 25% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 200 25% 12%;
+
+    /* Deep teal - medical premium */
+    --primary: 174 58% 28%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Warm sand */
+    --secondary: 35 30% 95%;
+    --secondary-foreground: 200 25% 12%;
+
+    --muted: 35 15% 93%;
+    --muted-foreground: 200 10% 45%;
+
+    /* Soft gold accent */
+    --accent: 38 60% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 35 15% 90%;
+    --input: 35 15% 90%;
+    --ring: 174 58% 28%;
+
+    --radius: 0.75rem;
+
+    /* Brand tokens (overridden dynamically per clinic) */
+    --brand-primary: 174 58% 28%;
+    --brand-secondary: 35 30% 95%;
+    --brand-accent: 38 60% 55%;
+    --brand-primary-contrast: #ffffff;
+
+    /* Custom tokens */
+    --success: 152 60% 40%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 205 80% 50%;
+    --info-foreground: 0 0% 100%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(174 58% 28%), hsl(174 45% 38%));
+    --gradient-accent: linear-gradient(135deg, hsl(38 60% 55%), hsl(30 70% 50%));
+    --gradient-hero: linear-gradient(135deg, hsl(174 58% 28%), hsl(174 40% 22%));
+    --gradient-surface: linear-gradient(180deg, hsl(40 20% 98%), hsl(35 15% 95%));
+
+    /* Shadows */
+    --shadow-sm: 0 1px 3px hsl(200 25% 12% / 0.04);
+    --shadow-md: 0 4px 12px hsl(200 25% 12% / 0.06);
+    --shadow-lg: 0 8px 30px hsl(200 25% 12% / 0.08);
+    --shadow-glow: 0 0 20px hsl(174 58% 28% / 0.15);
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 200 25% 12%;
+    --sidebar-primary: 174 58% 28%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 35 30% 95%;
+    --sidebar-accent-foreground: 200 25% 12%;
+    --sidebar-border: 35 15% 90%;
+    --sidebar-ring: 174 58% 28%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+  .gradient-accent {
+    background: var(--gradient-accent);
+  }
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+  .gradient-surface {
+    background: var(--gradient-surface);
+  }
+  .shadow-card {
+    box-shadow: var(--shadow-md);
+  }
+  .shadow-card-hover {
+    box-shadow: var(--shadow-lg);
+  }
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  .glass {
+    backdrop-filter: blur(12px);
+    background: hsl(0 0% 100% / 0.8);
+  }
+}
