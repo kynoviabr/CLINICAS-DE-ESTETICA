@@ -8,9 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Stethoscope, Eye, EyeOff, Mail } from 'lucide-react';
+import { Stethoscope, Eye, EyeOff, Mail, Sparkles, Shield, Activity } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+/**
+ * Stripe-style split-screen login.
+ * Left: navy hero with marketing.   Right: form card.
+ * On mobile, hero collapses and form takes full width.
+ */
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,17 +33,11 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Redirect if already logged in
   useEffect(() => {
     if (user && !roleLoading) {
-      if (role === 'patient') {
-        navigate('/portal', { replace: true });
-      } else if (role) {
-        navigate('/clinic', { replace: true });
-      } else {
-        // No role assigned — send to onboarding
-        navigate('/onboarding', { replace: true });
-      }
+      if (role === 'patient') navigate('/portal', { replace: true });
+      else if (role) navigate('/clinic', { replace: true });
+      else navigate('/onboarding', { replace: true });
     }
   }, [user, role, roleLoading, navigate]);
 
@@ -47,7 +46,6 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signIn(email, password);
-      // redirect will happen via useEffect
     } catch (err: any) {
       toast({ title: 'Erro ao entrar', description: err.message, variant: 'destructive' });
     } finally {
@@ -89,19 +87,85 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen gradient-surface flex items-center justify-center p-4">
-      <div className="w-full max-w-md animate-fade-in">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-4 shadow-glow">
-            <Stethoscope className="w-8 h-8 text-primary-foreground" />
+    <div className="min-h-screen lg:grid lg:grid-cols-[1.05fr_1fr] bg-bg-page">
+      {/* ============ HERO LEFT (Stripe navy) ============ */}
+      <aside className="relative hidden lg:flex flex-col justify-between p-12 xl:p-16 overflow-hidden bg-navy text-white">
+        {/* Decorative gradient blobs (hero/marketing only) */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-32 -right-32 h-96 w-96 rounded-full opacity-30 blur-3xl"
+          style={{ background: 'radial-gradient(circle, hsl(243 100% 68%) 0%, transparent 70%)' }}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-40 -left-20 h-[28rem] w-[28rem] rounded-full opacity-20 blur-3xl"
+          style={{ background: 'radial-gradient(circle, hsl(190 100% 50%) 0%, transparent 70%)' }}
+        />
+
+        <div className="relative flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-btn bg-primary flex items-center justify-center shadow-glow">
+            <Stethoscope className="w-5 h-5 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground">Clinic Journey</h1>
-          <p className="text-muted-foreground mt-1">Gestão inteligente para sua clínica</p>
+          <span className="font-heading font-semibold text-[17px] tracking-tight">Clinic Journey OS</span>
         </div>
 
-        {/* Card */}
-        <div className="bg-card rounded-2xl shadow-card p-6 sm:p-8">
+        <div className="relative max-w-md">
+          <p className="text-[11px] uppercase tracking-[0.18em] font-semibold text-primary-light/90 mb-4">
+            Plataforma de gestão clínica
+          </p>
+          <h2 className="font-heading text-4xl xl:text-5xl font-bold leading-[1.05] tracking-tight">
+            A jornada completa do seu paciente,{' '}
+            <span className="text-primary-light">em uma única plataforma.</span>
+          </h2>
+          <p className="text-[15px] leading-relaxed text-white/70 mt-5 max-w-sm">
+            Propostas, contratos, pagamentos, agenda e evolução — tudo conectado, com inteligência de retenção e portal próprio do paciente.
+          </p>
+
+          <ul className="mt-10 space-y-4 text-sm">
+            {[
+              { icon: Sparkles, text: 'Funil comercial completo: proposta → contrato → pagamento' },
+              { icon: Activity, text: 'Acompanhamento de evolução com fotos antes/depois' },
+              { icon: Shield, text: 'Multi-tenant seguro com white-label por clínica' },
+            ].map(({ icon: Icon, text }) => (
+              <li key={text} className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-btn bg-white/8 ring-1 ring-white/10">
+                  <Icon className="h-3.5 w-3.5 text-primary-light" />
+                </span>
+                <span className="text-white/85 leading-relaxed">{text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="relative text-xs text-white/40">
+          © 2026 Clinic Journey OS. Todos os direitos reservados.
+        </p>
+      </aside>
+
+      {/* ============ FORM RIGHT ============ */}
+      <main className="flex items-center justify-center p-6 sm:p-10">
+        <div className="w-full max-w-[420px] animate-fade-in">
+          {/* Mobile-only logo */}
+          <div className="lg:hidden text-center mb-6">
+            <div className="inline-flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-btn bg-primary flex items-center justify-center shadow-glow">
+                <Stethoscope className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <span className="font-heading font-semibold text-lg tracking-tight text-foreground">
+                Clinic Journey OS
+              </span>
+            </div>
+          </div>
+
+          <div className="mb-8">
+            <h1 className="font-heading text-3xl font-bold tracking-tight text-foreground">
+              Bem-vindo de volta
+            </h1>
+            <p className="text-[15px] text-[hsl(var(--text-secondary))] mt-2">
+              Acesse sua clínica ou crie uma conta nova.
+            </p>
+          </div>
+
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="login">Entrar</TabsTrigger>
@@ -110,8 +174,8 @@ export default function LoginPage() {
 
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">E-mail</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="email" className="text-[13px] font-medium">E-mail</Label>
                   <Input
                     id="email"
                     type="email"
@@ -121,8 +185,17 @@ export default function LoginPage() {
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Senha</Label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-[13px] font-medium">Senha</Label>
+                    <button
+                      type="button"
+                      onClick={() => { setForgotEmail(email); setForgotSent(false); setForgotOpen(true); }}
+                      className="text-xs font-medium text-primary hover:text-primary-dark hover:underline"
+                    >
+                      Esqueci minha senha
+                    </button>
+                  </div>
                   <div className="relative">
                     <Input
                       id="password"
@@ -131,35 +204,28 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
+                      className="pr-10"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPw(!showPw)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[hsl(var(--text-muted))] hover:text-foreground transition-colors"
+                      aria-label={showPw ? 'Ocultar senha' : 'Mostrar senha'}
                     >
                       {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
-                <Button type="submit" className="w-full gradient-primary hover:opacity-90 text-primary-foreground" disabled={loading}>
+                <Button type="submit" className="w-full" size="lg" disabled={loading}>
                   {loading ? 'Entrando...' : 'Entrar'}
                 </Button>
-                <div className="text-center">
-                  <button
-                    type="button"
-                    onClick={() => { setForgotEmail(email); setForgotSent(false); setForgotOpen(true); }}
-                    className="text-sm text-primary hover:underline"
-                  >
-                    Esqueci minha senha
-                  </button>
-                </div>
               </form>
             </TabsContent>
 
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">Nome completo</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="signup-name" className="text-[13px] font-medium">Nome completo</Label>
                   <Input
                     id="signup-name"
                     type="text"
@@ -169,8 +235,8 @@ export default function LoginPage() {
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">E-mail</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="signup-email" className="text-[13px] font-medium">E-mail</Label>
                   <Input
                     id="signup-email"
                     type="email"
@@ -180,8 +246,8 @@ export default function LoginPage() {
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Senha</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="signup-password" className="text-[13px] font-medium">Senha</Label>
                   <Input
                     id="signup-password"
                     type="password"
@@ -192,18 +258,21 @@ export default function LoginPage() {
                     minLength={6}
                   />
                 </div>
-                <Button type="submit" className="w-full gradient-primary hover:opacity-90 text-primary-foreground" disabled={loading}>
+                <Button type="submit" className="w-full" size="lg" disabled={loading}>
                   {loading ? 'Criando...' : 'Criar conta'}
                 </Button>
+                <p className="text-xs text-[hsl(var(--text-muted))] text-center pt-1">
+                  Ao criar uma conta, você concorda com os Termos de Uso e Política de Privacidade.
+                </p>
               </form>
             </TabsContent>
           </Tabs>
-        </div>
 
-        <p className="text-center text-xs text-muted-foreground mt-6">
-          © 2026 Clinic Journey OS. Todos os direitos reservados.
-        </p>
-      </div>
+          <p className="lg:hidden text-center text-xs text-[hsl(var(--text-muted))] mt-8">
+            © 2026 Clinic Journey OS
+          </p>
+        </div>
+      </main>
 
       {/* Forgot Password Dialog */}
       <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
@@ -215,25 +284,25 @@ export default function LoginPage() {
             </DialogTitle>
           </DialogHeader>
           {forgotSent ? (
-            <div className="text-center py-4">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
-                <Mail className="w-6 h-6 text-primary" />
+            <div className="text-center py-2">
+              <div className="w-12 h-12 rounded-pill bg-primary-light flex items-center justify-center mx-auto mb-3">
+                <Mail className="w-6 h-6 text-primary-dark" />
               </div>
-              <h3 className="font-semibold text-foreground mb-1">E-mail enviado!</h3>
-              <p className="text-sm text-muted-foreground">
-                Se existe uma conta com o e-mail <strong>{forgotEmail}</strong>, você receberá um link para redefinir sua senha.
+              <h3 className="font-heading font-semibold text-foreground mb-1">E-mail enviado!</h3>
+              <p className="text-sm text-[hsl(var(--text-secondary))]">
+                Se existe uma conta com o e-mail <strong className="text-foreground">{forgotEmail}</strong>, você receberá um link para redefinir sua senha.
               </p>
-              <Button variant="outline" className="mt-4" onClick={() => setForgotOpen(false)}>
+              <Button variant="outline" className="mt-5" onClick={() => setForgotOpen(false)}>
                 Fechar
               </Button>
             </div>
           ) : (
             <form onSubmit={handleForgotPassword} className="space-y-4">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-[hsl(var(--text-secondary))]">
                 Informe seu e-mail e enviaremos um link para redefinir sua senha.
               </p>
-              <div className="space-y-2">
-                <Label htmlFor="forgot-email">E-mail</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="forgot-email" className="text-[13px] font-medium">E-mail</Label>
                 <Input
                   id="forgot-email"
                   type="email"
@@ -243,7 +312,7 @@ export default function LoginPage() {
                   required
                 />
               </div>
-              <Button type="submit" className="w-full gradient-primary hover:opacity-90 text-primary-foreground" disabled={forgotLoading}>
+              <Button type="submit" className="w-full" disabled={forgotLoading}>
                 {forgotLoading ? 'Enviando...' : 'Enviar link de recuperação'}
               </Button>
             </form>
