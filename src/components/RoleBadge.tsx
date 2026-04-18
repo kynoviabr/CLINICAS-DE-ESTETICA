@@ -1,11 +1,14 @@
 import { cn } from '@/lib/utils';
 
+/**
+ * Stripe-style role chip. Soft bg + dark text, no colored borders.
+ */
 const roleConfig: Record<string, { label: string; className: string }> = {
-  admin: { label: 'Admin', className: 'bg-purple-100 text-purple-700 border-purple-200' },
-  sales: { label: 'Vendas', className: 'bg-blue-100 text-blue-700 border-blue-200' },
-  professional: { label: 'Profissional', className: 'bg-green-100 text-green-700 border-green-200' },
-  receptionist: { label: 'Recepção', className: 'bg-gray-100 text-gray-700 border-gray-200' },
-  owner: { label: 'Proprietário', className: 'bg-amber-100 text-amber-700 border-amber-200' },
+  admin:        { label: 'Admin',         className: 'bg-primary-light text-primary-dark' },
+  sales:        { label: 'Vendas',        className: 'bg-[hsl(var(--info-bg))] text-[hsl(var(--info))]' },
+  professional: { label: 'Profissional',  className: 'bg-[hsl(var(--success-bg))] text-[hsl(var(--success))]' },
+  receptionist: { label: 'Recepção',      className: 'bg-bg-subtle text-[hsl(var(--text-secondary))]' },
+  owner:        { label: 'Proprietário',  className: 'bg-[hsl(var(--warning-bg))] text-[hsl(var(--warning))]' },
 };
 
 interface RoleBadgeProps {
@@ -14,13 +17,19 @@ interface RoleBadgeProps {
 }
 
 export function RoleBadge({ role, className }: RoleBadgeProps) {
-  const config = roleConfig[role] || { label: role, className: 'bg-muted text-muted-foreground border-border' };
+  const config = roleConfig[role] || {
+    label: role,
+    className: 'bg-bg-subtle text-[hsl(var(--text-secondary))]',
+  };
   return (
-    <span className={cn(
-      'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold',
-      config.className,
-      className
-    )}>
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-pill px-2.5 py-0.5 text-xs font-semibold leading-5',
+        config.className,
+        className
+      )}
+    >
+      <span aria-hidden="true" className="inline-block h-1.5 w-1.5 rounded-full bg-current" />
       {config.label}
     </span>
   );

@@ -75,10 +75,21 @@ function applyBrandingCss(primary: string, secondary: string, accent: string) {
   root.style.setProperty('--accent', `${a.h} ${a.s}% ${a.l}%`);
   root.style.setProperty('--sidebar-primary', `${p.h} ${p.s}% ${p.l}%`);
 
-  // Update gradients
-  root.style.setProperty('--gradient-primary', `linear-gradient(135deg, hsl(${p.h} ${p.s}% ${p.l}%), hsl(${p.h} ${Math.max(p.s - 13, 0)}% ${Math.min(p.l + 10, 100)}%))`);
+  // Stripe-style: also override the purple-* family + primary-light/dark so chips,
+  // hover states and focus rings stay coherent with the clinic brand.
+  root.style.setProperty('--color-purple', `${p.h} ${p.s}% ${p.l}%`);
+  root.style.setProperty('--color-purple-dark', `${p.h} ${p.s}% ${Math.max(p.l - 10, 0)}%`);
+  root.style.setProperty('--color-purple-light', `${p.h} ${Math.min(p.s + 10, 100)}% 95%`);
+  root.style.setProperty('--primary-dark', `${p.h} ${p.s}% ${Math.max(p.l - 10, 0)}%`);
+  root.style.setProperty('--primary-light', `${p.h} ${Math.min(p.s + 10, 100)}% 95%`);
+
+  // Stripe focus ring tinted with the clinic brand
+  root.style.setProperty('--shadow-focus', `0 0 0 3px hsl(${p.h} ${p.s}% ${p.l}% / 0.18)`);
+  root.style.setProperty('--shadow-glow', `0 8px 24px hsl(${p.h} ${p.s}% ${p.l}% / 0.18)`);
+
+  // Update gradients (hero/marketing only)
+  root.style.setProperty('--gradient-primary', `linear-gradient(135deg, hsl(${p.h} ${p.s}% ${p.l}%), hsl(${p.h} ${p.s}% ${Math.max(p.l - 10, 0)}%))`);
   root.style.setProperty('--gradient-accent', `linear-gradient(135deg, hsl(${a.h} ${a.s}% ${a.l}%), hsl(${Math.max(a.h - 8, 0)} ${Math.min(a.s + 10, 100)}% ${Math.max(a.l - 5, 0)}%))`);
-  root.style.setProperty('--shadow-glow', `0 0 20px hsl(${p.h} ${p.s}% ${p.l}% / 0.15)`);
 }
 
 export function BrandingProvider({ children }: { children: ReactNode }) {
