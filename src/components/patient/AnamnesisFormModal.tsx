@@ -7,11 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BrandButton } from '@/components/ui/brand-button';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import {
   User, HeartPulse, Pill, AlertTriangle, Sparkles, Target, Coffee, FileCheck,
   ChevronLeft, ChevronRight, Check,
@@ -177,17 +177,63 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
     </div>
   );
 
+  const BooleanQuestion = ({
+    label,
+    value,
+    onChange,
+    detailValue,
+    onDetailChange,
+    detailPlaceholder,
+    detailRows = 2,
+  }: {
+    label: string;
+    value: boolean;
+    onChange: (value: boolean) => void;
+    detailValue?: string;
+    onDetailChange?: (value: string) => void;
+    detailPlaceholder?: string;
+    detailRows?: number;
+  }) => (
+    <div className="space-y-3 rounded-xl border border-border/60 bg-card/60 p-4">
+      <div className="space-y-2">
+        <Label className="text-sm font-medium leading-relaxed">{label}</Label>
+        <RadioGroup
+          value={value ? 'yes' : 'no'}
+          onValueChange={(next) => onChange(next === 'yes')}
+          className="flex items-center gap-6"
+        >
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="yes" id={`${label}-yes`} />
+            <Label htmlFor={`${label}-yes`} className="font-normal cursor-pointer">Sim</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="no" id={`${label}-no`} />
+            <Label htmlFor={`${label}-no`} className="font-normal cursor-pointer">Não</Label>
+          </div>
+        </RadioGroup>
+      </div>
+      {value && detailValue !== undefined && detailPlaceholder && (
+        <Textarea
+          value={detailValue}
+          onChange={(e) => onDetailChange?.(e.target.value)}
+          placeholder={detailPlaceholder}
+          rows={detailRows}
+        />
+      )}
+    </div>
+  );
+
   const renderSection = () => {
     const s = currentSection.key;
     switch (s) {
       case 'identification':
         return (
-          <div className="space-y-4">
-            <div className="space-y-2">
+          <div className="space-y-5">
+            <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
               <Label>Profissão</Label>
               <Input value={form.identification.occupation} onChange={e => updateSection('identification', 'occupation', e.target.value)} placeholder="Ex: Advogada" />
             </div>
-            <div className="space-y-2">
+            <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
               <Label>Estado civil</Label>
               <Select value={form.identification.marital_status} onValueChange={v => updateSection('identification', 'marital_status', v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -200,14 +246,17 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
+            <div className="rounded-xl border border-border/60 bg-card/60 p-4">
+              <p className="text-sm font-medium mb-3">Contato de emergência</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
                 <Label>Contato de emergência</Label>
                 <Input value={form.identification.emergency_contact} onChange={e => updateSection('identification', 'emergency_contact', e.target.value)} />
-              </div>
-              <div className="space-y-2">
+                </div>
+                <div className="space-y-2">
                 <Label>Telefone de emergência</Label>
                 <Input value={form.identification.emergency_phone} onChange={e => updateSection('identification', 'emergency_phone', e.target.value)} placeholder="(11) 99999-9999" />
+                </div>
               </div>
             </div>
           </div>
@@ -215,26 +264,50 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
 
       case 'health_history':
         return (
-          <div className="space-y-4">
-            <CheckboxField label="Possui doença crônica?" checked={form.health_history.has_chronic_disease} onChange={v => updateSection('health_history', 'has_chronic_disease', v)} />
-            {form.health_history.has_chronic_disease && (
-              <Textarea value={form.health_history.chronic_diseases} onChange={e => updateSection('health_history', 'chronic_diseases', e.target.value)} placeholder="Quais doenças crônicas?" rows={2} />
-            )}
-            <CheckboxField label="Cirurgias anteriores?" checked={form.health_history.has_previous_surgery} onChange={v => updateSection('health_history', 'has_previous_surgery', v)} />
-            {form.health_history.has_previous_surgery && (
-              <Textarea value={form.health_history.surgeries} onChange={e => updateSection('health_history', 'surgeries', e.target.value)} placeholder="Descreva as cirurgias" rows={2} />
-            )}
-            <CheckboxField label="Condições de pele?" checked={form.health_history.has_skin_conditions} onChange={v => updateSection('health_history', 'has_skin_conditions', v)} />
-            {form.health_history.has_skin_conditions && (
-              <Textarea value={form.health_history.skin_conditions} onChange={e => updateSection('health_history', 'skin_conditions', e.target.value)} placeholder="Descreva" rows={2} />
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <CheckboxField label="Gestante?" checked={form.health_history.is_pregnant} onChange={v => updateSection('health_history', 'is_pregnant', v)} />
-              <CheckboxField label="Amamentando?" checked={form.health_history.is_breastfeeding} onChange={v => updateSection('health_history', 'is_breastfeeding', v)} />
-              <CheckboxField label="Marca-passo?" checked={form.health_history.has_pacemaker} onChange={v => updateSection('health_history', 'has_pacemaker', v)} />
-              <CheckboxField label="Implantes metálicos?" checked={form.health_history.has_metal_implants} onChange={v => updateSection('health_history', 'has_metal_implants', v)} />
+          <div className="space-y-5">
+            <BooleanQuestion
+              label="Possui doença crônica?"
+              value={form.health_history.has_chronic_disease}
+              onChange={(value) => {
+                updateSection('health_history', 'has_chronic_disease', value);
+                if (!value) updateSection('health_history', 'chronic_diseases', '');
+              }}
+              detailValue={form.health_history.chronic_diseases}
+              onDetailChange={(value) => updateSection('health_history', 'chronic_diseases', value)}
+              detailPlaceholder="Quais doenças crônicas?"
+            />
+            <BooleanQuestion
+              label="Já fez cirurgias anteriores?"
+              value={form.health_history.has_previous_surgery}
+              onChange={(value) => {
+                updateSection('health_history', 'has_previous_surgery', value);
+                if (!value) updateSection('health_history', 'surgeries', '');
+              }}
+              detailValue={form.health_history.surgeries}
+              onDetailChange={(value) => updateSection('health_history', 'surgeries', value)}
+              detailPlaceholder="Descreva as cirurgias"
+            />
+            <BooleanQuestion
+              label="Possui condições de pele relevantes?"
+              value={form.health_history.has_skin_conditions}
+              onChange={(value) => {
+                updateSection('health_history', 'has_skin_conditions', value);
+                if (!value) updateSection('health_history', 'skin_conditions', '');
+              }}
+              detailValue={form.health_history.skin_conditions}
+              onDetailChange={(value) => updateSection('health_history', 'skin_conditions', value)}
+              detailPlaceholder="Descreva as condições de pele"
+            />
+            <div className="rounded-xl border border-border/60 bg-card/60 p-4">
+              <p className="text-sm font-medium mb-3">Condições clínicas objetivas</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <BooleanQuestion label="Gestante?" value={form.health_history.is_pregnant} onChange={v => updateSection('health_history', 'is_pregnant', v)} />
+              <BooleanQuestion label="Amamentando?" value={form.health_history.is_breastfeeding} onChange={v => updateSection('health_history', 'is_breastfeeding', v)} />
+              <BooleanQuestion label="Usa marca-passo?" value={form.health_history.has_pacemaker} onChange={v => updateSection('health_history', 'has_pacemaker', v)} />
+              <BooleanQuestion label="Possui implantes metálicos?" value={form.health_history.has_metal_implants} onChange={v => updateSection('health_history', 'has_metal_implants', v)} />
+              </div>
             </div>
-            <div className="space-y-2">
+            <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
               <Label>Informações adicionais</Label>
               <Textarea value={form.health_history.additional_info} onChange={e => updateSection('health_history', 'additional_info', e.target.value)} rows={2} />
             </div>
@@ -243,49 +316,98 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
 
       case 'medications':
         return (
-          <div className="space-y-4">
-            <CheckboxField label="Toma medicamentos?" checked={form.medications.takes_medication} onChange={v => updateSection('medications', 'takes_medication', v)} />
-            {form.medications.takes_medication && (
-              <Textarea value={form.medications.medications_list} onChange={e => updateSection('medications', 'medications_list', e.target.value)} placeholder="Liste os medicamentos em uso" rows={3} />
-            )}
-            <CheckboxField label="Usa suplementos?" checked={form.medications.takes_supplements} onChange={v => updateSection('medications', 'takes_supplements', v)} />
-            {form.medications.takes_supplements && (
-              <Textarea value={form.medications.supplements_list} onChange={e => updateSection('medications', 'supplements_list', e.target.value)} placeholder="Liste os suplementos" rows={2} />
-            )}
+          <div className="space-y-5">
+            <BooleanQuestion
+              label="Toma medicamentos atualmente?"
+              value={form.medications.takes_medication}
+              onChange={(value) => {
+                updateSection('medications', 'takes_medication', value);
+                if (!value) updateSection('medications', 'medications_list', '');
+              }}
+              detailValue={form.medications.medications_list}
+              onDetailChange={(value) => updateSection('medications', 'medications_list', value)}
+              detailPlaceholder="Liste os medicamentos em uso"
+              detailRows={3}
+            />
+            <BooleanQuestion
+              label="Usa suplementos?"
+              value={form.medications.takes_supplements}
+              onChange={(value) => {
+                updateSection('medications', 'takes_supplements', value);
+                if (!value) updateSection('medications', 'supplements_list', '');
+              }}
+              detailValue={form.medications.supplements_list}
+              onDetailChange={(value) => updateSection('medications', 'supplements_list', value)}
+              detailPlaceholder="Liste os suplementos"
+            />
           </div>
         );
 
       case 'allergies':
         return (
-          <div className="space-y-4">
-            <CheckboxField label="Possui alergias?" checked={form.allergies.has_allergies} onChange={v => updateSection('allergies', 'has_allergies', v)} />
-            {form.allergies.has_allergies && (
-              <Textarea value={form.allergies.allergies_list} onChange={e => updateSection('allergies', 'allergies_list', e.target.value)} placeholder="Liste as alergias (medicamentos, alimentos, etc.)" rows={3} />
-            )}
-            <CheckboxField label="Sensibilidade a cosméticos/produtos?" checked={form.allergies.has_product_sensitivity} onChange={v => updateSection('allergies', 'has_product_sensitivity', v)} />
-            {form.allergies.has_product_sensitivity && (
-              <Textarea value={form.allergies.sensitivities} onChange={e => updateSection('allergies', 'sensitivities', e.target.value)} placeholder="Quais produtos?" rows={2} />
-            )}
+          <div className="space-y-5">
+            <BooleanQuestion
+              label="Possui alergias?"
+              value={form.allergies.has_allergies}
+              onChange={(value) => {
+                updateSection('allergies', 'has_allergies', value);
+                if (!value) updateSection('allergies', 'allergies_list', '');
+              }}
+              detailValue={form.allergies.allergies_list}
+              onDetailChange={(value) => updateSection('allergies', 'allergies_list', value)}
+              detailPlaceholder="Liste as alergias (medicamentos, alimentos, etc.)"
+              detailRows={3}
+            />
+            <BooleanQuestion
+              label="Tem sensibilidade a cosméticos ou produtos?"
+              value={form.allergies.has_product_sensitivity}
+              onChange={(value) => {
+                updateSection('allergies', 'has_product_sensitivity', value);
+                if (!value) updateSection('allergies', 'sensitivities', '');
+              }}
+              detailValue={form.allergies.sensitivities}
+              onDetailChange={(value) => updateSection('allergies', 'sensitivities', value)}
+              detailPlaceholder="Quais produtos causam sensibilidade?"
+            />
           </div>
         );
 
       case 'aesthetic_history':
         return (
-          <div className="space-y-4">
-            <div className="space-y-2">
+          <div className="space-y-5">
+            <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
               <Label>Tratamentos estéticos anteriores</Label>
               <Textarea value={form.aesthetic_history.previous_treatments} onChange={e => updateSection('aesthetic_history', 'previous_treatments', e.target.value)} placeholder="Ex: Botox, peeling, laser..." rows={2} />
             </div>
-            <CheckboxField label="Tratamento estético ativo?" checked={form.aesthetic_history.has_active_treatment} onChange={v => updateSection('aesthetic_history', 'has_active_treatment', v)} />
-            {form.aesthetic_history.has_active_treatment && (
-              <Textarea value={form.aesthetic_history.active_treatment_details} onChange={e => updateSection('aesthetic_history', 'active_treatment_details', e.target.value)} placeholder="Detalhes do tratamento ativo" rows={2} />
-            )}
-            <CheckboxField label="Usa ácidos/retinóides?" checked={form.aesthetic_history.uses_acids_retinoids} onChange={v => updateSection('aesthetic_history', 'uses_acids_retinoids', v)} />
-            {form.aesthetic_history.uses_acids_retinoids && (
-              <Input value={form.aesthetic_history.acids_details} onChange={e => updateSection('aesthetic_history', 'acids_details', e.target.value)} placeholder="Quais?" />
-            )}
-            <CheckboxField label="Exposição solar recente?" checked={form.aesthetic_history.recent_sun_exposure} onChange={v => updateSection('aesthetic_history', 'recent_sun_exposure', v)} />
-            <div className="space-y-2">
+            <BooleanQuestion
+              label="Está em tratamento estético ativo?"
+              value={form.aesthetic_history.has_active_treatment}
+              onChange={(value) => {
+                updateSection('aesthetic_history', 'has_active_treatment', value);
+                if (!value) updateSection('aesthetic_history', 'active_treatment_details', '');
+              }}
+              detailValue={form.aesthetic_history.active_treatment_details}
+              onDetailChange={(value) => updateSection('aesthetic_history', 'active_treatment_details', value)}
+              detailPlaceholder="Detalhes do tratamento ativo"
+            />
+            <BooleanQuestion
+              label="Usa ácidos ou retinóides?"
+              value={form.aesthetic_history.uses_acids_retinoids}
+              onChange={(value) => {
+                updateSection('aesthetic_history', 'uses_acids_retinoids', value);
+                if (!value) updateSection('aesthetic_history', 'acids_details', '');
+              }}
+              detailValue={form.aesthetic_history.acids_details}
+              onDetailChange={(value) => updateSection('aesthetic_history', 'acids_details', value)}
+              detailPlaceholder="Quais ácidos ou retinóides?"
+              detailRows={1}
+            />
+            <BooleanQuestion
+              label="Teve exposição solar recente?"
+              value={form.aesthetic_history.recent_sun_exposure}
+              onChange={(value) => updateSection('aesthetic_history', 'recent_sun_exposure', value)}
+            />
+            <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
               <Label>Tipo de pele</Label>
               <Select value={form.aesthetic_history.skin_type} onValueChange={v => updateSection('aesthetic_history', 'skin_type', v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -303,20 +425,20 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
 
       case 'objectives':
         return (
-          <div className="space-y-4">
-            <div className="space-y-2">
+          <div className="space-y-5">
+            <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
               <Label>Principal queixa / preocupação</Label>
               <Textarea value={form.objectives.main_concern} onChange={e => updateSection('objectives', 'main_concern', e.target.value)} placeholder="O que te incomoda ou gostaria de melhorar?" rows={3} />
             </div>
-            <div className="space-y-2">
+            <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
               <Label>Áreas do corpo</Label>
               <Input value={form.objectives.body_areas} onChange={e => updateSection('objectives', 'body_areas', e.target.value)} placeholder="Ex: rosto, abdômen, coxas..." />
             </div>
-            <div className="space-y-2">
+            <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
               <Label>Expectativas com o tratamento</Label>
               <Textarea value={form.objectives.expectations} onChange={e => updateSection('objectives', 'expectations', e.target.value)} rows={2} />
             </div>
-            <div className="space-y-2">
+            <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
               <Label>Prazo desejado</Label>
               <Input value={form.objectives.timeline} onChange={e => updateSection('objectives', 'timeline', e.target.value)} placeholder="Ex: 3 meses, antes do verão..." />
             </div>
@@ -325,10 +447,12 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
 
       case 'habits':
         return (
-          <div className="space-y-4">
-            <CheckboxField label="Fumante?" checked={form.habits.smoking} onChange={v => updateSection('habits', 'smoking', v)} />
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
+          <div className="space-y-5">
+            <BooleanQuestion label="Fumante?" value={form.habits.smoking} onChange={v => updateSection('habits', 'smoking', v)} />
+            <div className="rounded-xl border border-border/60 bg-card/60 p-4">
+              <p className="text-sm font-medium mb-3">Rotina e estilo de vida</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
                 <Label>Consumo de álcool</Label>
                 <Select value={form.habits.alcohol_frequency} onValueChange={v => updateSection('habits', 'alcohol_frequency', v)}>
                   <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -339,8 +463,8 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
                     <SelectItem value="daily">Diário</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
+                </div>
+                <div className="space-y-2">
                 <Label>Atividade física</Label>
                 <Select value={form.habits.exercise_frequency} onValueChange={v => updateSection('habits', 'exercise_frequency', v)}>
                   <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -351,14 +475,17 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
                     <SelectItem value="5+">5+ vezes/semana</SelectItem>
                   </SelectContent>
                 </Select>
+                </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
+            <div className="rounded-xl border border-border/60 bg-card/60 p-4">
+              <p className="text-sm font-medium mb-3">Autocuidado</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
                 <Label>Ingestão de água (litros/dia)</Label>
                 <Input value={form.habits.water_intake} onChange={e => updateSection('habits', 'water_intake', e.target.value)} placeholder="Ex: 2L" />
-              </div>
-              <div className="space-y-2">
+                </div>
+                <div className="space-y-2">
                 <Label>Qualidade do sono</Label>
                 <Select value={form.habits.sleep_quality} onValueChange={v => updateSection('habits', 'sleep_quality', v)}>
                   <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -369,19 +496,20 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
                     <SelectItem value="insomnia">Insônia</SelectItem>
                   </SelectContent>
                 </Select>
+                </div>
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
               <Label>Alimentação</Label>
               <Textarea value={form.habits.diet_description} onChange={e => updateSection('habits', 'diet_description', e.target.value)} placeholder="Descreva brevemente sua alimentação" rows={2} />
             </div>
-            <CheckboxField label="Usa protetor solar diariamente?" checked={form.habits.sun_protection} onChange={v => updateSection('habits', 'sun_protection', v)} />
+            <BooleanQuestion label="Usa protetor solar diariamente?" value={form.habits.sun_protection} onChange={v => updateSection('habits', 'sun_protection', v)} />
           </div>
         );
 
       case 'consent':
         return (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div className="p-4 rounded-lg bg-secondary/50 text-sm text-muted-foreground space-y-2">
               <p>Ao preencher esta anamnese, o(a) paciente declara que:</p>
               <ul className="list-disc pl-4 space-y-1">
@@ -405,7 +533,7 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
               checked={form.consent.agrees_data_usage}
               onChange={v => updateSection('consent', 'agrees_data_usage', v)}
             />
-            <div className="space-y-2">
+            <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
               <Label>Data de assinatura</Label>
               <Input
                 type="date"
@@ -459,12 +587,15 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
         {/* Section content */}
         <ScrollArea className="flex-1 pr-4 max-h-[50vh]">
           <div className="py-2">
-            <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
               <span className="w-6 h-6 rounded-full gradient-primary text-primary-foreground text-xs flex items-center justify-center font-bold">
                 {step + 1}
               </span>
               {currentSection.label}
             </h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Responda apenas o necessário. Campos complementares aparecem conforme as respostas.
+            </p>
             {renderSection()}
           </div>
         </ScrollArea>

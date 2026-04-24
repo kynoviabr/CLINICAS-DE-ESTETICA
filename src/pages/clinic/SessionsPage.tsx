@@ -1,178 +1,707 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
 import { PageHeader } from '@/components/ui/page-header';
 import { BrandButton } from '@/components/ui/brand-button';
+import { BrandBadge, type BadgeStatus } from '@/components/ui/brand-badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, ClipboardList, AlertTriangle } from 'lucide-react';
 import { AnamneseAlertBanner } from '@/components/anamnese/AnamneseAlertBanner';
+import {
+  AlertTriangle,
+  CalendarCheck2,
+  CheckCircle2,
+  ClipboardList,
+  Filter,
+  Package,
+  Plus,
+  Search,
+} from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+import { useSearchParams } from 'react-router-dom';
+
+type SessionForm = {
+  appointment_id: string;
+  patient_id: string;
+  treatment_id: string;
+  notes: string;
+  products_used: string;
+  observations: string;
+};
+
+type SessionSummaryRow = {
+  key: string;
+  patientId: string;
+  patientName: string;
+  treatmentId: string | null;
+  treatmentName: string;
+  contracted: number;
+  performed: number;
+  balance: number;
+  lastPerformedAt: string | null;
+};
+
+const emptyForm: SessionForm = {
+  appointment_id: 'manual',
+  patient_id: '',
+  treatment_id: '',
+  notes: '',
+  products_used: '',
+  observations: '',
+};
 
 export default function SessionsPage() {
   const { clinicId } = useBranding();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({ patient_id: '', treatment_id: '', session_number: '1', total_sessions: '1', notes: '', products_used: '', observations: '' });
+  const [search, setSearch] = useState('');
+  const [balanceFilter, setBalanceFilter] = useState('all');
+  const [form, setForm] = useState<SessionForm>(emptyForm);
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['sessions', clinicId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('session_records')
-        .select('*, patients(full_name, dissatisfaction_flag, dissatisfaction_level), treatments(name)')
+        .select('*, patients(full_name, dissatisfaction_flag, dissatisfaction_level), treatments(name), appointments(start_time)')
         .eq('clinic_id', clinicId!)
         .order('performed_at', { ascending: false })
-        .limit(50);
+        .limit(100);
+
+      if (error) throw error;
       return data || [];
     },
     enabled: !!clinicId,
   });
 
   const { data: patients = [] } = useQuery({
-    queryKey: ['patients-sel', clinicId],
+    queryKey: ['patients-sessions', clinicId],
     queryFn: async () => {
-      const { data } = await supabase.from('patients').select('id, full_name, current_anamnese_status, current_anamnese_expires_at').eq('clinic_id', clinicId!).eq('status', 'active').order('full_name');
+      const { data, error } = await supabase
+        .from('patients')
+        .select('id, full_name, current_anamnese_status, current_anamnese_expires_at')
+        .eq('clinic_id', clinicId!)
+        .eq('status', 'active')
+        .order('full_name');
+
+      if (error) throw error;
       return data || [];
     },
     enabled: !!clinicId,
   });
 
   const { data: treatments = [] } = useQuery({
-    queryKey: ['treatments-sel', clinicId],
+    queryKey: ['treatments-sessions', clinicId],
     queryFn: async () => {
-      const { data } = await supabase.from('treatments').select('id, name').eq('clinic_id', clinicId!).eq('is_active', true).order('name');
+      const { data, error } = await supabase
+        .from('treatments')
+        .select('id, name, num_sessions')
+        .eq('clinic_id', clinicId!)
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
       return data || [];
     },
     enabled: !!clinicId,
   });
 
+  const { data: appointments = [] } = useQuery({
+    queryKey: ['session-appointments', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('id, patient_id, treatment_id, professional_id, start_time, status, patients(full_name), treatments(name)')
+        .eq('clinic_id', clinicId!)
+        .in('status', ['confirmed', 'in_progress', 'completed'])
+        .order('start_time', { ascending: false })
+        .limit(150);
 
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!clinicId,
+  });
+
+  const { data: contracts = [] } = useQuery({
+    queryKey: ['session-contracts', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('id, patient_id, proposal_id, status')
+        .eq('clinic_id', clinicId!)
+        .neq('status', 'cancelled')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!clinicId,
+  });
+
+  const { data: proposalItems = [] } = useQuery({
+    queryKey: ['session-proposal-items', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('proposal_items')
+        .select('proposal_id, quantity, treatment_id, treatments(name, num_sessions)');
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!clinicId,
+  });
+
+  const sessionByAppointmentId = useMemo(() => {
+    const map = new Map<string, any>();
+    sessions.forEach((session: any) => {
+      if (session.appointment_id) map.set(session.appointment_id, session);
+    });
+    return map;
+  }, [sessions]);
+
+  const availableAppointments = useMemo(
+    () => appointments.filter((appointment: any) => !sessionByAppointmentId.has(appointment.id)),
+    [appointments, sessionByAppointmentId]
+  );
+
+  const summaryRows = useMemo<SessionSummaryRow[]>(() => {
+    const patientNameMap = new Map<string, string>();
+    patients.forEach((patient: any) => {
+      patientNameMap.set(patient.id, patient.full_name);
+    });
+
+    const treatmentMap = new Map<string, { name: string; num_sessions: number }>();
+    treatments.forEach((treatment: any) => {
+      treatmentMap.set(treatment.id, {
+        name: treatment.name,
+        num_sessions: Number(treatment.num_sessions || 1),
+      });
+    });
+
+    const proposalItemsByProposal = new Map<string, any[]>();
+    proposalItems.forEach((item: any) => {
+      const current = proposalItemsByProposal.get(item.proposal_id) || [];
+      current.push(item);
+      proposalItemsByProposal.set(item.proposal_id, current);
+    });
+
+    const summaryMap = new Map<string, SessionSummaryRow>();
+
+    const ensureRow = (patientId: string, treatmentId: string | null, treatmentName?: string) => {
+      const key = `${patientId}:${treatmentId || 'none'}`;
+      const existing = summaryMap.get(key);
+      if (existing) return existing;
+
+      const row: SessionSummaryRow = {
+        key,
+        patientId,
+        patientName: patientNameMap.get(patientId) || 'Paciente',
+        treatmentId,
+        treatmentName:
+          treatmentName ||
+          (treatmentId ? treatmentMap.get(treatmentId)?.name || 'Tratamento' : 'Sem tratamento'),
+        contracted: 0,
+        performed: 0,
+        balance: 0,
+        lastPerformedAt: null,
+      };
+      summaryMap.set(key, row);
+      return row;
+    };
+
+    contracts.forEach((contract: any) => {
+      if (!contract.proposal_id) return;
+      const items = proposalItemsByProposal.get(contract.proposal_id) || [];
+      items.forEach((item: any) => {
+        const treatmentId = item.treatment_id || null;
+        const treatmentInfo = treatmentId ? treatmentMap.get(treatmentId) : null;
+        const sessionsPerItem = Number(item.quantity || 1) * Number(treatmentInfo?.num_sessions || 1);
+        const row = ensureRow(contract.patient_id, treatmentId, treatmentInfo?.name);
+        row.contracted += sessionsPerItem;
+      });
+    });
+
+    sessions.forEach((session: any) => {
+      const treatmentId = session.treatment_id || null;
+      const treatmentName = (session.treatments as any)?.name || (treatmentId ? treatmentMap.get(treatmentId)?.name : undefined);
+      const row = ensureRow(session.patient_id, treatmentId, treatmentName);
+      row.performed += 1;
+      if (!row.lastPerformedAt || new Date(session.performed_at) > new Date(row.lastPerformedAt)) {
+        row.lastPerformedAt = session.performed_at;
+      }
+    });
+
+    return Array.from(summaryMap.values())
+      .map((row) => ({ ...row, balance: Math.max(row.contracted - row.performed, 0) }))
+      .sort((a, b) => {
+        if (b.balance !== a.balance) return b.balance - a.balance;
+        if (b.contracted !== a.contracted) return b.contracted - a.contracted;
+        return a.patientName.localeCompare(b.patientName);
+      });
+  }, [contracts, patients, proposalItems, sessions, treatments]);
+
+  const filteredSummaryRows = useMemo(() => {
+    return summaryRows.filter((row) => {
+      const normalizedSearch = search.trim().toLowerCase();
+      const matchesSearch =
+        !normalizedSearch ||
+        row.patientName.toLowerCase().includes(normalizedSearch) ||
+        row.treatmentName.toLowerCase().includes(normalizedSearch);
+
+      if (!matchesSearch) return false;
+
+      if (balanceFilter === 'with_balance') return row.balance > 0;
+      if (balanceFilter === 'completed') return row.contracted > 0 && row.balance === 0;
+      if (balanceFilter === 'no_contract') return row.contracted === 0;
+      return true;
+    });
+  }, [balanceFilter, search, summaryRows]);
+
+  const selectedAppointment =
+    form.appointment_id !== 'manual'
+      ? availableAppointments.find((appointment: any) => appointment.id === form.appointment_id)
+      : null;
+
+  useEffect(() => {
+    const appointmentId = searchParams.get('appointmentId');
+    if (!appointmentId || availableAppointments.length === 0) return;
+
+    const appointment = availableAppointments.find((item: any) => item.id === appointmentId);
+    if (!appointment) return;
+
+    setForm((current) => ({
+      ...current,
+      appointment_id: appointment.id,
+      patient_id: '',
+      treatment_id: '',
+    }));
+    setDialogOpen(true);
+  }, [availableAppointments, searchParams]);
+
+  const selectedPatientId = selectedAppointment?.patient_id || form.patient_id;
+  const selectedTreatmentId = selectedAppointment?.treatment_id || form.treatment_id || null;
+  const selectedPatient = patients.find((patient: any) => patient.id === selectedPatientId);
+
+  const currentFlowSummary = useMemo(() => {
+    if (!selectedPatientId) return null;
+    const key = `${selectedPatientId}:${selectedTreatmentId || 'none'}`;
+    return summaryRows.find((row) => row.key === key) || null;
+  }, [selectedPatientId, selectedTreatmentId, summaryRows]);
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from('session_records').insert({
+      const appointment = selectedAppointment;
+      const patientId = appointment?.patient_id || form.patient_id;
+      const treatmentId = appointment?.treatment_id || form.treatment_id || null;
+
+      if (!patientId) throw new Error('Selecione um paciente');
+
+      const summaryKey = `${patientId}:${treatmentId || 'none'}`;
+      const summary = summaryRows.find((row) => row.key === summaryKey);
+      const nextSessionNumber = summary ? summary.performed + 1 : 1;
+      const totalSessions = summary?.contracted || Math.max(summary?.performed || 0, nextSessionNumber);
+
+      const insertPayload = {
         clinic_id: clinicId!,
-        patient_id: form.patient_id,
-        treatment_id: form.treatment_id || null,
-        session_number: parseInt(form.session_number) || 1,
-        total_sessions: parseInt(form.total_sessions) || 1,
+        appointment_id: appointment?.id || null,
+        patient_id: patientId,
+        treatment_id: treatmentId,
+        professional_id: appointment?.professional_id || null,
+        session_number: nextSessionNumber,
+        total_sessions: totalSessions,
         notes: form.notes || null,
         products_used: form.products_used || null,
         observations: form.observations || null,
-      });
+        performed_at: appointment?.start_time || new Date().toISOString(),
+      };
+
+      const { error } = await supabase.from('session_records').insert(insertPayload);
       if (error) throw error;
+
+      if (appointment && appointment.status !== 'completed') {
+        const { error: appointmentError } = await supabase
+          .from('appointments')
+          .update({ status: 'completed' })
+          .eq('id', appointment.id);
+
+        if (appointmentError) throw appointmentError;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sessions'] });
+      qc.invalidateQueries({ queryKey: ['session-appointments'] });
+      qc.invalidateQueries({ queryKey: ['patient-sessions'] });
       setDialogOpen(false);
-      toast({ title: 'Sessão registrada!' });
+      setForm(emptyForm);
+      toast({ title: 'Sessão registrada com sucesso!' });
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: any) => {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    },
   });
+
+  const openDialog = () => {
+    setForm(emptyForm);
+    setDialogOpen(true);
+  };
+
+  const registerFromSummary = (row: SessionSummaryRow) => {
+    setForm({
+      ...emptyForm,
+      patient_id: row.patientId,
+      treatment_id: row.treatmentId || '',
+    });
+    setDialogOpen(true);
+  };
 
   return (
     <div>
-      <PageHeader title="Sessões" description="Registro de sessões e procedimentos">
-        <BrandButton onClick={() => { setForm({ patient_id: '', treatment_id: '', session_number: '1', total_sessions: '1', notes: '', products_used: '', observations: '' }); setDialogOpen(true); }}>
+      <PageHeader title="Sessões" description="Acompanhe saldo contratado, sessões realizadas e registro operacional">
+        <BrandButton onClick={openDialog}>
           <Plus className="w-4 h-4" /> Registrar Sessão
         </BrandButton>
       </PageHeader>
 
-      {isLoading && <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="h-20 bg-muted rounded-xl animate-pulse" />)}</div>}
+      <div className="grid gap-3 md:grid-cols-4 mb-6">
+        <Card className="shadow-card animate-fade-in">
+          <CardContent className="p-4">
+            <CalendarCheck2 className="w-5 h-5 text-primary mb-2" />
+            <p className="text-2xl font-bold text-foreground">{availableAppointments.length}</p>
+            <p className="text-xs text-muted-foreground">Agendamentos prontos para registrar</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-card animate-fade-in">
+          <CardContent className="p-4">
+            <Package className="w-5 h-5 text-primary mb-2" />
+            <p className="text-2xl font-bold text-foreground">{summaryRows.reduce((sum, row) => sum + row.contracted, 0)}</p>
+            <p className="text-xs text-muted-foreground">Sessões contratadas</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-card animate-fade-in">
+          <CardContent className="p-4">
+            <CheckCircle2 className="w-5 h-5 text-success mb-2" />
+            <p className="text-2xl font-bold text-foreground">{summaryRows.reduce((sum, row) => sum + row.performed, 0)}</p>
+            <p className="text-xs text-muted-foreground">Sessões realizadas</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-card animate-fade-in">
+          <CardContent className="p-4">
+            <AlertTriangle className="w-5 h-5 text-warning mb-2" />
+            <p className="text-2xl font-bold text-foreground">
+              {summaryRows.filter((row) => row.balance > 0).reduce((sum, row) => sum + row.balance, 0)}
+            </p>
+            <p className="text-xs text-muted-foreground">Saldo pendente de execução</p>
+          </CardContent>
+        </Card>
+      </div>
 
-      {!isLoading && sessions.length === 0 && (
-        <div className="text-center py-16 animate-fade-in">
-          <ClipboardList className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-          <h3 className="text-lg font-semibold">Nenhuma sessão registrada</h3>
-          <p className="text-sm text-muted-foreground mb-4">Registre a primeira sessão de um paciente</p>
-        </div>
-      )}
+      <Card className="shadow-card mb-6 animate-fade-in">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Resumo por paciente e tratamento</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar paciente ou tratamento..."
+                className="pl-10"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </div>
+            <Select value={balanceFilter} onValueChange={setBalanceFilter}>
+              <SelectTrigger className="w-full sm:w-[220px]">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Filtrar resumo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="with_balance">Com saldo pendente</SelectItem>
+                <SelectItem value="completed">Pacotes concluídos</SelectItem>
+                <SelectItem value="no_contract">Sem contrato associado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-      {!isLoading && sessions.length > 0 && (
-        <div className="space-y-3">
-          {sessions.map((s: any) => (
-            <Card key={s.id} className="shadow-card animate-fade-in">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-foreground">{(s.patients as any)?.full_name}</p>
-                      {(s.patients as any)?.dissatisfaction_flag && (
-                        <span className="flex items-center gap-1 text-xs text-destructive font-medium"><AlertTriangle className="w-3.5 h-3.5" />Insatisfeito</span>
-                      )}
+          {filteredSummaryRows.length === 0 ? (
+            <div className="text-center py-12">
+              <ClipboardList className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+              <h3 className="text-lg font-semibold">Nenhum resumo encontrado</h3>
+              <p className="text-sm text-muted-foreground">
+                O resumo aparece quando existem contratos ou sessões registradas.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredSummaryRows.map((row) => (
+                <div
+                  key={row.key}
+                  className="rounded-xl border bg-background p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-foreground">{row.patientName}</p>
+                      <BrandBadge
+                        status={
+                          row.balance > 0 ? 'pending' : row.contracted > 0 ? 'completed' : 'draft'
+                        }
+                      />
                     </div>
+                    <p className="text-sm text-muted-foreground">{row.treatmentName}</p>
                     <p className="text-xs text-muted-foreground">
-                      {(s.treatments as any)?.name || 'Tratamento'} · Sessão {s.session_number}/{s.total_sessions}
+                      {row.lastPerformedAt
+                        ? `Última sessão em ${format(new Date(row.lastPerformedAt), 'dd/MM/yyyy', { locale: ptBR })}`
+                        : 'Nenhuma sessão registrada ainda'}
                     </p>
                   </div>
-                  <span className="text-xs text-muted-foreground">{new Date(s.performed_at).toLocaleDateString('pt-BR')}</span>
+
+                  <div className="grid grid-cols-3 gap-3 min-w-[280px]">
+                    <div className="rounded-lg bg-secondary/40 px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Contratadas</p>
+                      <p className="text-lg font-semibold">{row.contracted}</p>
+                    </div>
+                    <div className="rounded-lg bg-secondary/40 px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Realizadas</p>
+                      <p className="text-lg font-semibold">{row.performed}</p>
+                    </div>
+                    <div className="rounded-lg bg-secondary/40 px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Saldo</p>
+                      <p className={cn('text-lg font-semibold', row.balance > 0 ? 'text-warning' : 'text-success')}>
+                        {row.balance}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <BrandButton onClick={() => registerFromSummary(row)}>
+                      <Plus className="w-4 h-4" />
+                      Registrar
+                    </BrandButton>
+                  </div>
                 </div>
-                {s.notes && <p className="text-sm text-muted-foreground mt-2 border-t pt-2">{s.notes}</p>}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-card animate-fade-in">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Histórico recente</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading && (
+            <div className="space-y-3">
+              {[...Array(5)].map((_, index) => (
+                <div key={index} className="h-20 bg-muted rounded-xl animate-pulse" />
+              ))}
+            </div>
+          )}
+
+          {!isLoading && sessions.length === 0 && (
+            <div className="text-center py-12">
+              <ClipboardList className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+              <h3 className="text-lg font-semibold">Nenhuma sessão registrada</h3>
+              <p className="text-sm text-muted-foreground">
+                Registre sessões a partir da agenda ou manualmente quando necessário.
+              </p>
+            </div>
+          )}
+
+          {!isLoading && sessions.length > 0 && (
+            <div className="space-y-3">
+              {sessions.map((session: any) => (
+                <Card key={session.id} className="shadow-card border-border/60">
+                  <CardContent className="p-4">
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-foreground">{(session.patients as any)?.full_name}</p>
+                          {(session.patients as any)?.dissatisfaction_flag && (
+                            <span className="flex items-center gap-1 text-xs text-destructive font-medium">
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              Insatisfeito
+                            </span>
+                          )}
+                          {session.appointment_id && <BrandBadge status={'scheduled' as BadgeStatus} />}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {(session.treatments as any)?.name || 'Tratamento não informado'} · Sessão {session.session_number}/{session.total_sessions}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Realizada em {format(new Date(session.performed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          {session.appointments?.start_time ? ' via agenda' : ' em registro manual'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Observações operacionais</p>
+                        <p className="text-sm text-foreground max-w-md">
+                          {session.notes || session.observations || 'Sem observações registradas'}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Registrar Sessão</DialogTitle></DialogHeader>
-          <form onSubmit={e => { e.preventDefault(); createMutation.mutate(); }} className="space-y-4 mt-4">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Registrar sessão</DialogTitle>
+          </DialogHeader>
+
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              createMutation.mutate();
+            }}
+            className="space-y-4 mt-4"
+          >
             <div className="space-y-2">
-              <Label>Paciente *</Label>
-              <Select value={form.patient_id} onValueChange={v => setForm({ ...form, patient_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Selecionar paciente" /></SelectTrigger>
+              <Label>Origem do registro</Label>
+              <Select
+                value={form.appointment_id}
+                onValueChange={(value) =>
+                  setForm((current) => ({
+                    ...current,
+                    appointment_id: value,
+                    patient_id: value === 'manual' ? current.patient_id : '',
+                    treatment_id: value === 'manual' ? current.treatment_id : '',
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar agendamento" />
+                </SelectTrigger>
                 <SelectContent>
-                  {patients.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+                  <SelectItem value="manual">Registro manual (sem agendamento)</SelectItem>
+                  {availableAppointments.map((appointment: any) => (
+                    <SelectItem key={appointment.id} value={appointment.id}>
+                      {format(new Date(appointment.start_time), 'dd/MM HH:mm', { locale: ptBR })} ·{' '}
+                      {(appointment.patients as any)?.full_name} · {(appointment.treatments as any)?.name || 'Sem tratamento'}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-            {form.patient_id && (() => {
-              const p = patients.find((pt: any) => pt.id === form.patient_id);
-              return p ? <AnamneseAlertBanner status={p.current_anamnese_status} expiresAt={p.current_anamnese_expires_at} patientId={p.id} patientName={p.full_name} /> : null;
-            })()}
-            <div className="space-y-2">
-              <Label>Tratamento</Label>
-              <Select value={form.treatment_id} onValueChange={v => setForm({ ...form, treatment_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                <SelectContent>
-                  {treatments.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Nº da sessão</Label>
-                <Input type="number" value={form.session_number} onChange={e => setForm({ ...form, session_number: e.target.value })} />
+
+            {form.appointment_id === 'manual' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Paciente *</Label>
+                  <Select value={form.patient_id} onValueChange={(value) => setForm((current) => ({ ...current, patient_id: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecionar paciente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {patients.map((patient: any) => (
+                        <SelectItem key={patient.id} value={patient.id}>
+                          {patient.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Tratamento</Label>
+                  <Select value={form.treatment_id} onValueChange={(value) => setForm((current) => ({ ...current, treatment_id: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecionar tratamento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {treatments.map((treatment: any) => (
+                        <SelectItem key={treatment.id} value={treatment.id}>
+                          {treatment.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Total de sessões</Label>
-                <Input type="number" value={form.total_sessions} onChange={e => setForm({ ...form, total_sessions: e.target.value })} />
+            )}
+
+            {selectedPatient && (
+              <AnamneseAlertBanner
+                status={selectedPatient.current_anamnese_status}
+                expiresAt={selectedPatient.current_anamnese_expires_at}
+                patientId={selectedPatient.id}
+                patientName={selectedPatient.full_name}
+              />
+            )}
+
+            {currentFlowSummary && (
+              <div className="rounded-xl border bg-secondary/30 p-4">
+                <p className="text-sm font-medium text-foreground mb-2">Resumo operacional do tratamento</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Contratadas</p>
+                    <p className="text-lg font-semibold">{currentFlowSummary.contracted}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Realizadas</p>
+                    <p className="text-lg font-semibold">{currentFlowSummary.performed}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Próxima sessão</p>
+                    <p className="text-lg font-semibold">
+                      {currentFlowSummary.performed + 1}
+                      {currentFlowSummary.contracted > 0 ? ` / ${currentFlowSummary.contracted}` : ''}
+                    </p>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
+
             <div className="space-y-2">
               <Label>Notas do procedimento</Label>
-              <Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={3} />
+              <Textarea
+                value={form.notes}
+                onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+                rows={3}
+              />
             </div>
             <div className="space-y-2">
               <Label>Produtos utilizados</Label>
-              <Input value={form.products_used} onChange={e => setForm({ ...form, products_used: e.target.value })} />
+              <Input
+                value={form.products_used}
+                onChange={(event) => setForm((current) => ({ ...current, products_used: event.target.value }))}
+              />
             </div>
             <div className="space-y-2">
-              <Label>Observações / Recomendações</Label>
-              <Textarea value={form.observations} onChange={e => setForm({ ...form, observations: e.target.value })} rows={2} />
+              <Label>Observações / recomendações</Label>
+              <Textarea
+                value={form.observations}
+                onChange={(event) => setForm((current) => ({ ...current, observations: event.target.value }))}
+                rows={2}
+              />
             </div>
+
             <div className="flex gap-3 pt-2">
-              <BrandButton type="button" variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">Cancelar</BrandButton>
-              <BrandButton type="submit" className="flex-1" disabled={createMutation.isPending || !form.patient_id}>
-                {createMutation.isPending ? 'Salvando...' : 'Registrar'}
+              <BrandButton type="button" variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">
+                Cancelar
+              </BrandButton>
+              <BrandButton
+                type="submit"
+                className="flex-1"
+                disabled={createMutation.isPending || (!selectedPatientId && !form.patient_id)}
+              >
+                {createMutation.isPending ? 'Salvando...' : 'Registrar sessão'}
               </BrandButton>
             </div>
           </form>

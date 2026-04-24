@@ -2,7 +2,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useBranding } from '@/contexts/BrandingContext';
 import { useUserRole } from '@/hooks/useUserRole';
 import { PageHeader } from '@/components/ui/page-header';
 import { BrandButton } from '@/components/ui/brand-button';
@@ -28,11 +27,32 @@ import { FileText as FileTextIcon } from 'lucide-react';
 
 const typeLabels: Record<string, string> = { before: 'Antes', during: 'Durante', after: 'Depois', progress: 'Progresso' };
 const typeColors: Record<string, string> = { before: 'bg-blue-100 text-blue-700', during: 'bg-yellow-100 text-yellow-700', after: 'bg-green-100 text-green-700', progress: 'bg-purple-100 text-purple-700' };
+const anamneseBadgeConfig: Record<string, { label: string; cls: string; hint: string }> = {
+  valid: {
+    label: 'Anamnese válida',
+    cls: 'bg-green-100 text-green-700 border-green-200',
+    hint: 'Paciente apto para seguir na agenda e nas sessões.',
+  },
+  expired: {
+    label: 'Anamnese vencida',
+    cls: 'bg-red-100 text-red-700 border-red-200',
+    hint: 'Vale atualizar a ficha antes do próximo atendimento.',
+  },
+  pending: {
+    label: 'Anamnese pendente',
+    cls: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    hint: 'Complete ou revise a ficha para fechar o fluxo clínico.',
+  },
+  none: {
+    label: 'Sem anamnese',
+    cls: 'bg-muted text-muted-foreground border-border',
+    hint: 'Cadastre a primeira anamnese para dar segurança ao atendimento.',
+  },
+};
 
 export default function PatientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { clinicId: brandClinicId } = useBranding();
   const { clinicId } = useUserRole();
   const queryClient = useQueryClient();
   const [viewPhoto, setViewPhoto] = useState<any>(null);
@@ -155,6 +175,23 @@ export default function PatientDetailPage() {
   }
 
   const initials = patient.full_name.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase();
+  const currentAnamneseStatus = patient.current_anamnese_status || 'none';
+  const currentAnamneseConfig = anamneseBadgeConfig[currentAnamneseStatus] || anamneseBadgeConfig.none;
+  const upcomingAppointments = [...appointments]
+    .filter((appointment: any) => new Date(appointment.start_time).getTime() >= Date.now())
+    .sort((a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+  const nextAppointment = upcomingAppointments[0] || null;
+  const lastSession = sessions[0] || null;
+  const averageFeedback = feedbacks.length
+    ? feedbacks.reduce((sum: number, feedback: any) => sum + Number(feedback.rating || 0), 0) / feedbacks.length
+    : null;
+  const operationalStep = currentAnamneseStatus === 'none'
+    ? 'Cadastrar anamnese'
+    : currentAnamneseStatus === 'expired'
+      ? 'Renovar anamnese'
+      : nextAppointment
+        ? 'Acompanhar próximo atendimento'
+        : 'Agendar próxima visita';
 
   return (
     <div>
@@ -175,17 +212,10 @@ export default function PatientDetailPage() {
               <div className="flex items-center gap-3 flex-wrap">
                 <h2 className="text-xl font-bold text-foreground">{patient.full_name}</h2>
                 <BrandBadge status={patient.status as BadgeStatus} />
-                {(() => {
-                  const s = patient.current_anamnese_status;
-                  const cfg: Record<string, { label: string; cls: string }> = {
-                    valid: { label: 'Anamnese válida', cls: 'bg-green-100 text-green-700 border-green-200' },
-                    expired: { label: 'Anamnese vencida', cls: 'bg-red-100 text-red-700 border-red-200' },
-                    pending: { label: 'Anamnese pendente', cls: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-                    none: { label: 'Sem anamnese', cls: 'bg-muted text-muted-foreground border-border' },
-                  };
-                  const c = cfg[s || 'none'] || cfg.none;
-                  return <Badge variant="outline" className={c.cls}><FileTextIcon className="w-3 h-3 mr-1" />{c.label}</Badge>;
-                })()}
+                <Badge variant="outline" className={currentAnamneseConfig.cls}>
+                  <FileTextIcon className="w-3 h-3 mr-1" />
+                  {currentAnamneseConfig.label}
+                </Badge>
                 {portalAccess ? (
                   <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                     <ExternalLink className="w-3 h-3 mr-1" />Portal ativo
@@ -207,6 +237,59 @@ export default function PatientDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      <div className="grid grid-cols-1 gap-4 mb-6 lg:grid-cols-4">
+        <Card className="shadow-card">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Próximo passo</p>
+            <p className="mt-2 text-lg font-semibold text-foreground">{operationalStep}</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{currentAnamneseConfig.hint}</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-card">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Agenda</p>
+            <p className="mt-2 text-sm font-semibold text-foreground">
+              {nextAppointment
+                ? format(new Date(nextAppointment.start_time), "dd 'de' MMM, HH:mm", { locale: ptBR })
+                : 'Sem atendimento futuro'}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {nextAppointment
+                ? `${nextAppointment.treatments?.name || 'Tratamento'} • ${nextAppointment.status || 'agendado'}`
+                : 'Agende a próxima avaliação ou sessão para manter o paciente ativo.'}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-card">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Última sessão</p>
+            <p className="mt-2 text-sm font-semibold text-foreground">
+              {lastSession
+                ? format(new Date(lastSession.performed_at), "dd 'de' MMM", { locale: ptBR })
+                : 'Nenhuma sessão registrada'}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {lastSession
+                ? `${lastSession.treatments?.name || 'Tratamento'} • Sessão ${lastSession.session_number || '—'}`
+                : 'Quando a execução começar, o histórico de sessões aparece aqui.'}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-card">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Satisfação</p>
+            <p className="mt-2 text-lg font-semibold text-foreground">
+              {averageFeedback ? `${averageFeedback.toFixed(1)} / 5` : 'Sem feedback'}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {feedbacks.length
+                ? `${feedbacks.length} feedback${feedbacks.length > 1 ? 's' : ''} registrado${feedbacks.length > 1 ? 's' : ''}.`
+                : 'Os próximos retornos do paciente ajudam a medir satisfação e risco.'}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Dissatisfaction Alert */}
       {patient.dissatisfaction_flag && (
@@ -282,21 +365,44 @@ export default function PatientDetailPage() {
         {/* Appointments tab */}
         <TabsContent value="appointments">
           <Card className="shadow-card">
-            <CardHeader><CardTitle>Agendamentos</CardTitle></CardHeader>
+            <CardHeader>
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle>Agendamentos</CardTitle>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Avaliações e sessões previstas para este paciente.
+                  </p>
+                </div>
+                <BrandButton variant="outline" onClick={() => navigate('/clinic/appointments')}>
+                  Ir para agenda
+                </BrandButton>
+              </div>
+            </CardHeader>
             <CardContent>
               {appointments.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">Nenhum agendamento encontrado</p>
               ) : (
                 <div className="space-y-3">
                   {appointments.map((a: any) => (
-                    <div key={a.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
+                    <div key={a.id} className="flex flex-col gap-3 rounded-lg bg-secondary/50 p-3 md:flex-row md:items-center md:justify-between">
                       <div>
                         <p className="text-sm font-medium text-foreground">{a.treatments?.name || 'Tratamento'}</p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(a.start_time).toLocaleDateString('pt-BR')} às {new Date(a.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
-                      <BrandBadge status={a.status as BadgeStatus} />
+                      <div className="flex items-center gap-2 self-start md:self-center">
+                        <BrandBadge status={a.status as BadgeStatus} />
+                        {['confirmed', 'in_progress'].includes(a.status) && (
+                          <BrandButton
+                            size="sm"
+                            variant="outline"
+                            onClick={() => navigate(`/clinic/sessions?appointmentId=${a.id}`)}
+                          >
+                            Ir para sessão
+                          </BrandButton>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -308,7 +414,19 @@ export default function PatientDetailPage() {
         {/* Sessions tab */}
         <TabsContent value="sessions">
           <Card className="shadow-card">
-            <CardHeader><CardTitle>Sessões Realizadas</CardTitle></CardHeader>
+            <CardHeader>
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle>Sessões Realizadas</CardTitle>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Histórico de execução do tratamento e últimas observações clínicas.
+                  </p>
+                </div>
+                <BrandButton variant="outline" onClick={() => navigate('/clinic/sessions')}>
+                  Abrir módulo de sessões
+                </BrandButton>
+              </div>
+            </CardHeader>
             <CardContent>
               {sessions.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">Nenhuma sessão registrada</p>

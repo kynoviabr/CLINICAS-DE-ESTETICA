@@ -1,10 +1,10 @@
 import { BrandBadge, type BadgeStatus } from '@/components/ui/brand-badge';
 
 export const processStatusMap: Record<string, { label: string; badge: BadgeStatus }> = {
-  pending_upload: { label: 'Aguardando Upload', badge: 'pending' },
-  pending_confirmation: { label: 'Confirmar Upload', badge: 'pending' },
-  overdue: { label: 'Atrasado', badge: 'cancelled' },
-  confirmed: { label: 'Confirmado', badge: 'approved' },
+  pending_upload: { label: 'Gerado', badge: 'draft' },
+  pending_confirmation: { label: 'Assinado Recebido', badge: 'pending' },
+  overdue: { label: 'Revisar Documento', badge: 'overdue' },
+  confirmed: { label: 'Ativo', badge: 'approved' },
   cancelled: { label: 'Cancelado', badge: 'cancelled' },
 };
 

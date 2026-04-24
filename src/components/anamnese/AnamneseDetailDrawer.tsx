@@ -81,6 +81,30 @@ const fieldLabels: Record<string, string> = {
   signature_date: 'Data de assinatura',
 };
 
+const detailDependencies: Record<string, string> = {
+  chronic_diseases: 'has_chronic_disease',
+  surgeries: 'has_previous_surgery',
+  skin_conditions: 'has_skin_conditions',
+  medications_list: 'takes_medication',
+  supplements_list: 'takes_supplements',
+  allergies_list: 'has_allergies',
+  sensitivities: 'has_product_sensitivity',
+  active_treatment_details: 'has_active_treatment',
+  acids_details: 'uses_acids_retinoids',
+};
+
+const highlightedBooleanFields = new Set([
+  'has_allergies',
+  'has_product_sensitivity',
+  'has_chronic_disease',
+  'takes_medication',
+  'has_previous_surgery',
+  'is_pregnant',
+  'is_breastfeeding',
+  'has_pacemaker',
+  'has_metal_implants',
+]);
+
 function fmtDate(d: string | null) {
   if (!d) return '—';
   return format(new Date(d), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
@@ -194,7 +218,12 @@ export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: P
               <Accordion type="multiple" className="space-y-1">
                 {Object.entries(formData).map(([sectionKey, sectionData]) => {
                   if (!sectionData || typeof sectionData !== 'object') return null;
-                  const entries = Object.entries(sectionData).filter(([, v]) => v !== '' && v !== null && v !== undefined);
+                  const entries = Object.entries(sectionData).filter(([field, value]) => {
+                    if (value === '' || value === null || value === undefined) return false;
+                    const dependency = detailDependencies[field];
+                    if (dependency && sectionData[dependency] !== true) return false;
+                    return true;
+                  });
                   if (entries.length === 0) return null;
                   return (
                     <AccordionItem key={sectionKey} value={sectionKey} className="border rounded-lg px-3">
@@ -205,7 +234,14 @@ export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: P
                       <AccordionContent>
                         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm pb-2">
                           {entries.map(([field, value]) => (
-                            <div key={field}>
+                            <div
+                              key={field}
+                              className={
+                                highlightedBooleanFields.has(field) && value === true
+                                  ? 'rounded-lg border border-warning/30 bg-warning/10 px-3 py-2'
+                                  : ''
+                              }
+                            >
                               <dt className="text-xs text-muted-foreground">{fieldLabels[field] || field}</dt>
                               <dd className="font-medium">{formatValue(value)}</dd>
                             </div>

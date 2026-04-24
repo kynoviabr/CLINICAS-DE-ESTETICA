@@ -7,6 +7,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { PageHeader } from '@/components/ui/page-header';
 import { BrandButton } from '@/components/ui/brand-button';
 import { BrandBadge, type BadgeStatus } from '@/components/ui/brand-badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -14,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, ChevronLeft, ChevronRight, Check, X, AlertTriangle, ClipboardList, UserPlus } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Check, X, AlertTriangle, ClipboardList, UserPlus, CalendarCheck2, Clock3, CheckCircle2 } from 'lucide-react';
 import QuickPatientModal from '@/components/patient/QuickPatientModal';
 import { AnamneseAlertBanner } from '@/components/anamnese/AnamneseAlertBanner';
 import {
@@ -59,6 +60,7 @@ export default function AppointmentsPage() {
   const [selectedTreatment, setSelectedTreatment] = useState('');
   const [selectedProfessional, setSelectedProfessional] = useState('');
   const [filterProfessional, setFilterProfessional] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [duration, setDuration] = useState('60');
   const [notes, setNotes] = useState('');
   const [quickPatientOpen, setQuickPatientOpen] = useState(false);
@@ -144,8 +146,34 @@ export default function AppointmentsPage() {
     } else if (filterProfessional !== 'all') {
       filtered = filtered.filter((a: any) => a.professional_id === filterProfessional);
     }
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter((a: any) => a.status === filterStatus);
+    }
     return filtered;
-  }, [appointments, filterProfessional, isProfessional, user]);
+  }, [appointments, filterProfessional, filterStatus, isProfessional, user]);
+
+  const operationalSummary = useMemo(() => {
+    const todayAppointments = filteredAppointments.filter((appointment: any) =>
+      isSameDay(new Date(appointment.start_time), new Date())
+    );
+    const readyForSession = todayAppointments.filter((appointment: any) =>
+      appointment.status === 'confirmed' || appointment.status === 'in_progress'
+    );
+
+    return {
+      totalInView: filteredAppointments.length,
+      today: todayAppointments.length,
+      readyForSession: readyForSession.length,
+      noShow: filteredAppointments.filter((appointment: any) => appointment.status === 'no_show').length,
+    };
+  }, [filteredAppointments]);
+
+  const todayQueue = useMemo(() => {
+    return filteredAppointments
+      .filter((appointment: any) => isSameDay(new Date(appointment.start_time), new Date()))
+      .sort((a: any, b: any) => +new Date(a.start_time) - +new Date(b.start_time))
+      .slice(0, 5);
+  }, [filteredAppointments]);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -216,6 +244,37 @@ export default function AppointmentsPage() {
         </BrandButton>
       </PageHeader>
 
+      <div className="grid gap-3 md:grid-cols-4 mb-6">
+        <Card className="shadow-card animate-fade-in">
+          <CardContent className="p-4">
+            <CalendarCheck2 className="w-5 h-5 text-primary mb-2" />
+            <p className="text-2xl font-bold text-foreground">{operationalSummary.totalInView}</p>
+            <p className="text-xs text-muted-foreground">Agendamentos no período</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-card animate-fade-in">
+          <CardContent className="p-4">
+            <Clock3 className="w-5 h-5 text-primary mb-2" />
+            <p className="text-2xl font-bold text-foreground">{operationalSummary.today}</p>
+            <p className="text-xs text-muted-foreground">Atendimentos de hoje</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-card animate-fade-in">
+          <CardContent className="p-4">
+            <CheckCircle2 className="w-5 h-5 text-success mb-2" />
+            <p className="text-2xl font-bold text-foreground">{operationalSummary.readyForSession}</p>
+            <p className="text-xs text-muted-foreground">Prontos para sessão</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-card animate-fade-in">
+          <CardContent className="p-4">
+            <AlertTriangle className="w-5 h-5 text-warning mb-2" />
+            <p className="text-2xl font-bold text-foreground">{operationalSummary.noShow}</p>
+            <p className="text-xs text-muted-foreground">Não compareceu</p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Controls */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
@@ -241,6 +300,18 @@ export default function AppointmentsPage() {
               </SelectContent>
             </Select>
           )}
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-[190px]"><SelectValue placeholder="Todos status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos status</SelectItem>
+              <SelectItem value="scheduled">Agendado</SelectItem>
+              <SelectItem value="confirmed">Confirmado</SelectItem>
+              <SelectItem value="in_progress">Em andamento</SelectItem>
+              <SelectItem value="completed">Concluído</SelectItem>
+              <SelectItem value="cancelled">Cancelado</SelectItem>
+              <SelectItem value="no_show">Não compareceu</SelectItem>
+            </SelectContent>
+          </Select>
           <Tabs value={viewMode} onValueChange={v => setViewMode(v as ViewMode)}>
             <TabsList>
               <TabsTrigger value="month">Mês</TabsTrigger>
@@ -250,6 +321,45 @@ export default function AppointmentsPage() {
           </Tabs>
         </div>
       </div>
+
+      {todayQueue.length > 0 && (
+        <div className="bg-card rounded-xl shadow-card p-4 mb-6 animate-fade-in">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Fila operacional de hoje</h3>
+              <p className="text-xs text-muted-foreground">Os próximos atendimentos do dia para acompanhamento rápido.</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {todayQueue.map((appointment: any) => (
+              <div key={appointment.id} className="rounded-lg border bg-background px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium text-foreground">{(appointment.patients as any)?.full_name}</p>
+                    <BrandBadge status={statusConfig[appointment.status]?.badge || 'default'}>
+                      {statusConfig[appointment.status]?.label || appointment.status}
+                    </BrandBadge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {format(new Date(appointment.start_time), "HH:mm", { locale: ptBR })} · {(appointment.treatments as any)?.name || 'Sem tratamento'}
+                  </p>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <BrandButton size="sm" variant="outline" onClick={() => setViewAppt(appointment)}>
+                    Ver
+                  </BrandButton>
+                  {(appointment.status === 'confirmed' || appointment.status === 'in_progress' || appointment.status === 'scheduled') && (
+                    <BrandButton size="sm" onClick={() => navigate(`/clinic/sessions?appointmentId=${appointment.id}`)}>
+                      <ClipboardList className="w-4 h-4" />
+                      Sessão
+                    </BrandButton>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Professional legend */}
       {!isProfessional && professionals.length > 0 && viewMode !== 'day' && (
@@ -487,6 +597,11 @@ export default function AppointmentsPage() {
                       <Check className="w-4 h-4" /> Confirmar
                     </BrandButton>
                   )}
+                  {viewAppt.status === 'confirmed' && (
+                    <BrandButton size="sm" onClick={() => updateStatusMutation.mutate({ id: viewAppt.id, status: 'in_progress' })}>
+                      <Check className="w-4 h-4" /> Iniciar atendimento
+                    </BrandButton>
+                  )}
                   {(viewAppt.status === 'scheduled' || viewAppt.status === 'confirmed') && (
                     <>
                       <BrandButton size="sm" variant="outline" className="text-destructive" onClick={() => updateStatusMutation.mutate({ id: viewAppt.id, status: 'cancelled' })}>
@@ -497,12 +612,12 @@ export default function AppointmentsPage() {
                       </BrandButton>
                     </>
                   )}
-                  {(viewAppt.status === 'confirmed' || viewAppt.status === 'scheduled') && (
+                  {(viewAppt.status === 'confirmed' || viewAppt.status === 'scheduled' || viewAppt.status === 'in_progress') && (
                     <BrandButton size="sm" variant="outline" onClick={() => {
                       setViewAppt(null);
                       navigate(`/clinic/sessions?appointmentId=${viewAppt.id}`);
                     }}>
-                      <ClipboardList className="w-4 h-4" /> Registrar Sessão
+                      <ClipboardList className="w-4 h-4" /> Ir para Sessão
                     </BrandButton>
                   )}
                 </div>
