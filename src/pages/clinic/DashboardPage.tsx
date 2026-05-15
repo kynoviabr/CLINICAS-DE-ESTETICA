@@ -123,6 +123,24 @@ export default function ClinicDashboard() {
     enabled: !!clinicId,
   });
 
+  const { data: contractAlerts } = useQuery({
+    queryKey: ['dashboard-contract-alerts', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('id, process_status')
+        .eq('clinic_id', clinicId!);
+      if (error) throw error;
+      const contracts = data || [];
+      return {
+        pendingUpload: contracts.filter((contract: any) => contract.process_status === 'pending_upload').length,
+        pendingConfirmation: contracts.filter((contract: any) => contract.process_status === 'pending_confirmation').length,
+        overdue: contracts.filter((contract: any) => contract.process_status === 'overdue').length,
+      };
+    },
+    enabled: !!clinicId && !isSales,
+  });
+
   // NPS
   const { data: npsData } = useQuery({
     queryKey: ['dashboard-nps', clinicId],
@@ -586,6 +604,48 @@ export default function ClinicDashboard() {
       {/* ── Alerts ── */}
       {!isSales && (
         <div className="space-y-3 mb-6">
+          {contractAlerts && contractAlerts.pendingUpload > 0 && (
+            <div
+              className="p-4 rounded-xl bg-warning/10 border border-warning/20 flex items-center gap-3 animate-fade-in cursor-pointer"
+              onClick={() => navigate('/clinic/contracts?status=pending_upload')}
+            >
+              <FileWarning className="w-5 h-5 text-warning shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-warning">
+                  {contractAlerts.pendingUpload} contrato{contractAlerts.pendingUpload > 1 ? 's' : ''} aguardando envio
+                </p>
+                <p className="text-xs text-muted-foreground">Clique para abrir contratos gerados</p>
+              </div>
+            </div>
+          )}
+          {contractAlerts && contractAlerts.pendingConfirmation > 0 && (
+            <div
+              className="p-4 rounded-xl bg-primary/10 border border-primary/20 flex items-center gap-3 animate-fade-in cursor-pointer"
+              onClick={() => navigate('/clinic/contracts?quick=pending_signature')}
+            >
+              <ClipboardCheck className="w-5 h-5 text-primary shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-primary">
+                  {contractAlerts.pendingConfirmation} contrato{contractAlerts.pendingConfirmation > 1 ? 's' : ''} aguardando confirmação
+                </p>
+                <p className="text-xs text-muted-foreground">Clique para abrir assinaturas pendentes</p>
+              </div>
+            </div>
+          )}
+          {contractAlerts && contractAlerts.overdue > 0 && (
+            <div
+              className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 flex items-center gap-3 animate-fade-in cursor-pointer"
+              onClick={() => navigate('/clinic/contracts?status=overdue')}
+            >
+              <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-destructive">
+                  {contractAlerts.overdue} contrato{contractAlerts.overdue > 1 ? 's' : ''} com revisão pendente
+                </p>
+                <p className="text-xs text-muted-foreground">Clique para abrir contratos vencidos</p>
+              </div>
+            </div>
+          )}
           {overduePayments > 0 && (
             <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 flex items-center gap-3 animate-fade-in cursor-pointer" onClick={() => navigate('/clinic/payments')}>
               <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />

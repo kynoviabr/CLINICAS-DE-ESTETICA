@@ -26,14 +26,24 @@ export default function ContractsPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [filterStatus, setFilterStatus] = useState('all');
+  const statusParam = searchParams.get('status');
+  const quickParam = searchParams.get('quick');
+  const [filterStatus, setFilterStatus] = useState(() =>
+    statusParam && ['all', 'pending_upload', 'pending_confirmation', 'confirmed', 'overdue', 'cancelled'].includes(statusParam)
+      ? statusParam
+      : 'all'
+  );
   const [search, setSearch] = useState('');
   const [viewContract, setViewContract] = useState<any>(null);
   const [createDialog, setCreateDialog] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState('');
   const [selectedContractIds, setSelectedContractIds] = useState<string[]>([]);
   const [bulkStatus, setBulkStatus] = useState('pending_confirmation');
-  const [quickFilter, setQuickFilter] = useState<'all' | 'mine_today' | 'pending_signature' | 'overdue'>('all');
+  const [quickFilter, setQuickFilter] = useState<'all' | 'mine_today' | 'pending_signature' | 'overdue'>(() =>
+    quickParam && ['all', 'mine_today', 'pending_signature', 'overdue'].includes(quickParam)
+      ? (quickParam as 'all' | 'mine_today' | 'pending_signature' | 'overdue')
+      : 'all'
+  );
   const prefillContractId = searchParams.get('contractId');
   const shouldOpenViewFromQuery = searchParams.get('view') === '1';
   const returnTo = searchParams.get('returnTo');
