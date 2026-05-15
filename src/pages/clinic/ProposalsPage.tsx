@@ -45,6 +45,7 @@ export default function ProposalsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewDialog, setViewDialog] = useState<any>(null);
   const [filterStatus, setFilterStatus] = useState('all');
+  const [quickFilter, setQuickFilter] = useState<'all' | 'draft' | 'sent' | 'accepted'>('all');
   const [search, setSearch] = useState('');
 
   // Form state
@@ -64,14 +65,15 @@ export default function ProposalsPage() {
   const crmReturnUrl = returnTo === 'crm' && returnLeadId ? `/clinic/crm?leadId=${returnLeadId}` : null;
 
   const { data: proposals = [], isLoading } = useQuery({
-    queryKey: ['proposals', clinicId, filterStatus, search],
+    queryKey: ['proposals', clinicId, filterStatus, quickFilter, search],
     queryFn: async () => {
+      const activeStatus = quickFilter !== 'all' ? quickFilter : filterStatus;
       let q = supabase
         .from('proposals')
         .select('*, patients(full_name)')
         .eq('clinic_id', clinicId!)
         .order('created_at', { ascending: false });
-      if (filterStatus !== 'all') q = q.eq('status', filterStatus as any);
+      if (activeStatus !== 'all') q = q.eq('status', activeStatus as any);
       if (search) q = q.ilike('proposal_number', `%${search}%`);
       const { data } = await q;
       return data || [];
@@ -443,6 +445,20 @@ export default function ProposalsPage() {
           </SelectContent>
         </Select>
       </div>
+      <div className="mb-4 flex flex-wrap gap-2">
+        <BrandButton size="sm" variant={quickFilter === 'all' ? 'default' : 'outline'} onClick={() => setQuickFilter('all')}>
+          Todas
+        </BrandButton>
+        <BrandButton size="sm" variant={quickFilter === 'draft' ? 'default' : 'outline'} onClick={() => setQuickFilter('draft')}>
+          Rascunhos
+        </BrandButton>
+        <BrandButton size="sm" variant={quickFilter === 'sent' ? 'default' : 'outline'} onClick={() => setQuickFilter('sent')}>
+          Enviadas
+        </BrandButton>
+        <BrandButton size="sm" variant={quickFilter === 'accepted' ? 'default' : 'outline'} onClick={() => setQuickFilter('accepted')}>
+          Aprovadas
+        </BrandButton>
+      </div>
 
       {isLoading && <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-muted rounded-xl animate-pulse" />)}</div>}
 
@@ -488,6 +504,26 @@ export default function ProposalsPage() {
                           <BrandButton variant="ghost" size="sm" onClick={() => openView(p)} title="Ver"><Eye className="w-3.5 h-3.5" /></BrandButton>
                           {p.status === 'draft' && (
                             <BrandButton variant="ghost" size="sm" onClick={() => openEdit(p)} title="Editar"><FileText className="w-3.5 h-3.5" /></BrandButton>
+                          )}
+                          {(p.status === 'draft' || p.status === 'sent') && (
+                            <BrandButton
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => statusMutation.mutate({ id: p.id, status: 'accepted' })}
+                              title="Aprovar"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </BrandButton>
+                          )}
+                          {p.status === 'accepted' && (
+                            <BrandButton
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => generateContract(p)}
+                              title="Gerar contrato"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </BrandButton>
                           )}
                         </div>
                       </td>
