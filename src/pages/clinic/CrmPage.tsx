@@ -136,7 +136,7 @@ function normalizePhone(phone?: string | null) {
   return phone?.replace(/\D/g, '') || '';
 }
 
-function getSchemaMissingColumn(error: any) {
+function getSchemaMissingColumn(error) {
   const message = error?.message || '';
   const match = message.match(/Could not find the '([^']+)' column/i);
   return match?.[1] || null;
@@ -382,10 +382,10 @@ export default function CrmPage() {
     enabled: !!clinicId && !!leadDrawer?.patient_id,
   });
 
-  const staffMap = useMemo(() => Object.fromEntries(staff.map((member: any) => [member.user_id, member.label])), [staff]);
-  const staffRoleMap = useMemo(() => Object.fromEntries(staff.map((member: any) => [member.user_id, member.role])), [staff]);
-  const treatmentMap = useMemo(() => Object.fromEntries(treatments.map((t: any) => [t.id, t.name])), [treatments]);
-  const proposalMap = useMemo(() => Object.fromEntries(proposals.map((proposal: any) => [proposal.id, proposal])), [proposals]);
+  const staffMap = useMemo(() => Object.fromEntries(staff.map((member) => [member.user_id, member.label])), [staff]);
+  const staffRoleMap = useMemo(() => Object.fromEntries(staff.map((member) => [member.user_id, member.role])), [staff]);
+  const treatmentMap = useMemo(() => Object.fromEntries(treatments.map((t) => [t.id, t.name])), [treatments]);
+  const proposalMap = useMemo(() => Object.fromEntries(proposals.map((proposal) => [proposal.id, proposal])), [proposals]);
   const stageMap = useMemo(() => Object.fromEntries(configuredStages.map((stage) => [stage.code, stage])), [configuredStages]);
   const availableSources = useMemo(
     () => Array.from(new Set(leads.map((lead) => lead.source?.trim() || 'Sem origem'))).sort((a, b) => a.localeCompare(b)),
@@ -408,7 +408,7 @@ export default function CrmPage() {
     try {
       const patientId = await ensurePatientForLead(lead);
       navigate(`/clinic/proposals?patientId=${patientId}&leadId=${lead.id}&openNew=1&returnTo=crm&returnLeadId=${lead.id}`);
-    } catch (error: any) {
+    } catch (error) {
       toast({ title: 'Erro ao preparar proposta', description: error.message, variant: 'destructive' });
     }
   };
@@ -1209,7 +1209,7 @@ export default function CrmPage() {
                 <SelectContent>
                   <SelectItem value="all">Todos responsáveis</SelectItem>
                   <SelectItem value="unassigned">Sem responsável</SelectItem>
-                  {staff.map((member: any) => (
+                  {staff.map((member) => (
                     <SelectItem key={member.user_id} value={member.user_id}>{member.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1534,7 +1534,7 @@ export default function CrmPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="unassigned">Sem responsável</SelectItem>
-                      {staff.map((member: any) => (
+                      {staff.map((member) => (
                         <SelectItem key={member.user_id} value={member.user_id}>
                           {member.label}
                         </SelectItem>
@@ -1642,7 +1642,7 @@ export default function CrmPage() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="unassigned">Sem responsável</SelectItem>
-                            {staff.map((member: any) => (
+                            {staff.map((member) => (
                               <SelectItem key={member.user_id} value={member.user_id}>
                                 {member.label}
                               </SelectItem>
@@ -1804,7 +1804,7 @@ export default function CrmPage() {
                   <SelectTrigger><SelectValue placeholder="Responsável" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="unassigned">Sem responsável</SelectItem>
-                    {staff.map((member: any) => <SelectItem key={member.user_id} value={member.user_id}>{member.label}</SelectItem>)}
+                    {staff.map((member) => <SelectItem key={member.user_id} value={member.user_id}>{member.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -1825,7 +1825,7 @@ export default function CrmPage() {
                   <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Não informado</SelectItem>
-                    {treatments.map((treatment: any) => <SelectItem key={treatment.id} value={treatment.id}>{treatment.name}</SelectItem>)}
+                    {treatments.map((treatment) => <SelectItem key={treatment.id} value={treatment.id}>{treatment.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -2135,7 +2135,7 @@ export default function CrmPage() {
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="unassigned">Sem responsável</SelectItem>
-                            {staff.map((member: any) => <SelectItem key={member.user_id} value={member.user_id}>{member.label}</SelectItem>)}
+                            {staff.map((member) => <SelectItem key={member.user_id} value={member.user_id}>{member.label}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
@@ -2192,7 +2192,7 @@ export default function CrmPage() {
                           Nenhuma interação registrada.
                         </div>
                       )}
-                      {interactions.map((interaction: any) => {
+                      {interactions.map((interaction) => {
                         const typeLabel = interactionTypes.find((item) => item.value === interaction.type)?.label || interaction.type;
                         return (
                           <div key={interaction.id} className="rounded-xl border p-4">
@@ -2225,7 +2225,7 @@ export default function CrmPage() {
                           Nenhuma proposta vinculada a este paciente ainda.
                         </div>
                       )}
-                      {leadProposals.map((proposal: any) => (
+                      {leadProposals.map((proposal) => (
                         <div key={proposal.id} className="rounded-xl border p-4 flex items-center justify-between gap-3">
                           <div>
                             <button
@@ -2259,7 +2259,7 @@ export default function CrmPage() {
                           Nenhum contrato vinculado a este paciente ainda.
                         </div>
                       )}
-                      {leadContracts.map((contract: any) => (
+                      {leadContracts.map((contract) => (
                         <div key={contract.id} className="rounded-xl border p-4 flex items-center justify-between gap-3">
                           <div>
                             <button
@@ -2290,7 +2290,7 @@ export default function CrmPage() {
                           Nenhum agendamento ligado a este lead.
                         </div>
                       )}
-                      {leadAppointments.map((appointment: any) => (
+                      {leadAppointments.map((appointment) => (
                         <div key={appointment.id} className="rounded-xl border p-4 flex items-center justify-between gap-3">
                           <div>
                             <p className="font-medium text-foreground text-sm">{appointment.appointment_type === 'evaluation' ? 'Avaliação' : 'Agendamento'}</p>

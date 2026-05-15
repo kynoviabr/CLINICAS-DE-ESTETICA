@@ -156,7 +156,7 @@ export default function AppointmentsPage() {
         .is('deleted_at', null)
         .order('full_name');
       if (error) throw error;
-      return (data || []).filter((lead: any) => !['closed_won', 'closed_lost'].includes(lead.kanban_stage));
+      return (data || []).filter((lead) => !['closed_won', 'closed_lost'].includes(lead.kanban_stage));
     },
     enabled: !!clinicId,
   });
@@ -204,21 +204,21 @@ export default function AppointmentsPage() {
     enabled: !!clinicId,
   });
 
-  const getSelectedPatientData = (patientId: string) => patients.find((p: any) => p.id === patientId);
-  const getSelectedLeadData = (leadId: string) => leads.find((lead: any) => lead.id === leadId);
-  const getAppointmentStartDate = (appointment: any) => new Date(appointment.start_time || appointment.scheduled_at);
-  const getAppointmentEndDate = (appointment: any) => {
+  const getSelectedPatientData = (patientId: string) => patients.find((p) => p.id === patientId);
+  const getSelectedLeadData = (leadId: string) => leads.find((lead) => lead.id === leadId);
+  const getAppointmentStartDate = (appointment) => new Date(appointment.start_time || appointment.scheduled_at);
+  const getAppointmentEndDate = (appointment) => {
     if (appointment.end_time) return new Date(appointment.end_time);
     const start = getAppointmentStartDate(appointment);
     return new Date(start.getTime() + (appointment.duration_minutes || 60) * 60000);
   };
-  const getAppointmentDisplayName = (appointment: any) => {
+  const getAppointmentDisplayName = (appointment) => {
     return (appointment.patients as any)?.full_name || (appointment.leads as any)?.full_name || 'Lead sem paciente';
   };
   const getBlocksForDay = (day: Date) => {
     const dayStart = startOfDay(day).getTime();
     const dayEnd = endOfDay(day).getTime();
-    return appointmentBlocks.filter((block: any) => {
+    return appointmentBlocks.filter((block) => {
       const blockStart = new Date(block.start_at).getTime();
       const blockEnd = new Date(block.end_at).getTime();
       return blockStart <= dayEnd && blockEnd >= dayStart;
@@ -231,12 +231,12 @@ export default function AppointmentsPage() {
   const hasAvailabilityWindow = (professionalId: string | null, startTime: Date, endTime: Date) => {
     if (!professionalId) return true;
     const dayOfWeek = startTime.getDay();
-    const slots = availability.filter((slot: any) => slot.professional_id === professionalId && slot.day_of_week === dayOfWeek && slot.is_active);
+    const slots = availability.filter((slot) => slot.professional_id === professionalId && slot.day_of_week === dayOfWeek && slot.is_active);
     if (slots.length === 0) return false;
 
     const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
     const endMinutes = endTime.getHours() * 60 + endTime.getMinutes();
-    return slots.some((slot: any) => {
+    return slots.some((slot) => {
       const [startHour, startMinute] = String(slot.start_time).slice(0, 5).split(':').map(Number);
       const [endHour, endMinute] = String(slot.end_time).slice(0, 5).split(':').map(Number);
       const slotStartMinutes = startHour * 60 + startMinute;
@@ -271,7 +271,7 @@ export default function AppointmentsPage() {
     const { data: conflictingAppointments, error: appointmentError } = await appointmentsQuery;
     if (appointmentError) throw appointmentError;
 
-    const realConflict = (conflictingAppointments || []).some((appointment: any) => appointment.id !== ignoreAppointmentId);
+    const realConflict = (conflictingAppointments || []).some((appointment) => appointment.id !== ignoreAppointmentId);
     if (realConflict) {
       throw new Error('Já existe outro agendamento para esse horário.');
     }
@@ -304,7 +304,7 @@ export default function AppointmentsPage() {
   };
 
   useEffect(() => {
-    if (!shouldOpenNewFromQuery || !prefillLeadId || !leads.some((lead: any) => lead.id === prefillLeadId)) return;
+    if (!shouldOpenNewFromQuery || !prefillLeadId || !leads.some((lead) => lead.id === prefillLeadId)) return;
 
     resetForm();
     setAppointmentType('evaluation');
@@ -349,7 +349,7 @@ export default function AppointmentsPage() {
   useEffect(() => {
     if (!availabilityProfessional || availabilityProfessional === 'unassigned') return;
     const nextDraft = weekDays.reduce((acc, day) => {
-      const slot = availability.find((item: any) => item.professional_id === availabilityProfessional && item.day_of_week === day.value && item.is_active);
+      const slot = availability.find((item) => item.professional_id === availabilityProfessional && item.day_of_week === day.value && item.is_active);
       acc[day.value] = {
         isActive: !!slot,
         start: slot ? String(slot.start_time).slice(0, 5) : '09:00',
@@ -369,19 +369,19 @@ export default function AppointmentsPage() {
   const filteredAppointments = useMemo(() => {
     let filtered = appointments;
     if (filterProfessional !== 'all') {
-      filtered = filtered.filter((a: any) => a.professional_id === filterProfessional);
+      filtered = filtered.filter((a) => a.professional_id === filterProfessional);
     }
     if (filterStatus !== 'all') {
-      filtered = filtered.filter((a: any) => a.status === filterStatus);
+      filtered = filtered.filter((a) => a.status === filterStatus);
     }
     return filtered;
   }, [appointments, filterProfessional, filterStatus]);
 
   const operationalSummary = useMemo(() => {
-    const todayAppointments = filteredAppointments.filter((appointment: any) =>
+    const todayAppointments = filteredAppointments.filter((appointment) =>
       isSameDay(getAppointmentStartDate(appointment), new Date())
     );
-    const readyForSession = todayAppointments.filter((appointment: any) =>
+    const readyForSession = todayAppointments.filter((appointment) =>
       appointment.status === 'confirmed' || appointment.status === 'in_progress'
     );
 
@@ -389,20 +389,20 @@ export default function AppointmentsPage() {
       totalInView: filteredAppointments.length,
       today: todayAppointments.length,
       readyForSession: readyForSession.length,
-      noShow: filteredAppointments.filter((appointment: any) => appointment.status === 'no_show').length,
+      noShow: filteredAppointments.filter((appointment) => appointment.status === 'no_show').length,
     };
   }, [filteredAppointments]);
 
   const todayQueue = useMemo(() => {
     return filteredAppointments
-      .filter((appointment: any) => isSameDay(getAppointmentStartDate(appointment), new Date()))
+      .filter((appointment) => isSameDay(getAppointmentStartDate(appointment), new Date()))
       .sort((a: any, b: any) => +getAppointmentStartDate(a) - +getAppointmentStartDate(b))
       .slice(0, 5);
   }, [filteredAppointments]);
 
   const agendaSignals = useMemo(() => {
-    const evaluations = filteredAppointments.filter((appointment: any) => appointment.appointment_type === 'evaluation').length;
-    const batches = filteredAppointments.filter((appointment: any) => appointment.is_batch).length;
+    const evaluations = filteredAppointments.filter((appointment) => appointment.appointment_type === 'evaluation').length;
+    const batches = filteredAppointments.filter((appointment) => appointment.is_batch).length;
     const blockedDays = calendarDays.filter((day) => getBlocksForDay(day).length > 0).length;
 
     return {
@@ -480,7 +480,7 @@ export default function AppointmentsPage() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const appointment = appointments.find((item: any) => item.id === id);
+      const appointment = appointments.find((item) => item.id === id);
       const patch: any = { status: status as any };
 
       if (status === 'confirmed') patch.confirmed_at = new Date().toISOString();
@@ -772,7 +772,7 @@ export default function AppointmentsPage() {
       qc.invalidateQueries({ queryKey: ['crm-leads'] });
       setViewAppt(null);
       navigate(`/clinic/proposals?patientId=${patientId}&leadId=${appointment.lead_id}&openNew=1`);
-    } catch (err: any) {
+    } catch (err) {
       toast({ title: 'Erro', description: err.message || 'Não foi possível abrir a proposta.', variant: 'destructive' });
     } finally {
       setProposalLoadingId(null);
@@ -785,7 +785,7 @@ export default function AppointmentsPage() {
     else setCurrentDate(dir > 0 ? addDays(currentDate, 1) : subDays(currentDate, 1));
   };
 
-  const getApptsForDay = (day: Date) => filteredAppointments.filter((a: any) => isSameDay(getAppointmentStartDate(a), day));
+  const getApptsForDay = (day: Date) => filteredAppointments.filter((a) => isSameDay(getAppointmentStartDate(a), day));
   const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
   const headerLabel = viewMode === 'month'
@@ -927,7 +927,7 @@ export default function AppointmentsPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {todayQueue.map((appointment: any) => (
+              {todayQueue.map((appointment) => (
                 <div key={appointment.id} className="rounded-lg border bg-background px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1063,7 +1063,7 @@ export default function AppointmentsPage() {
                     </div>
                   )}
                   <div className="space-y-0.5 mt-1">
-                    {dayAppts.slice(0, 3).map((a: any) => (
+                    {dayAppts.slice(0, 3).map((a) => (
                       <div
                         key={a.id}
                         className={`rounded px-1.5 py-1 text-[10px] text-white cursor-pointer ${statusConfig[a.status]?.style || ''}`}
@@ -1107,7 +1107,7 @@ export default function AppointmentsPage() {
                         {dayBlocks.length} bloqueio{dayBlocks.length > 1 ? 's' : ''} neste dia
                       </div>
                     )}
-                    {dayAppts.map((a: any) => (
+                    {dayAppts.map((a) => (
                       <div
                         key={a.id}
                         className={`rounded p-2 text-xs text-white cursor-pointer ${statusConfig[a.status]?.style || ''}`}
@@ -1140,7 +1140,7 @@ export default function AppointmentsPage() {
             <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
               <p className="text-sm font-semibold text-amber-800">Dia com bloqueios operacionais</p>
               <div className="mt-2 space-y-1 text-xs text-amber-700">
-                {getBlocksForDay(currentDate).map((block: any) => (
+                {getBlocksForDay(currentDate).map((block) => (
                   <p key={block.id}>
                     {format(new Date(block.start_at), 'HH:mm')} - {format(new Date(block.end_at), 'HH:mm')} · {block.reason}
                   </p>
@@ -1152,7 +1152,7 @@ export default function AppointmentsPage() {
             <p className="text-center text-muted-foreground py-8">Nenhum agendamento neste dia</p>
           ) : (
             <div className="space-y-3">
-              {getApptsForDay(currentDate).map((a: any) => {
+              {getApptsForDay(currentDate).map((a) => {
                 const sc = statusConfig[a.status];
                 return (
                   <div
@@ -1227,7 +1227,7 @@ export default function AppointmentsPage() {
                     <div className="flex-1">
                       <Select value={selectedPatient} onValueChange={setSelectedPatient}>
                         <SelectTrigger><SelectValue placeholder="Selecionar paciente" /></SelectTrigger>
-                        <SelectContent>{patients.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}</SelectContent>
+                        <SelectContent>{patients.map((p) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <BrandButton
@@ -1252,7 +1252,7 @@ export default function AppointmentsPage() {
                 <Select value={selectedLead} onValueChange={setSelectedLead}>
                   <SelectTrigger><SelectValue placeholder="Selecionar lead para avaliação" /></SelectTrigger>
                   <SelectContent>
-                    {leads.map((lead: any) => (
+                    {leads.map((lead) => (
                       <SelectItem key={lead.id} value={lead.id}>
                         {lead.full_name}
                       </SelectItem>
@@ -1271,11 +1271,11 @@ export default function AppointmentsPage() {
               <Label>{appointmentType === 'evaluation' ? 'Tratamento de interesse' : 'Tratamento'}</Label>
               <Select value={selectedTreatment} onValueChange={v => {
                 setSelectedTreatment(v);
-                const t = treatments.find((tr: any) => tr.id === v);
+                const t = treatments.find((tr) => tr.id === v);
                 if (t) setDuration(String(t.duration_minutes));
               }}>
                 <SelectTrigger><SelectValue placeholder="Selecionar tratamento" /></SelectTrigger>
-                <SelectContent>{treatments.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                <SelectContent>{treatments.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
 
@@ -1658,7 +1658,7 @@ export default function AppointmentsPage() {
                   Nenhum bloqueio encontrado para o período.
                 </div>
               ) : (
-                appointmentBlocks.map((block: any) => (
+                appointmentBlocks.map((block) => (
                   <div key={block.id} className="rounded-xl border p-4 flex items-start justify-between gap-3">
                     <div>
                       <p className="font-medium text-foreground">{block.reason || 'Bloqueio'}</p>
