@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import {
   ArrowLeft, User, Phone, Mail, Calendar, ClipboardList, Activity, Camera,
-  MessageSquare, Star, ExternalLink, Loader2, AlertTriangle
+  MessageSquare, Star, ExternalLink, Loader2, AlertTriangle, FileSignature
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -24,6 +24,7 @@ import {
 
 import PatientAnamneseTab from '@/components/anamnese/PatientAnamneseTab';
 import { FileText as FileTextIcon } from 'lucide-react';
+import { ContractStatusBadge } from '@/components/contracts/ContractStatusBadge';
 
 const typeLabels: Record<string, string> = { before: 'Antes', during: 'Durante', after: 'Depois', progress: 'Progresso' };
 const typeColors: Record<string, string> = { before: 'bg-blue-100 text-blue-700', during: 'bg-yellow-100 text-yellow-700', after: 'bg-green-100 text-green-700', progress: 'bg-purple-100 text-purple-700' };
@@ -118,6 +119,32 @@ export default function PatientDetailPage() {
     enabled: !!id,
   });
 
+  const { data: proposals = [] } = useQuery({
+    queryKey: ['patient-proposals', id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('proposals')
+        .select('id, proposal_number, status, final_amount, created_at, valid_until')
+        .eq('patient_id', id!)
+        .order('created_at', { ascending: false });
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  const { data: contracts = [] } = useQuery({
+    queryKey: ['patient-contracts', id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('contracts')
+        .select('id, contract_number, process_status, status, created_at, signed_pdf_url, proposals(proposal_number, final_amount)')
+        .eq('patient_id', id!)
+        .order('created_at', { ascending: false });
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
   const { data: portalAccess } = useQuery({
     queryKey: ['patient-portal-access', id],
     queryFn: async () => {
@@ -182,6 +209,8 @@ export default function PatientDetailPage() {
     .sort((a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
   const nextAppointment = upcomingAppointments[0] || null;
   const lastSession = sessions[0] || null;
+  const latestProposal = proposals[0] || null;
+  const latestContract = contracts[0] || null;
   const averageFeedback = feedbacks.length
     ? feedbacks.reduce((sum: number, feedback: any) => sum + Number(feedback.rating || 0), 0) / feedbacks.length
     : null;
@@ -189,9 +218,48 @@ export default function PatientDetailPage() {
     ? 'Cadastrar anamnese'
     : currentAnamneseStatus === 'expired'
       ? 'Renovar anamnese'
-      : nextAppointment
-        ? 'Acompanhar próximo atendimento'
-        : 'Agendar próxima visita';
+      : latestContract?.process_status === 'pending_upload'
+        ? 'Receber contrato assinado'
+        : latestContract?.process_status === 'pending_confirmation'
+          ? 'Validar contrato recebido'
+          : latestProposal?.status === 'accepted' && !latestContract
+            ? 'Gerar contrato'
+            : (latestProposal?.status === 'sent' || latestProposal?.status === 'draft')
+              ? 'Acompanhar proposta'
+              : (!latestProposal && appointments.some((appointment: any) => appointment.status === 'completed'))
+                ? 'Criar proposta'
+                : nextAppointment
+                  ? 'Acompanhar próximo atendimento'
+                  : 'Agendar próxima visita';
+  const operationalHint = currentAnamneseStatus === 'none'
+    ? anamneseBadgeConfig.none.hint
+    : currentAnamneseStatus === 'expired'
+      ? anamneseBadgeConfig.expired.hint
+      : latestContract?.process_status === 'pending_upload'
+        ? 'Depois da avaliação e da proposta, este é o ponto principal para seguir com a venda.'
+        : latestContract?.process_status === 'pending_confirmation'
+          ? 'Confira o documento recebido para ativar o contrato com segurança.'
+          : latestProposal?.status === 'accepted' && !latestContract
+            ? 'A proposta foi aprovada. Agora o próximo passo é formalizar o contrato.'
+            : latestProposal?.status === 'sent'
+              ? 'A proposta já foi enviada. Vale acompanhar retorno e objeções do paciente.'
+              : latestProposal?.status === 'draft'
+                ? 'A proposta ainda está em rascunho. Complete e envie para avançar a conversão.'
+                : (!latestProposal && appointments.some((appointment: any) => appointment.status === 'completed'))
+                  ? 'A avaliação já aconteceu. O momento agora é transformar esse atendimento em proposta.'
+                  : nextAppointment
+                    ? 'Há atendimento previsto. Use esse momento para evoluir clínica e comercialmente.'
+                    : 'Agende a próxima avaliação ou sessão para manter o paciente ativo.';
+  const commercialSummary = latestContract
+    ? `${latestContract.contract_number || 'Contrato'}`
+    : latestProposal
+      ? `${latestProposal.proposal_number || 'Proposta'}`
+      : 'Sem proposta';
+  const commercialDetail = latestContract
+    ? `Status: ${latestContract.process_status}`
+    : latestProposal
+      ? `Status: ${latestProposal.status} • R$ ${Number(latestProposal.final_amount || 0).toLocaleString('pt-BR')}`
+      : 'Depois da avaliação, a proposta passa a aparecer aqui.';
 
   return (
     <div>
@@ -216,6 +284,18 @@ export default function PatientDetailPage() {
                   <FileTextIcon className="w-3 h-3 mr-1" />
                   {currentAnamneseConfig.label}
                 </Badge>
+                {latestProposal && (
+                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                    <FileTextIcon className="w-3 h-3 mr-1" />
+                    Proposta {latestProposal.proposal_number}
+                  </Badge>
+                )}
+                {latestContract && (
+                  <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                    <FileSignature className="w-3 h-3 mr-1" />
+                    Contrato {latestContract.contract_number}
+                  </Badge>
+                )}
                 {portalAccess ? (
                   <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                     <ExternalLink className="w-3 h-3 mr-1" />Portal ativo
@@ -238,12 +318,12 @@ export default function PatientDetailPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 mb-6 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 mb-6 lg:grid-cols-5">
         <Card className="shadow-card">
           <CardContent className="p-4">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Próximo passo</p>
             <p className="mt-2 text-lg font-semibold text-foreground">{operationalStep}</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">{currentAnamneseConfig.hint}</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{operationalHint}</p>
           </CardContent>
         </Card>
         <Card className="shadow-card">
@@ -274,6 +354,13 @@ export default function PatientDetailPage() {
                 ? `${lastSession.treatments?.name || 'Tratamento'} • Sessão ${lastSession.session_number || '—'}`
                 : 'Quando a execução começar, o histórico de sessões aparece aqui.'}
             </p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-card">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Comercial</p>
+            <p className="mt-2 text-sm font-semibold text-foreground">{commercialSummary}</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{commercialDetail}</p>
           </CardContent>
         </Card>
         <Card className="shadow-card">
@@ -312,6 +399,8 @@ export default function PatientDetailPage() {
           <TabsTrigger value="data" className="flex items-center gap-1"><User className="w-3.5 h-3.5" />Dados</TabsTrigger>
           <TabsTrigger value="anamnese" className="flex items-center gap-1"><FileTextIcon className="w-3.5 h-3.5" />Anamnese</TabsTrigger>
           <TabsTrigger value="appointments" className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />Agenda</TabsTrigger>
+          <TabsTrigger value="proposals" className="flex items-center gap-1"><FileTextIcon className="w-3.5 h-3.5" />Propostas</TabsTrigger>
+          <TabsTrigger value="contracts" className="flex items-center gap-1"><FileSignature className="w-3.5 h-3.5" />Contratos</TabsTrigger>
           <TabsTrigger value="sessions" className="flex items-center gap-1"><ClipboardList className="w-3.5 h-3.5" />Sessões</TabsTrigger>
           <TabsTrigger value="evolution" className="flex items-center gap-1"><Activity className="w-3.5 h-3.5" />Evolução</TabsTrigger>
           <TabsTrigger value="photos" className="flex items-center gap-1"><Camera className="w-3.5 h-3.5" />Fotos</TabsTrigger>
@@ -400,6 +489,123 @@ export default function PatientDetailPage() {
                             onClick={() => navigate(`/clinic/sessions?appointmentId=${a.id}`)}
                           >
                             Ir para sessão
+                          </BrandButton>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Proposals tab */}
+        <TabsContent value="proposals">
+          <Card className="shadow-card">
+            <CardHeader>
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle>Propostas do paciente</CardTitle>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Veja rapidamente as propostas comerciais ligadas a este paciente.
+                  </p>
+                </div>
+                <BrandButton variant="outline" onClick={() => navigate('/clinic/proposals')}>
+                  Abrir módulo de propostas
+                </BrandButton>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {proposals.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">Nenhuma proposta encontrada</p>
+              ) : (
+                <div className="space-y-3">
+                  {proposals.map((proposal: any) => (
+                    <div key={proposal.id} className="flex flex-col gap-3 rounded-lg bg-secondary/50 p-3 md:flex-row md:items-center md:justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            className="text-sm font-medium text-foreground underline-offset-4 hover:underline"
+                            onClick={() => navigate(`/clinic/proposals?proposalId=${proposal.id}&view=1`)}
+                          >
+                            {proposal.proposal_number || 'Proposta sem número'}
+                          </button>
+                          <BrandBadge status={proposal.status === 'accepted' ? 'approved' : proposal.status === 'rejected' ? 'rejected' : proposal.status === 'draft' ? 'draft' : 'sent'}>
+                            {proposal.status}
+                          </BrandBadge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Valor final: R$ {Number(proposal.final_amount || 0).toLocaleString('pt-BR')}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Criada em {format(new Date(proposal.created_at), "dd 'de' MMM 'de' yyyy", { locale: ptBR })}
+                          {proposal.valid_until ? ` • válida até ${format(new Date(`${proposal.valid_until}T12:00:00`), "dd/MM/yyyy", { locale: ptBR })}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Contracts tab */}
+        <TabsContent value="contracts">
+          <Card className="shadow-card">
+            <CardHeader>
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle>Contratos do paciente</CardTitle>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Acesse rapidamente os contratos vinculados a este paciente.
+                  </p>
+                </div>
+                <BrandButton variant="outline" onClick={() => navigate('/clinic/contracts')}>
+                  Abrir módulo de contratos
+                </BrandButton>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {contracts.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">Nenhum contrato encontrado</p>
+              ) : (
+                <div className="space-y-3">
+                  {contracts.map((contract: any) => (
+                    <div key={contract.id} className="flex flex-col gap-3 rounded-lg bg-secondary/50 p-3 md:flex-row md:items-center md:justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            className="text-sm font-medium text-foreground underline-offset-4 hover:underline"
+                            onClick={() => navigate(`/clinic/contracts?contractId=${contract.id}&view=1`)}
+                          >
+                            {contract.contract_number || 'Contrato sem número'}
+                          </button>
+                          <ContractStatusBadge status={contract.process_status} />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {contract.proposals?.proposal_number
+                            ? `Proposta ${contract.proposals.proposal_number}`
+                            : 'Sem proposta vinculada'}
+                          {contract.proposals?.final_amount
+                            ? ` • R$ ${Number(contract.proposals.final_amount).toLocaleString('pt-BR')}`
+                            : ''}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Criado em {format(new Date(contract.created_at), "dd 'de' MMM 'de' yyyy", { locale: ptBR })}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 self-start md:self-center">
+                        {contract.signed_pdf_url && (
+                          <BrandButton
+                            size="sm"
+                            variant="outline"
+                            onClick={() => window.open(contract.signed_pdf_url, '_blank', 'noopener,noreferrer')}
+                          >
+                            Ver PDF
                           </BrandButton>
                         )}
                       </div>

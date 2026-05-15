@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -17,17 +17,25 @@ import { ContractViewDialog } from '@/components/contracts/ContractViewDialog';
 import { generateContractHTML } from '@/components/contracts/ContractTemplateGenerator';
 import { generateContractPDF } from '@/lib/contractPDF';
 import { Card, CardContent } from '@/components/ui/card';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export default function ContractsPage() {
   const { clinicId, clinicName } = useBranding();
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [filterStatus, setFilterStatus] = useState('all');
   const [search, setSearch] = useState('');
   const [viewContract, setViewContract] = useState<any>(null);
   const [createDialog, setCreateDialog] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState('');
+  const prefillContractId = searchParams.get('contractId');
+  const shouldOpenViewFromQuery = searchParams.get('view') === '1';
+  const returnTo = searchParams.get('returnTo');
+  const returnLeadId = searchParams.get('returnLeadId');
+  const crmReturnUrl = returnTo === 'crm' && returnLeadId ? `/clinic/crm?leadId=${returnLeadId}` : null;
 
   const { data: contracts = [], isLoading } = useQuery({
     queryKey: ['contracts', clinicId, filterStatus, search],
@@ -203,9 +211,27 @@ export default function ContractsPage() {
     },
   });
 
+  useEffect(() => {
+    if (!shouldOpenViewFromQuery || !prefillContractId || contracts.length === 0 || !!viewContract) return;
+    const targetContract = contracts.find((contract: any) => contract.id === prefillContractId);
+    if (!targetContract) return;
+
+    setViewContract(targetContract);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('contractId');
+    nextParams.delete('view');
+    setSearchParams(nextParams, { replace: true });
+  }, [shouldOpenViewFromQuery, prefillContractId, contracts, viewContract, searchParams, setSearchParams]);
+
   return (
     <div>
       <PageHeader title="Contratos" description="Formalize a venda e acompanhe o ciclo do contrato">
+        {crmReturnUrl && (
+          <BrandButton variant="outline" onClick={() => navigate(crmReturnUrl)}>
+            Voltar ao CRM
+          </BrandButton>
+        )}
         <BrandButton onClick={() => setCreateDialog(true)}>
           <Plus className="w-4 h-4" />
           Gerar contrato

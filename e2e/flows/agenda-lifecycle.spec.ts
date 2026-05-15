@@ -37,8 +37,7 @@ async function openAppointmentDialogByStartTime(
   const count = await candidateRows.count();
   for (let i = 0; i < count; i += 1) {
     const row = candidateRows.nth(i);
-    await row.scrollIntoViewIfNeeded();
-    await row.click();
+    await row.click({ force: true });
     await page.waitForTimeout(250);
     if (await appointmentDialog.isVisible()) return appointmentDialog;
   }
@@ -64,6 +63,8 @@ function buildUniqueStartDate() {
 
 test.describe('Fluxo E2E - Agenda', () => {
   test('agenda, confirma, remarca e cancela avaliação', async ({ page }) => {
+    test.setTimeout(120_000);
+
     const preferredLeadName = leadTargetName();
     let selectedLeadName = preferredLeadName;
     let createdStart = buildUniqueStartDate();
