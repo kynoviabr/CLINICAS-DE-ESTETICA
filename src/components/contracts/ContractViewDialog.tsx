@@ -117,6 +117,42 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
   const isReadyToActivate = c.process_status === 'pending_confirmation';
   const isCancelled = c.process_status === 'cancelled';
   const isActive = c.process_status === 'confirmed';
+  const timelineEvents = [
+    c.created_at
+      ? {
+          key: 'created',
+          label: 'Contrato gerado',
+          date: new Date(c.created_at),
+          tone: 'bg-slate-100 text-slate-700',
+        }
+      : null,
+    c.signed_at
+      ? {
+          key: 'signed',
+          label: 'Arquivo assinado recebido',
+          date: new Date(c.signed_at),
+          tone: 'bg-amber-100 text-amber-700',
+        }
+      : null,
+    c.confirmed_at
+      ? {
+          key: 'confirmed',
+          label: 'Contrato ativado',
+          date: new Date(c.confirmed_at),
+          tone: 'bg-emerald-100 text-emerald-700',
+        }
+      : null,
+    c.process_status === 'cancelled'
+      ? {
+          key: 'cancelled',
+          label: 'Contrato cancelado',
+          date: c.updated_at ? new Date(c.updated_at) : c.created_at ? new Date(c.created_at) : new Date(),
+          tone: 'bg-rose-100 text-rose-700',
+        }
+      : null,
+  ]
+    .filter(Boolean)
+    .sort((a: any, b: any) => a.date.getTime() - b.date.getTime());
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -182,6 +218,24 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
               {isCancelled && 'Contrato encerrado, sem continuidade operacional.'}
               {c.process_status === 'overdue' && 'Revisar o documento e decidir se ele deve ser reenviado ou ativado.'}
             </p>
+          </div>
+
+          <div className="rounded-lg border p-3">
+            <p className="mb-2 text-sm font-medium text-foreground">Timeline do contrato</p>
+            {timelineEvents.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Sem eventos registrados.</p>
+            ) : (
+              <div className="space-y-2">
+                {timelineEvents.map((event: any) => (
+                  <div key={event.key} className="flex items-center justify-between gap-2 rounded-md bg-secondary/30 px-2.5 py-2">
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${event.tone}`}>{event.label}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {format(event.date, 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-2 pt-4 border-t">
