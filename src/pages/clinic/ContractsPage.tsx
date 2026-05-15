@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { AlertTriangle, CheckCircle2, Eye, FileSignature, Filter, Plus, Search, Upload } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Eye, ExternalLink, FileSignature, Filter, Plus, Search, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ContractStatusBadge } from '@/components/contracts/ContractStatusBadge';
@@ -442,9 +442,20 @@ export default function ContractsPage() {
                       <ContractStatusBadge status={contract.process_status} />
                     </td>
                     <td className="px-4 py-3">
-                      <BrandButton variant="ghost" size="sm" onClick={() => setViewContract(contract)}>
-                        <Eye className="w-3.5 h-3.5" />
-                      </BrandButton>
+                      <div className="flex items-center justify-end gap-1">
+                        {contract.signed_pdf_url && (
+                          <BrandButton
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => window.open(contract.signed_pdf_url, '_blank', 'noopener,noreferrer')}
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </BrandButton>
+                        )}
+                        <BrandButton variant="ghost" size="sm" onClick={() => setViewContract(contract)}>
+                          <Eye className="w-3.5 h-3.5" />
+                        </BrandButton>
+                      </div>
                     </td>
                   </tr>
                 ))}

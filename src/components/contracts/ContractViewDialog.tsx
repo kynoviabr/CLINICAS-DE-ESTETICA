@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { BrandButton } from '@/components/ui/brand-button';
 import { ContractStatusBadge } from './ContractStatusBadge';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, ExternalLink, FileUp, Printer, TriangleAlert } from 'lucide-react';
+import { CheckCircle2, Copy, ExternalLink, FileUp, Printer, TriangleAlert } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -103,6 +103,15 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
     windowRef.print();
   };
 
+  const copyToClipboard = async (value: string, successMessage: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast({ title: successMessage });
+    } catch {
+      toast({ title: 'Não foi possível copiar agora', variant: 'destructive' });
+    }
+  };
+
   const hasSignedFile = Boolean(c.signed_pdf_url);
   const isGenerated = c.process_status === 'pending_upload';
   const isReadyToActivate = c.process_status === 'pending_confirmation';
@@ -189,6 +198,27 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
                 Ver arquivo
               </BrandButton>
             )}
+
+            {hasSignedFile && (
+              <BrandButton
+                variant="outline"
+                size="sm"
+                onClick={() => copyToClipboard(c.signed_pdf_url, 'Link do contrato copiado!')}
+              >
+                <Copy className="w-4 h-4" />
+                Copiar link
+              </BrandButton>
+            )}
+
+            <BrandButton
+              variant="outline"
+              size="sm"
+              onClick={() => copyToClipboard(c.contract_number || '', 'Número do contrato copiado!')}
+              disabled={!c.contract_number}
+            >
+              <Copy className="w-4 h-4" />
+              Copiar número
+            </BrandButton>
 
             {!isCancelled && !isActive && (
               <label className="cursor-pointer">
