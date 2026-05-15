@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, FileText, Trash2, Search, Eye, Send, Check, X, Printer, Filter } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const statusMap: Record<string, { label: string; badge: BadgeStatus }> = {
   draft: { label: 'Rascunho', badge: 'draft' },
@@ -39,6 +40,8 @@ export default function ProposalsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewDialog, setViewDialog] = useState<any>(null);
   const [filterStatus, setFilterStatus] = useState('all');
@@ -51,6 +54,14 @@ export default function ProposalsPage() {
   const [items, setItems] = useState<ProposalItem[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [itemTab, setItemTab] = useState('treatment');
+  const prefillPatientId = searchParams.get('patientId');
+  const prefillLeadId = searchParams.get('leadId');
+  const shouldOpenNewFromQuery = searchParams.get('openNew') === '1';
+  const prefillProposalId = searchParams.get('proposalId');
+  const shouldOpenViewFromQuery = searchParams.get('view') === '1';
+  const returnTo = searchParams.get('returnTo');
+  const returnLeadId = searchParams.get('returnLeadId');
+  const crmReturnUrl = returnTo === 'crm' && returnLeadId ? `/clinic/crm?leadId=${returnLeadId}` : null;
 
   const { data: proposals = [], isLoading } = useQuery({
     queryKey: ['proposals', clinicId, filterStatus, search],
@@ -95,7 +106,48 @@ export default function ProposalsPage() {
     enabled: !!clinicId,
   });
 
+  const { data: crmLead } = useQuery({
+    queryKey: ['crm-lead-context', clinicId, prefillLeadId],
+    queryFn: async () => {
+      if (!prefillLeadId) return null;
+      const { data, error } = await (supabase.from('leads' as any) as any)
+        .select('id, full_name, kanban_stage, patient_id, proposal_id')
+        .eq('clinic_id', clinicId)
+        .eq('id', prefillLeadId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!clinicId && !!prefillLeadId,
+  });
+
   const total = items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+
+  useEffect(() => {
+    if (!shouldOpenNewFromQuery || !prefillPatientId || dialogOpen || !!editingId) return;
+    if (!patients.some((patient: any) => patient.id === prefillPatientId)) return;
+
+    resetForm();
+    setSelectedPatient(prefillPatientId);
+    setDialogOpen(true);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('openNew');
+    setSearchParams(nextParams, { replace: true });
+  }, [shouldOpenNewFromQuery, prefillPatientId, dialogOpen, editingId, patients, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!shouldOpenViewFromQuery || !prefillProposalId || proposals.length === 0 || !!viewDialog) return;
+    const targetProposal = proposals.find((proposal: any) => proposal.id === prefillProposalId);
+    if (!targetProposal) return;
+
+    openView(targetProposal);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('proposalId');
+    nextParams.delete('view');
+    setSearchParams(nextParams, { replace: true });
+  }, [shouldOpenViewFromQuery, prefillProposalId, proposals, viewDialog, searchParams, setSearchParams]);
 
   const generateProposalNumber = () => {
     const now = new Date();
@@ -156,12 +208,34 @@ export default function ProposalsPage() {
           );
           if (ie) throw ie;
         }
+
+        if (prefillLeadId) {
+          const { error: leadError } = await (supabase.from('leads' as any) as any)
+            .update({
+              patient_id: selectedPatient,
+              proposal_id: proposal.id,
+              kanban_stage: 'proposal_sent',
+            })
+            .eq('clinic_id', clinicId!)
+            .eq('id', prefillLeadId);
+          if (leadError) throw leadError;
+        }
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['proposals'] });
+      qc.invalidateQueries({ queryKey: ['crm-leads'] });
+      qc.invalidateQueries({ queryKey: ['crm-lead-context'] });
       setDialogOpen(false);
       resetForm();
+      if (prefillLeadId || prefillPatientId) {
+        // Keep CRM return context so approving a proposal can navigate back to the lead.
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete('patientId');
+        nextParams.delete('leadId');
+        nextParams.delete('openNew');
+        setSearchParams(nextParams, { replace: true });
+      }
       toast({ title: editingId ? 'Proposta atualizada!' : 'Proposta criada!' });
     },
     onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
@@ -171,11 +245,25 @@ export default function ProposalsPage() {
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const { error } = await supabase.from('proposals').update({ status: status as any }).eq('id', id);
       if (error) throw error;
+
+      if (status === 'sent' || status === 'accepted') {
+        const nextStage = status === 'accepted' ? 'closed_won' : 'proposal_sent';
+        const { error: leadError } = await (supabase.from('leads' as any) as any)
+          .update({ kanban_stage: nextStage })
+          .eq('clinic_id', clinicId!)
+          .eq('proposal_id', id);
+        if (leadError) throw leadError;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ['proposals'] });
+      qc.invalidateQueries({ queryKey: ['crm-leads'] });
+      qc.invalidateQueries({ queryKey: ['crm-lead-context'] });
       setViewDialog(null);
       toast({ title: 'Status atualizado!' });
+      if (variables.status === 'accepted' && crmReturnUrl) {
+        navigate(crmReturnUrl);
+      }
     },
     onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
@@ -282,18 +370,58 @@ export default function ProposalsPage() {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     } else {
       qc.invalidateQueries({ queryKey: ['contracts'] });
+      qc.invalidateQueries({ queryKey: ['crm-leads'] });
       toast({ title: 'Contrato gerado!', description: `Nº ${num}` });
       setViewDialog(null);
+      if (crmReturnUrl) {
+        navigate(crmReturnUrl);
+      }
     }
   };
 
   return (
     <div>
       <PageHeader title="Propostas" description="Geração e gestão de propostas comerciais">
+        {crmReturnUrl && (
+          <BrandButton variant="outline" onClick={() => navigate(crmReturnUrl)}>
+            Voltar ao CRM
+          </BrandButton>
+        )}
         <BrandButton onClick={() => { resetForm(); setDialogOpen(true); }}>
           <Plus className="w-4 h-4" /> Nova Proposta
         </BrandButton>
       </PageHeader>
+
+      {crmLead && (
+        <Card className="mb-6 shadow-card border-primary/15 bg-primary/5">
+          <CardContent className="p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Fluxo vindo do CRM</p>
+              <p className="text-sm text-muted-foreground">
+                Lead <span className="font-medium text-foreground">{crmLead.full_name}</span> pronto para proposta comercial.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <BrandBadge status="scheduled" withDot={false}>
+                {crmLead.kanban_stage}
+              </BrandBadge>
+              {prefillPatientId && (
+                <BrandButton
+                  size="sm"
+                  onClick={() => {
+                    resetForm();
+                    setSelectedPatient(prefillPatientId);
+                    setDialogOpen(true);
+                  }}
+                >
+                  <Plus className="w-4 h-4" />
+                  Criar proposta deste lead
+                </BrandButton>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
