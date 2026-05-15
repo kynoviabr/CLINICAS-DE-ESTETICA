@@ -31,6 +31,9 @@ export default function ContractsPage() {
   const [viewContract, setViewContract] = useState<any>(null);
   const [createDialog, setCreateDialog] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState('');
+  const [selectedContractIds, setSelectedContractIds] = useState<string[]>([]);
+  const [bulkStatus, setBulkStatus] = useState('pending_confirmation');
+  const [quickFilter, setQuickFilter] = useState<'all' | 'mine_today' | 'pending_signature' | 'overdue'>('all');
   const prefillContractId = searchParams.get('contractId');
   const shouldOpenViewFromQuery = searchParams.get('view') === '1';
   const returnTo = searchParams.get('returnTo');
@@ -90,6 +93,19 @@ export default function ContractsPage() {
       needsReview: contracts.filter((contract: any) => contract.process_status === 'overdue').length,
     };
   }, [contracts]);
+
+  const visibleContracts = useMemo(() => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    return contracts.filter((contract: any) => {
+      if (quickFilter === 'pending_signature') return contract.process_status === 'pending_confirmation';
+      if (quickFilter === 'overdue') return contract.process_status === 'overdue';
+      if (quickFilter === 'mine_today') {
+        const createdAt = contract.created_at ? format(new Date(contract.created_at), 'yyyy-MM-dd') : '';
+        return contract.created_by === user?.id && createdAt === today;
+      }
+      return true;
+    });
+  }, [contracts, quickFilter, user?.id]);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -211,6 +227,26 @@ export default function ContractsPage() {
     },
   });
 
+  const bulkStatusMutation = useMutation({
+    mutationFn: async () => {
+      if (!clinicId || selectedContractIds.length === 0) return;
+      const { error } = await supabase
+        .from('contracts')
+        .update({ process_status: bulkStatus as any })
+        .eq('clinic_id', clinicId)
+        .in('id', selectedContractIds);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contracts'] });
+      setSelectedContractIds([]);
+      toast({ title: 'Status atualizado em lote!' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    },
+  });
+
   useEffect(() => {
     if (!shouldOpenViewFromQuery || !prefillContractId || contracts.length === 0 || !!viewContract) return;
     const targetContract = contracts.find((contract: any) => contract.id === prefillContractId);
@@ -295,6 +331,48 @@ export default function ContractsPage() {
         </Select>
       </div>
 
+      <div className="mb-4 flex flex-wrap gap-2">
+        <BrandButton size="sm" variant={quickFilter === 'all' ? 'default' : 'outline'} onClick={() => setQuickFilter('all')}>
+          Todos
+        </BrandButton>
+        <BrandButton size="sm" variant={quickFilter === 'mine_today' ? 'default' : 'outline'} onClick={() => setQuickFilter('mine_today')}>
+          Meus hoje
+        </BrandButton>
+        <BrandButton size="sm" variant={quickFilter === 'pending_signature' ? 'default' : 'outline'} onClick={() => setQuickFilter('pending_signature')}>
+          Assinatura pendente
+        </BrandButton>
+        <BrandButton size="sm" variant={quickFilter === 'overdue' ? 'default' : 'outline'} onClick={() => setQuickFilter('overdue')}>
+          Vencidos
+        </BrandButton>
+      </div>
+
+      {selectedContractIds.length > 0 && (
+        <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-3">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <p className="text-sm text-foreground">
+              {selectedContractIds.length} contrato(s) selecionado(s)
+            </p>
+            <div className="flex gap-2">
+              <Select value={bulkStatus} onValueChange={setBulkStatus}>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending_upload">Gerado</SelectItem>
+                  <SelectItem value="pending_confirmation">Assinado recebido</SelectItem>
+                  <SelectItem value="confirmed">Ativo</SelectItem>
+                  <SelectItem value="overdue">Revisão</SelectItem>
+                  <SelectItem value="cancelled">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+              <BrandButton size="sm" onClick={() => bulkStatusMutation.mutate()} disabled={bulkStatusMutation.isPending}>
+                {bulkStatusMutation.isPending ? 'Atualizando...' : 'Aplicar em lote'}
+              </BrandButton>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isLoading && <div className="space-y-3">{[...Array(4)].map((_, index) => <div key={index} className="h-20 bg-muted rounded-xl animate-pulse" />)}</div>}
 
       {!isLoading && contracts.length === 0 && (
@@ -305,12 +383,26 @@ export default function ContractsPage() {
         </div>
       )}
 
-      {!isLoading && contracts.length > 0 && (
+      {!isLoading && visibleContracts.length > 0 && (
         <div className="bg-card rounded-xl shadow-card overflow-hidden animate-fade-in">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b bg-secondary/50">
+                  <th className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={visibleContracts.length > 0 && visibleContracts.every((item: any) => selectedContractIds.includes(item.id))}
+                      onChange={(event) => {
+                        if (event.target.checked) {
+                          setSelectedContractIds(Array.from(new Set([...selectedContractIds, ...visibleContracts.map((item: any) => item.id)])));
+                        } else {
+                          const visibleSet = new Set(visibleContracts.map((item: any) => item.id));
+                          setSelectedContractIds(selectedContractIds.filter((id) => !visibleSet.has(id)));
+                        }
+                      }}
+                    />
+                  </th>
                   <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Contrato</th>
                   <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Paciente</th>
                   <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Proposta</th>
@@ -320,8 +412,21 @@ export default function ContractsPage() {
                 </tr>
               </thead>
               <tbody>
-                {contracts.map((contract: any) => (
+                {visibleContracts.map((contract: any) => (
                   <tr key={contract.id} className="border-b last:border-0 hover:bg-secondary/30 transition-colors">
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedContractIds.includes(contract.id)}
+                        onChange={(event) => {
+                          if (event.target.checked) {
+                            setSelectedContractIds((current) => Array.from(new Set([...current, contract.id])));
+                          } else {
+                            setSelectedContractIds((current) => current.filter((id) => id !== contract.id));
+                          }
+                        }}
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       <p className="text-sm font-medium text-foreground">{contract.contract_number}</p>
                       <p className="text-xs text-muted-foreground">
@@ -346,6 +451,12 @@ export default function ContractsPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {!isLoading && contracts.length > 0 && visibleContracts.length === 0 && (
+        <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+          Nenhum contrato encontrado para o filtro rápido selecionado.
         </div>
       )}
 
