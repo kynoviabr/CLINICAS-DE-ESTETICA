@@ -18,6 +18,33 @@ import { generateContractHTML } from '@/components/contracts/ContractTemplateGen
 import { generateContractPDF } from '@/lib/contractPDF';
 import { Card, CardContent } from '@/components/ui/card';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import type { Database } from '@/integrations/supabase/types';
+
+type ContractRow = Database['public']['Tables']['contracts']['Row'];
+type ContractStatus = Database['public']['Enums']['contract_status'];
+type ProposalStatus = Database['public']['Enums']['proposal_status'];
+type ContractWithRelations = ContractRow & {
+  process_status?: string | null;
+  signed_pdf_url?: string | null;
+  template_html?: string | null;
+  patients?: { full_name?: string | null; cpf?: string | null } | null;
+  proposals?: { proposal_number?: string | null; final_amount?: number | null } | null;
+  payers?: { name?: string | null; cpf?: string | null } | null;
+};
+type ApprovedProposal = {
+  id: string;
+  proposal_number: string;
+  patient_id: string;
+  final_amount: number | null;
+  patients?: {
+    full_name?: string | null;
+    cpf?: string | null;
+    date_of_birth?: string | null;
+    payer_id?: string | null;
+    is_self_payer?: boolean | null;
+  } | null;
+};
+type ProposalItemLite = { quantity: number; treatments?: { name?: string | null; num_sessions?: number | null } | null };
 
 export default function ContractsPage() {
   const { clinicId, clinicName } = useBranding();
@@ -34,7 +61,7 @@ export default function ContractsPage() {
       : 'all'
   );
   const [search, setSearch] = useState('');
-  const [viewContract, setViewContract] = useState<any>(null);
+  const [viewContract, setViewContract] = useState<ContractWithRelations | null>(null);
   const [createDialog, setCreateDialog] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState('');
   const [selectedContractIds, setSelectedContractIds] = useState<string[]>([]);
@@ -64,7 +91,7 @@ export default function ContractsPage() {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+      return (data || []) as ContractWithRelations[];
     },
     enabled: !!clinicId,
   });
@@ -79,34 +106,34 @@ export default function ContractsPage() {
 
       if (contractsError) throw contractsError;
 
-      const linkedIds = (allContracts || []).map((contract: any) => contract.proposal_id).filter(Boolean);
+      const linkedIds = (allContracts || []).map((contract) => contract.proposal_id).filter(Boolean);
       let query = supabase
         .from('proposals')
         .select('id, proposal_number, patient_id, final_amount, patients(full_name, cpf, date_of_birth, payer_id, is_self_payer)')
         .eq('clinic_id', clinicId!)
-        .eq('status', 'accepted');
+        .eq('status', 'accepted' as ProposalStatus);
 
       if (linkedIds.length > 0) query = query.not('id', 'in', `(${linkedIds.join(',')})`);
 
       const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+      return (data || []) as ApprovedProposal[];
     },
     enabled: !!clinicId && createDialog,
   });
 
   const summary = useMemo(() => {
     return {
-      generated: contracts.filter((contract: any) => contract.process_status === 'pending_upload').length,
-      signedReceived: contracts.filter((contract: any) => contract.process_status === 'pending_confirmation').length,
-      active: contracts.filter((contract: any) => contract.process_status === 'confirmed').length,
-      needsReview: contracts.filter((contract: any) => contract.process_status === 'overdue').length,
+      generated: contracts.filter((contract) => contract.process_status === 'pending_upload').length,
+      signedReceived: contracts.filter((contract) => contract.process_status === 'pending_confirmation').length,
+      active: contracts.filter((contract) => contract.process_status === 'confirmed').length,
+      needsReview: contracts.filter((contract) => contract.process_status === 'overdue').length,
     };
   }, [contracts]);
 
   const visibleContracts = useMemo(() => {
     const today = format(new Date(), 'yyyy-MM-dd');
-    return contracts.filter((contract: any) => {
+    return contracts.filter((contract) => {
       if (quickFilter === 'pending_signature') return contract.process_status === 'pending_confirmation';
       if (quickFilter === 'overdue') return contract.process_status === 'overdue';
       if (quickFilter === 'mine_today') {
@@ -119,22 +146,22 @@ export default function ContractsPage() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const proposal = approvedProposals.find((item: any) => item.id === selectedProposal);
+      const proposal = approvedProposals.find((item) => item.id === selectedProposal);
       if (!proposal) throw new Error('Selecione uma proposta');
 
-      const patient = proposal.patients as any;
+      const patient = proposal.patients;
       const { data: items, error: itemsError } = await supabase
         .from('proposal_items')
         .select('quantity, treatments(name, num_sessions)')
         .eq('proposal_id', proposal.id);
       if (itemsError) throw itemsError;
 
-      const treatmentNames = (items || [])
-        .map((item: any) => (item.treatments as any)?.name || '')
+      const treatmentNames = ((items || []) as ProposalItemLite[])
+        .map((item) => item.treatments?.name || '')
         .filter(Boolean)
         .join(', ');
-      const totalSessions = (items || []).reduce(
-        (sum: number, item: any) => sum + ((item.treatments as any)?.num_sessions || 1) * (item.quantity || 1),
+      const totalSessions = ((items || []) as ProposalItemLite[]).reduce(
+        (sum: number, item) => sum + ((item.treatments?.num_sessions || 1) * (item.quantity || 1)),
         0
       );
 
@@ -232,7 +259,7 @@ export default function ContractsPage() {
       setSelectedProposal('');
       toast({ title: 'Contrato gerado!' });
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     },
   });
@@ -242,7 +269,7 @@ export default function ContractsPage() {
       if (!clinicId || selectedContractIds.length === 0) return;
       const { error } = await supabase
         .from('contracts')
-        .update({ process_status: bulkStatus as any })
+        .update({ process_status: bulkStatus as ContractStatus })
         .eq('clinic_id', clinicId)
         .in('id', selectedContractIds);
       if (error) throw error;
@@ -252,14 +279,14 @@ export default function ContractsPage() {
       setSelectedContractIds([]);
       toast({ title: 'Status atualizado em lote!' });
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     },
   });
 
   useEffect(() => {
     if (!shouldOpenViewFromQuery || !prefillContractId || contracts.length === 0 || !!viewContract) return;
-    const targetContract = contracts.find((contract: any) => contract.id === prefillContractId);
+    const targetContract = contracts.find((contract) => contract.id === prefillContractId);
     if (!targetContract) return;
 
     setViewContract(targetContract);
@@ -402,12 +429,12 @@ export default function ContractsPage() {
                   <th className="px-4 py-3">
                     <input
                       type="checkbox"
-                      checked={visibleContracts.length > 0 && visibleContracts.every((item: any) => selectedContractIds.includes(item.id))}
+                      checked={visibleContracts.length > 0 && visibleContracts.every((item) => selectedContractIds.includes(item.id))}
                       onChange={(event) => {
                         if (event.target.checked) {
-                          setSelectedContractIds(Array.from(new Set([...selectedContractIds, ...visibleContracts.map((item: any) => item.id)])));
+                          setSelectedContractIds(Array.from(new Set([...selectedContractIds, ...visibleContracts.map((item) => item.id)])));
                         } else {
-                          const visibleSet = new Set(visibleContracts.map((item: any) => item.id));
+                          const visibleSet = new Set(visibleContracts.map((item) => item.id));
                           setSelectedContractIds(selectedContractIds.filter((id) => !visibleSet.has(id)));
                         }
                       }}
@@ -422,7 +449,7 @@ export default function ContractsPage() {
                 </tr>
               </thead>
               <tbody>
-                {visibleContracts.map((contract: any) => (
+                {visibleContracts.map((contract) => (
                   <tr key={contract.id} className="border-b last:border-0 hover:bg-secondary/30 transition-colors">
                     <td className="px-4 py-3">
                       <input
@@ -443,10 +470,10 @@ export default function ContractsPage() {
                         {format(new Date(contract.created_at), 'dd/MM/yyyy', { locale: ptBR })}
                       </p>
                     </td>
-                    <td className="px-4 py-3 text-sm text-foreground">{(contract.patients as any)?.full_name}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{(contract.proposals as any)?.proposal_number || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-foreground">{contract.patients?.full_name}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{contract.proposals?.proposal_number || '—'}</td>
                     <td className="px-4 py-3 text-sm font-semibold text-foreground text-right">
-                      R$ {Number((contract.proposals as any)?.final_amount || 0).toFixed(2)}
+                      R$ {Number(contract.proposals?.final_amount || 0).toFixed(2)}
                     </td>
                     <td className="px-4 py-3">
                       <ContractStatusBadge status={contract.process_status} />
@@ -496,9 +523,9 @@ export default function ContractsPage() {
                   <SelectValue placeholder="Selecionar proposta" />
                 </SelectTrigger>
                 <SelectContent>
-                  {approvedProposals.map((proposal: any) => (
+                  {approvedProposals.map((proposal) => (
                     <SelectItem key={proposal.id} value={proposal.id}>
-                      {proposal.proposal_number} - {(proposal.patients as any)?.full_name} (R$ {Number(proposal.final_amount).toFixed(2)})
+                      {proposal.proposal_number} - {proposal.patients?.full_name} (R$ {Number(proposal.final_amount).toFixed(2)})
                     </SelectItem>
                   ))}
                 </SelectContent>

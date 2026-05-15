@@ -652,7 +652,7 @@ export default function CrmPage() {
       setQuickForm({ full_name: '', phone: '', cpf: '', email: '', source: '', priority_level: 'medium', assigned_to: 'unassigned', treatment: 'none', notes: '' });
       toast({ title: 'Lead criado', description: `${lead.full_name} entrou em Novo Lead.` });
     },
-    onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+    onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
   });
 
   async function ensurePatientForLead(lead: LeadRow) {
@@ -824,7 +824,7 @@ export default function CrmPage() {
       }
       toast({ title: 'Lead atualizado', description: `Movido para ${stageMap[variables.targetStage]?.label || variables.targetStage}.` });
     },
-    onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+    onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
   });
 
   const saveLeadMutation = useMutation({
@@ -857,7 +857,7 @@ export default function CrmPage() {
       qc.invalidateQueries({ queryKey: ['appointments'] });
       toast({ title: 'Lead atualizado' });
     },
-    onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+    onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
   });
 
   const assignLeadMutation = useMutation({
@@ -882,7 +882,7 @@ export default function CrmPage() {
       qc.invalidateQueries({ queryKey: ['appointments'] });
       toast({ title: 'Responsável atualizado' });
     },
-    onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+    onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
   });
 
   const bulkAssignMutation = useMutation({
@@ -911,7 +911,7 @@ export default function CrmPage() {
       setBulkAssignValue('unassigned');
       toast({ title: 'Responsável atualizado em lote' });
     },
-    onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+    onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
   });
 
   const bulkMoveStageMutation = useMutation({
@@ -933,7 +933,7 @@ export default function CrmPage() {
       setBulkStageValue('none');
       toast({ title: 'Etapa atualizada em lote' });
     },
-    onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+    onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
   });
 
   const createInteractionMutation = useMutation({
@@ -955,7 +955,7 @@ export default function CrmPage() {
       setInteractionForm({ type: 'call_made', notes: '' });
       toast({ title: 'Interação registrada' });
     },
-    onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+    onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
   });
 
   const quickInteractionMutation = useMutation({
@@ -967,7 +967,7 @@ export default function CrmPage() {
       qc.invalidateQueries({ queryKey: ['crm-leads'] });
       toast({ title: 'Interação registrada' });
     },
-    onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+    onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
   });
 
   const completeFollowUpMutation = useMutation({
@@ -993,7 +993,7 @@ export default function CrmPage() {
       qc.invalidateQueries({ queryKey: ['crm-leads'] });
       toast({ title: 'Follow-up concluído' });
     },
-    onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+    onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
   });
 
   const bulkCompleteFollowUpMutation = useMutation({
@@ -1029,7 +1029,7 @@ export default function CrmPage() {
       setSelectedLeadIds([]);
       toast({ title: 'Follow-up em lote concluído', description: `${count} lead(s) atualizado(s).` });
     },
-    onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+    onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
   });
 
   const saveStagesMutation = useMutation({
@@ -1071,7 +1071,7 @@ export default function CrmPage() {
       qc.invalidateQueries({ queryKey: ['crm-stage-settings'] });
       toast({ title: 'Etapas atualizadas' });
     },
-    onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+    onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
   });
 
   const addStage = () => {

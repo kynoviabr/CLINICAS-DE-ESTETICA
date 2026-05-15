@@ -338,7 +338,7 @@ export default function AppointmentsPage() {
 
     const hasProfessionalAssigned = professionals.some((professional) => professional.user_id === lead.assigned_to);
     setSelectedProfessional(hasProfessionalAssigned ? lead.assigned_to : (isProfessional && user?.id ? user.id : ''));
-  }, [appointmentType, selectedLead, leads, professionals, isProfessional, user, dialogOpen, selectedProfessional]);
+  }, [appointmentType, selectedLead, leads, professionals, isProfessional, user, dialogOpen, selectedProfessional, getSelectedLeadData]);
 
   useEffect(() => {
     if (professionals.length > 0 && availabilityProfessional === 'unassigned') {
@@ -411,7 +411,7 @@ export default function AppointmentsPage() {
       blockedDays,
       blocks: appointmentBlocks.length,
     };
-  }, [filteredAppointments, appointmentBlocks, calendarDays]);
+  }, [filteredAppointments, appointmentBlocks, calendarDays, getBlocksForDay]);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -475,7 +475,7 @@ export default function AppointmentsPage() {
       resetForm();
       toast({ title: 'Agendamento criado!' });
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   const updateStatusMutation = useMutation({
@@ -504,7 +504,7 @@ export default function AppointmentsPage() {
       setViewAppt(null);
       toast({ title: 'Status atualizado!' });
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   const appointmentExceptionMutation = useMutation({
@@ -609,7 +609,7 @@ export default function AppointmentsPage() {
       setExceptionModal(null);
       toast({ title: 'Agenda atualizada' });
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   const saveAvailabilityMutation = useMutation({
@@ -646,7 +646,7 @@ export default function AppointmentsPage() {
       setAvailabilityDialogOpen(false);
       toast({ title: 'Disponibilidade atualizada' });
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   const createBlockMutation = useMutation({
@@ -678,7 +678,7 @@ export default function AppointmentsPage() {
       setBlockNotes('');
       toast({ title: 'Bloqueio criado' });
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   const deleteBlockMutation = useMutation({
@@ -690,7 +690,7 @@ export default function AppointmentsPage() {
       qc.invalidateQueries({ queryKey: ['appointment-blocks'] });
       toast({ title: 'Bloqueio removido' });
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   const resetForm = () => {

@@ -18,6 +18,7 @@ import { Plus, FileText, Trash2, Search, Eye, Send, Check, X, Printer, Filter } 
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import type { Database } from '@/integrations/supabase/types';
 
 const statusMap: Record<string, { label: string; badge: BadgeStatus }> = {
   draft: { label: 'Rascunho', badge: 'draft' },
@@ -35,6 +36,19 @@ interface ProposalItem {
   combo_id?: string;
 }
 
+type ProposalStatus = Database['public']['Enums']['proposal_status'];
+type ContractStatus = Database['public']['Enums']['contract_status'];
+type ProposalRow = Database['public']['Tables']['proposals']['Row'];
+type ProposalInsert = Database['public']['Tables']['proposals']['Insert'];
+type ProposalItemRow = Database['public']['Tables']['proposal_items']['Row'];
+type PatientLite = Pick<Database['public']['Tables']['patients']['Row'], 'id' | 'full_name'>;
+type TreatmentLite = Pick<Database['public']['Tables']['treatments']['Row'], 'id' | 'name' | 'price' | 'min_price' | 'default_price'>;
+type LeadLite = Pick<Database['public']['Tables']['leads']['Row'], 'id' | 'full_name' | 'kanban_stage' | 'patient_id' | 'proposal_id'>;
+type ProposalWithPatient = ProposalRow & { patients?: { full_name?: string | null } | null };
+type ProposalItemWithTreatment = ProposalItemRow & { treatments?: { name?: string | null } | null };
+type ComboItem = { treatment_id: string | null; quantity: number | null; treatments?: { id?: string | null; name?: string | null; price?: number | null } | null };
+type ComboLite = { id: string; name: string; promotional_price: number | null; treatment_combo_items?: ComboItem[] | null };
+
 export default function ProposalsPage() {
   const { clinicId, clinicName } = useBranding();
   const { user } = useAuth();
@@ -43,7 +57,7 @@ export default function ProposalsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [viewDialog, setViewDialog] = useState<any>(null);
+  const [viewDialog, setViewDialog] = useState<(ProposalWithPatient & { items?: ProposalItemWithTreatment[] }) | null>(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [quickFilter, setQuickFilter] = useState<'all' | 'draft' | 'sent' | 'accepted'>('all');
   const [search, setSearch] = useState('');
@@ -73,10 +87,10 @@ export default function ProposalsPage() {
         .select('*, patients(full_name)')
         .eq('clinic_id', clinicId!)
         .order('created_at', { ascending: false });
-      if (activeStatus !== 'all') q = q.eq('status', activeStatus as any);
+      if (activeStatus !== 'all') q = q.eq('status', activeStatus as ProposalStatus);
       if (search) q = q.ilike('proposal_number', `%${search}%`);
       const { data } = await q;
-      return data || [];
+      return ((data || []) as ProposalWithPatient[]);
     },
     enabled: !!clinicId,
   });
@@ -85,7 +99,7 @@ export default function ProposalsPage() {
     queryKey: ['patients-list', clinicId],
     queryFn: async () => {
       const { data } = await supabase.from('patients').select('id, full_name').eq('clinic_id', clinicId!).eq('status', 'active').order('full_name');
-      return data || [];
+      return ((data || []) as PatientLite[]);
     },
     enabled: !!clinicId,
   });
@@ -94,7 +108,7 @@ export default function ProposalsPage() {
     queryKey: ['treatments-list', clinicId],
     queryFn: async () => {
       const { data } = await supabase.from('treatments').select('id, name, price, min_price, default_price').eq('clinic_id', clinicId!).eq('is_active', true).order('name');
-      return data || [];
+      return ((data || []) as TreatmentLite[]);
     },
     enabled: !!clinicId,
   });
@@ -102,8 +116,8 @@ export default function ProposalsPage() {
   const { data: combos = [] } = useQuery({
     queryKey: ['combos-list', clinicId],
     queryFn: async () => {
-      const { data } = await supabase.from('treatment_combos' as any).select('*, treatment_combo_items(*, treatments(id, name, price, min_price))').eq('clinic_id', clinicId!).eq('active', true);
-      return (data as any[]) || [];
+      const { data } = await supabase.from('treatment_combos').select('*, treatment_combo_items(*, treatments(id, name, price, min_price))').eq('clinic_id', clinicId!).eq('active', true);
+      return ((data || []) as unknown as ComboLite[]);
     },
     enabled: !!clinicId,
   });
@@ -112,13 +126,14 @@ export default function ProposalsPage() {
     queryKey: ['crm-lead-context', clinicId, prefillLeadId],
     queryFn: async () => {
       if (!prefillLeadId) return null;
-      const { data, error } = await (supabase.from('leads' as any) as any)
+      const { data, error } = await supabase
+        .from('leads')
         .select('id, full_name, kanban_stage, patient_id, proposal_id')
         .eq('clinic_id', clinicId)
         .eq('id', prefillLeadId)
         .single();
       if (error) throw error;
-      return data;
+      return data as LeadLite;
     },
     enabled: !!clinicId && !!prefillLeadId,
   });
@@ -127,7 +142,7 @@ export default function ProposalsPage() {
 
   useEffect(() => {
     if (!shouldOpenNewFromQuery || !prefillPatientId || dialogOpen || !!editingId) return;
-    if (!patients.some((patient: any) => patient.id === prefillPatientId)) return;
+    if (!patients.some((patient) => patient.id === prefillPatientId)) return;
 
     resetForm();
     setSelectedPatient(prefillPatientId);
@@ -140,7 +155,7 @@ export default function ProposalsPage() {
 
   useEffect(() => {
     if (!shouldOpenViewFromQuery || !prefillProposalId || proposals.length === 0 || !!viewDialog) return;
-    const targetProposal = proposals.find((proposal: any) => proposal.id === prefillProposalId);
+    const targetProposal = proposals.find((proposal) => proposal.id === prefillProposalId);
     if (!targetProposal) return;
 
     openView(targetProposal);
@@ -186,7 +201,7 @@ export default function ProposalsPage() {
           if (ie) throw ie;
         }
       } else {
-        const { data: proposal, error } = await supabase.from('proposals').insert({
+        const proposalPayload: ProposalInsert = {
           clinic_id: clinicId!,
           patient_id: selectedPatient,
           proposal_number: num!,
@@ -195,7 +210,8 @@ export default function ProposalsPage() {
           notes: notes || null,
           valid_until: validUntil || null,
           created_by: user?.id || null,
-        }).select().single();
+        };
+        const { data: proposal, error } = await supabase.from('proposals').insert(proposalPayload).select().single();
         if (error) throw error;
 
         if (items.length > 0) {
@@ -212,7 +228,8 @@ export default function ProposalsPage() {
         }
 
         if (prefillLeadId) {
-          const { error: leadError } = await (supabase.from('leads' as any) as any)
+          const { error: leadError } = await supabase
+            .from('leads')
             .update({
               patient_id: selectedPatient,
               proposal_id: proposal.id,
@@ -240,17 +257,18 @@ export default function ProposalsPage() {
       }
       toast({ title: editingId ? 'Proposta atualizada!' : 'Proposta criada!' });
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   const statusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from('proposals').update({ status: status as any }).eq('id', id);
+      const { error } = await supabase.from('proposals').update({ status: status as ProposalStatus }).eq('id', id);
       if (error) throw error;
 
       if (status === 'sent' || status === 'accepted') {
         const nextStage = status === 'accepted' ? 'closed_won' : 'proposal_sent';
-        const { error: leadError } = await (supabase.from('leads' as any) as any)
+        const { error: leadError } = await supabase
+          .from('leads')
           .update({ kanban_stage: nextStage })
           .eq('clinic_id', clinicId!)
           .eq('proposal_id', id);
@@ -267,7 +285,7 @@ export default function ProposalsPage() {
         navigate(crmReturnUrl);
       }
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   const resetForm = () => {
@@ -285,9 +303,9 @@ export default function ProposalsPage() {
     }
   };
 
-  const addComboItem = (combo: any) => {
+  const addComboItem = (combo: ComboLite) => {
     const comboItems = combo.treatment_combo_items || [];
-    const newItems: ProposalItem[] = comboItems.map((ci: any) => ({
+    const newItems: ProposalItem[] = comboItems.map((ci) => ({
       treatment_id: ci.treatments?.id || ci.treatment_id,
       quantity: ci.quantity || 1,
       unit_price: combo.promotional_price
@@ -300,21 +318,21 @@ export default function ProposalsPage() {
   };
 
   const getMinPriceWarning = (item: ProposalItem) => {
-    const t = treatments.find((tr: any) => tr.id === item.treatment_id);
+    const t = treatments.find((tr) => tr.id === item.treatment_id);
     if (t?.min_price && item.unit_price < Number(t.min_price)) {
       return `Abaixo do mínimo (R$ ${Number(t.min_price).toFixed(2)})`;
     }
     return null;
   };
 
-  const openEdit = async (proposal: any) => {
+  const openEdit = async (proposal: ProposalWithPatient) => {
     setEditingId(proposal.id);
     setSelectedPatient(proposal.patient_id);
     setNotes(proposal.notes || '');
     setValidUntil(proposal.valid_until || '');
 
     const { data: pItems } = await supabase.from('proposal_items').select('*').eq('proposal_id', proposal.id);
-    setItems((pItems || []).map((pi: any) => ({
+    setItems(((pItems || []) as ProposalItemRow[]).map((pi) => ({
       treatment_id: pi.treatment_id,
       quantity: pi.quantity,
       unit_price: Number(pi.unit_price),
@@ -322,13 +340,13 @@ export default function ProposalsPage() {
     setDialogOpen(true);
   };
 
-  const openView = async (proposal: any) => {
+  const openView = async (proposal: ProposalWithPatient) => {
     const { data: pItems } = await supabase.from('proposal_items').select('*, treatments(name)').eq('proposal_id', proposal.id);
-    setViewDialog({ ...proposal, items: pItems || [] });
+    setViewDialog({ ...proposal, items: (pItems || []) as ProposalItemWithTreatment[] });
   };
 
-  const handlePrint = (proposal: any) => {
-    const patient = patients.find((p: any) => p.id === proposal.patient_id);
+  const handlePrint = (proposal: ProposalWithPatient & { items?: ProposalItemWithTreatment[] }) => {
+    const patient = patients.find((p) => p.id === proposal.patient_id);
     const printItems = proposal.items || [];
     const w = window.open('', '_blank');
     if (!w) return;
@@ -342,11 +360,11 @@ export default function ProposalsPage() {
       </style></head><body>
       <h1>${clinicName}</h1><h2>Proposta Comercial</h2>
       <p><strong>Nº:</strong> ${proposal.proposal_number}</p>
-      <p><strong>Paciente:</strong> ${patient?.full_name || (proposal.patients as any)?.full_name || '—'}</p>
+      <p><strong>Paciente:</strong> ${patient?.full_name || proposal.patients?.full_name || '—'}</p>
       <p><strong>Data:</strong> ${format(new Date(proposal.created_at), 'dd/MM/yyyy', { locale: ptBR })}</p>
       ${proposal.valid_until ? `<p><strong>Validade:</strong> ${format(new Date(proposal.valid_until + 'T12:00'), 'dd/MM/yyyy', { locale: ptBR })}</p>` : ''}
       <table><thead><tr><th>Tratamento</th><th>Qtd</th><th>Valor Unit.</th><th>Subtotal</th></tr></thead><tbody>
-      ${printItems.map((i: any) => `<tr><td>${(i.treatments as any)?.name || '—'}</td><td>${i.quantity}</td><td>R$ ${Number(i.unit_price).toFixed(2)}</td><td>R$ ${Number(i.subtotal).toFixed(2)}</td></tr>`).join('')}
+      ${printItems.map((i) => `<tr><td>${i.treatments?.name || '—'}</td><td>${i.quantity}</td><td>R$ ${Number(i.unit_price).toFixed(2)}</td><td>R$ ${Number(i.subtotal).toFixed(2)}</td></tr>`).join('')}
       </tbody></table>
       <p class="total">Total: R$ ${Number(proposal.final_amount).toFixed(2)}</p>
       ${proposal.notes ? `<p style="margin-top:20px"><strong>Observações:</strong> ${proposal.notes}</p>` : ''}
@@ -356,7 +374,7 @@ export default function ProposalsPage() {
     w.print();
   };
 
-  const generateContract = async (proposal: any) => {
+  const generateContract = async (proposal: ProposalWithPatient) => {
     const now = new Date();
     const num = `CONT-${format(now, 'yyyyMM')}-${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}`;
     const { error } = await supabase.from('contracts').insert({
@@ -364,7 +382,7 @@ export default function ProposalsPage() {
       patient_id: proposal.patient_id,
       proposal_id: proposal.id,
       contract_number: num,
-      status: 'draft' as any,
+      status: 'draft' as ContractStatus,
       created_by: user?.id || null,
       start_date: format(now, 'yyyy-MM-dd'),
     });
@@ -489,12 +507,12 @@ export default function ProposalsPage() {
                 </tr>
               </thead>
               <tbody>
-                {proposals.map((p: any) => {
+                {proposals.map((p) => {
                   const sm = statusMap[p.status] || { label: p.status, badge: 'default' as BadgeStatus };
                   return (
                     <tr key={p.id} className="border-b last:border-0 hover:bg-secondary/30 transition-colors">
                       <td className="px-4 py-3 text-sm font-medium text-foreground">{p.proposal_number}</td>
-                      <td className="px-4 py-3 text-sm text-foreground">{(p.patients as any)?.full_name}</td>
+                      <td className="px-4 py-3 text-sm text-foreground">{p.patients?.full_name}</td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">{format(new Date(p.created_at), 'dd/MM/yyyy', { locale: ptBR })}</td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">{p.valid_until ? format(new Date(p.valid_until + 'T12:00'), 'dd/MM/yyyy', { locale: ptBR }) : '—'}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-foreground text-right">R$ {Number(p.final_amount).toFixed(2)}</td>
@@ -547,7 +565,7 @@ export default function ProposalsPage() {
                 <Select value={selectedPatient} onValueChange={setSelectedPatient}>
                   <SelectTrigger><SelectValue placeholder="Selecionar paciente" /></SelectTrigger>
                   <SelectContent>
-                    {patients.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+                    {patients.map((p) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -577,12 +595,12 @@ export default function ProposalsPage() {
                     <p className="text-sm text-muted-foreground">Nenhum combo disponível</p>
                   ) : (
                     <div className="space-y-2">
-                      {combos.map((c: any) => (
+                      {combos.map((c) => (
                         <div key={c.id} className="flex items-center justify-between p-2 border rounded-lg">
                           <div>
                             <p className="text-sm font-medium">{c.name}</p>
                             <p className="text-xs text-muted-foreground">
-                              {(c.treatment_combo_items || []).map((ci: any) => ci.treatments?.name).filter(Boolean).join(', ')}
+                              {(c.treatment_combo_items || []).map((ci) => ci.treatments?.name).filter(Boolean).join(', ')}
                             </p>
                             {c.promotional_price && <p className="text-xs font-semibold text-primary">R$ {Number(c.promotional_price).toFixed(2)}</p>}
                           </div>
@@ -603,14 +621,14 @@ export default function ProposalsPage() {
                     <div className="flex gap-2 items-end">
                       <div className="flex-1">
                         <Select value={item.treatment_id} onValueChange={v => {
-                          const t = treatments.find((tr: any) => tr.id === v);
+                          const t = treatments.find((tr) => tr.id === v);
                           const newItems = [...items];
                           newItems[idx] = { ...item, treatment_id: v, unit_price: t ? Number(t.default_price || t.price) : item.unit_price };
                           setItems(newItems);
                         }}>
                           <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {treatments.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                            {treatments.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
@@ -667,7 +685,7 @@ export default function ProposalsPage() {
 
               <div className="space-y-4 mt-4">
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div><span className="text-muted-foreground">Paciente:</span> <span className="font-medium">{(viewDialog.patients as any)?.full_name}</span></div>
+                  <div><span className="text-muted-foreground">Paciente:</span> <span className="font-medium">{viewDialog.patients?.full_name}</span></div>
                   <div><span className="text-muted-foreground">Data:</span> <span className="font-medium">{format(new Date(viewDialog.created_at), 'dd/MM/yyyy', { locale: ptBR })}</span></div>
                   {viewDialog.valid_until && <div><span className="text-muted-foreground">Validade:</span> <span className="font-medium">{format(new Date(viewDialog.valid_until + 'T12:00'), 'dd/MM/yyyy', { locale: ptBR })}</span></div>}
                   <div><span className="text-muted-foreground">Valor Total:</span> <span className="font-bold">R$ {Number(viewDialog.final_amount).toFixed(2)}</span></div>
@@ -685,9 +703,9 @@ export default function ProposalsPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {viewDialog.items.map((i: any) => (
+                        {viewDialog.items.map((i) => (
                           <tr key={i.id} className="border-b">
-                            <td className="px-3 py-2">{(i.treatments as any)?.name || '—'}</td>
+                            <td className="px-3 py-2">{i.treatments?.name || '—'}</td>
                             <td className="px-3 py-2 text-center">{i.quantity}</td>
                             <td className="px-3 py-2 text-right">R$ {Number(i.unit_price).toFixed(2)}</td>
                             <td className="px-3 py-2 text-right font-medium">R$ {Number(i.subtotal).toFixed(2)}</td>
