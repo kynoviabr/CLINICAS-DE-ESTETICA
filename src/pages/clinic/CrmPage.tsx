@@ -1944,7 +1944,7 @@ export default function CrmPage() {
                     <div className="flex gap-2 flex-wrap">
                       <BrandButton size="sm" variant="outline" className="h-8 px-3 text-xs" onClick={() => setInteractionOpen(true)}>
                         <MessageSquare className="w-4 h-4" />
-                        Interação
+                        Registrar interação
                       </BrandButton>
                       <BrandButton
                         size="sm"
@@ -1984,7 +1984,7 @@ export default function CrmPage() {
                           className="h-8 px-3 text-xs"
                           onClick={() => window.open(`https://wa.me/55${normalizePhone(leadDrawer.phone)}`, '_blank')}
                         >
-                          WhatsApp
+                          Abrir WhatsApp
                         </BrandButton>
                       )}
                     </div>

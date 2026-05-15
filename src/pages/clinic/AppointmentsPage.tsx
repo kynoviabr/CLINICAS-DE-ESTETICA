@@ -957,6 +957,36 @@ export default function AppointmentsPage() {
                     <BrandButton size="sm" variant="outline" onClick={() => setViewAppt(appointment)}>
                       Ver
                     </BrandButton>
+                    {appointment.status === 'scheduled' && (
+                      <BrandButton
+                        size="sm"
+                        variant="outline"
+                        onClick={() => updateStatusMutation.mutate({ id: appointment.id, status: 'confirmed' })}
+                        disabled={updateStatusMutation.isPending}
+                      >
+                        Confirmar
+                      </BrandButton>
+                    )}
+                    {appointment.status === 'confirmed' && (
+                      <BrandButton
+                        size="sm"
+                        variant="outline"
+                        onClick={() => updateStatusMutation.mutate({ id: appointment.id, status: 'in_progress' })}
+                        disabled={updateStatusMutation.isPending}
+                      >
+                        Iniciar
+                      </BrandButton>
+                    )}
+                    {appointment.status === 'in_progress' && (
+                      <BrandButton
+                        size="sm"
+                        variant="outline"
+                        onClick={() => updateStatusMutation.mutate({ id: appointment.id, status: 'completed' })}
+                        disabled={updateStatusMutation.isPending}
+                      >
+                        Concluir
+                      </BrandButton>
+                    )}
                     {appointment.appointment_type === 'evaluation' && appointment.status === 'completed' && (
                       <BrandButton size="sm" variant="outline" onClick={() => openProposalFromEvaluation(appointment, false)}>
                         Proposta
