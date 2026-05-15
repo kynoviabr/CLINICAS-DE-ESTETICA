@@ -188,6 +188,11 @@ function getFollowUpStatus(nextActionAt?: string | null) {
   return { label: 'Próxima ação agendada', className: 'bg-sky-100 text-sky-700' };
 }
 
+function isFollowUpDue(nextActionAt?: string | null) {
+  if (!nextActionAt) return false;
+  return new Date(nextActionAt).getTime() <= Date.now();
+}
+
 function getPriorityBadge(priority?: string | null) {
   if (priority === 'high') return { label: 'Alta prioridade', className: 'bg-rose-100 text-rose-700' };
   if (priority === 'low') return { label: 'Baixa prioridade', className: 'bg-emerald-100 text-emerald-700' };
@@ -965,6 +970,32 @@ export default function CrmPage() {
     onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
   });
 
+  const completeFollowUpMutation = useMutation({
+    mutationFn: async (lead: LeadRow) => {
+      await registerLeadInteraction({
+        lead,
+        type: 'note',
+        notes: `Follow-up executado: ${lead.next_action || 'ação concluída'}.`,
+        autoAdvance: true,
+      });
+
+      const { error } = await (supabase.from('leads' as any) as any)
+        .update({
+          next_action: null,
+          next_action_at: null,
+        })
+        .eq('clinic_id', lead.clinic_id)
+        .eq('id', lead.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['crm-interactions'] });
+      qc.invalidateQueries({ queryKey: ['crm-leads'] });
+      toast({ title: 'Follow-up concluído' });
+    },
+    onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+  });
+
   const saveStagesMutation = useMutation({
     mutationFn: async (nextStages: StageDefinition[]) => {
       if (!clinicId) return;
@@ -1408,6 +1439,22 @@ export default function CrmPage() {
                           </span>
                         </div>
                       )}
+                      {isFollowUpDue(lead.next_action_at) && (
+                        <div className="mt-1.5 flex justify-start">
+                          <BrandButton
+                            size="sm"
+                            variant="outline"
+                            className="h-6 rounded-md border-amber-200 bg-amber-50 px-2 text-[10px] text-amber-800"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              completeFollowUpMutation.mutate(lead);
+                            }}
+                            disabled={completeFollowUpMutation.isPending}
+                          >
+                            Concluir próxima ação
+                          </BrandButton>
+                        </div>
+                      )}
                       <div className="mt-1 flex justify-start">
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${priority.className}`}>
                           {priority.label}
@@ -1563,9 +1610,25 @@ export default function CrmPage() {
                         <div className="space-y-1">
                           <p className="text-sm text-foreground">{lead.next_action || 'Sem próxima ação'}</p>
                           {lead.next_action_at && (
-                            <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${followUp.className}`}>
-                              {format(new Date(lead.next_action_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
-                            </span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${followUp.className}`}>
+                                {format(new Date(lead.next_action_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                              </span>
+                              {isFollowUpDue(lead.next_action_at) && (
+                                <BrandButton
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 rounded-md border-amber-200 bg-amber-50 px-2 text-[10px] text-amber-800"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    completeFollowUpMutation.mutate(lead);
+                                  }}
+                                  disabled={completeFollowUpMutation.isPending}
+                                >
+                                  Concluir
+                                </BrandButton>
+                              )}
+                            </div>
                           )}
                         </div>
                       </td>
