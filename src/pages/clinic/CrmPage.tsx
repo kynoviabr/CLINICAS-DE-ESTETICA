@@ -996,6 +996,42 @@ export default function CrmPage() {
     onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
   });
 
+  const bulkCompleteFollowUpMutation = useMutation({
+    mutationFn: async () => {
+      const dueLeads = selectedLeads.filter((lead) => isFollowUpDue(lead.next_action_at));
+      if (dueLeads.length === 0) {
+        throw new Error('Nenhum lead selecionado possui próxima ação vencida/para agora.');
+      }
+
+      for (const lead of dueLeads) {
+        await registerLeadInteraction({
+          lead,
+          type: 'note',
+          notes: `Follow-up executado em lote: ${lead.next_action || 'ação concluída'}.`,
+          autoAdvance: true,
+        });
+
+        const { error } = await (supabase.from('leads' as any) as any)
+          .update({
+            next_action: null,
+            next_action_at: null,
+          })
+          .eq('clinic_id', lead.clinic_id)
+          .eq('id', lead.id);
+        if (error) throw error;
+      }
+
+      return dueLeads.length;
+    },
+    onSuccess: (count) => {
+      qc.invalidateQueries({ queryKey: ['crm-interactions'] });
+      qc.invalidateQueries({ queryKey: ['crm-leads'] });
+      setSelectedLeadIds([]);
+      toast({ title: 'Follow-up em lote concluído', description: `${count} lead(s) atualizado(s).` });
+    },
+    onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+  });
+
   const saveStagesMutation = useMutation({
     mutationFn: async (nextStages: StageDefinition[]) => {
       if (!clinicId) return;
@@ -1534,6 +1570,15 @@ export default function CrmPage() {
                     onClick={() => bulkMoveStageMutation.mutate(bulkStageValue)}
                   >
                     Aplicar etapa
+                  </BrandButton>
+                  <BrandButton
+                    size="sm"
+                    variant="outline"
+                    className="h-8 border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                    disabled={bulkCompleteFollowUpMutation.isPending}
+                    onClick={() => bulkCompleteFollowUpMutation.mutate()}
+                  >
+                    {bulkCompleteFollowUpMutation.isPending ? 'Concluindo...' : 'Concluir follow-up em lote'}
                   </BrandButton>
                   <BrandButton size="sm" variant="outline" className="h-8" onClick={() => setSelectedLeadIds([])}>
                     Limpar seleção
