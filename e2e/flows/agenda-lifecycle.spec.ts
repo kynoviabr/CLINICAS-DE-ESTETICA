@@ -56,9 +56,8 @@ function nextBusinessDate(baseDaysAhead = 14, hour = 14, minute = 0) {
 function buildUniqueStartDate() {
   const nonce = Date.now();
   const extraDays = 45 + (nonce % 20);
-  const hour = 8 + (Math.floor(nonce / 1000) % 9); // 08..16
-  const minute = (Math.floor(nonce / 1000) % 12) * 5; // 00..55
-  return nextBusinessDate(extraDays, hour, minute);
+  // Mantém janela segura da disponibilidade padrão de agenda (09:00-18:00)
+  return nextBusinessDate(extraDays, 10, 0);
 }
 
 test.describe('Fluxo E2E - Agenda', () => {
@@ -99,7 +98,12 @@ test.describe('Fluxo E2E - Agenda', () => {
 
     let created = false;
     for (let attempt = 0; attempt < 20; attempt += 1) {
-      const attemptStart = new Date(createdStart.getTime() + attempt * 30 * 60 * 1000);
+      const attemptStart = new Date(createdStart);
+      attemptStart.setDate(createdStart.getDate() + attempt);
+      while (attemptStart.getDay() === 0 || attemptStart.getDay() === 6) {
+        attemptStart.setDate(attemptStart.getDate() + 1);
+      }
+      attemptStart.setHours(10, 0, 0, 0);
       await dateInput.fill(toDateInput(attemptStart));
       await timeInput.fill(toTimeInput(attemptStart));
       await durationInput.fill('60');
