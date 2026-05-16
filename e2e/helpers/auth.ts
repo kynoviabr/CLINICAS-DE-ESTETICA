@@ -3,7 +3,9 @@ import { expect, type Page } from '@playwright/test';
 function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
+    throw new Error(
+      `Missing required environment variable: ${name}. Configure E2E vars in shell export or create .env.e2e.local based on .env.e2e.example.`,
+    );
   }
   return value;
 }

@@ -43,8 +43,14 @@ test.describe('Golden Path - Dashboard -> CRM -> Proposta -> Contrato -> CRM', (
     });
 
     await test.step('Gerar contrato a partir da proposta', async () => {
-      const generateContractButton = page.getByRole('button', { name: /gerar contrato/i });
-      await expect(generateContractButton).toBeVisible();
+      const approveButton = page.getByRole('button', { name: /aprovar/i });
+      if ((await approveButton.count()) > 0) {
+        await approveButton.first().click();
+        await expect(page.getByText(/status atualizado/i).first()).toBeVisible();
+      }
+
+      const generateContractButton = page.getByRole('button', { name: /gerar contrato|converter em contrato/i }).first();
+      await expect(generateContractButton).toBeVisible({ timeout: 15_000 });
       await generateContractButton.click();
       await expect(page.getByText('Contrato gerado!', { exact: true })).toBeVisible();
     });

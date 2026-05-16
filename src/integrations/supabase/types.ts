@@ -1908,6 +1908,395 @@ export type Database = {
           },
         ]
       }
+      appointment_waitlist: {
+        Row: {
+          clinic_id: string
+          contact_phone: string | null
+          contact_preference: Database["public"]["Enums"]["waitlist_contact_preference"]
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          last_checked_at: string | null
+          lead_id: string | null
+          match_found_at: string | null
+          min_duration_minutes: number
+          notes: string | null
+          patient_id: string | null
+          preferred_periods: string[]
+          preferred_professional_id: string | null
+          priority: Database["public"]["Enums"]["waitlist_priority"]
+          resulting_appointment_id: string | null
+          status: Database["public"]["Enums"]["waitlist_status"]
+          treatment_id: string | null
+          updated_at: string
+          window_end: string
+          window_start: string
+          window_type: Database["public"]["Enums"]["waitlist_window_type"]
+        }
+        Insert: {
+          clinic_id: string
+          contact_phone?: string | null
+          contact_preference?: Database["public"]["Enums"]["waitlist_contact_preference"]
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          last_checked_at?: string | null
+          lead_id?: string | null
+          match_found_at?: string | null
+          min_duration_minutes?: number
+          notes?: string | null
+          patient_id?: string | null
+          preferred_periods?: string[]
+          preferred_professional_id?: string | null
+          priority?: Database["public"]["Enums"]["waitlist_priority"]
+          resulting_appointment_id?: string | null
+          status?: Database["public"]["Enums"]["waitlist_status"]
+          treatment_id?: string | null
+          updated_at?: string
+          window_end: string
+          window_start: string
+          window_type: Database["public"]["Enums"]["waitlist_window_type"]
+        }
+        Update: {
+          clinic_id?: string
+          contact_phone?: string | null
+          contact_preference?: Database["public"]["Enums"]["waitlist_contact_preference"]
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          last_checked_at?: string | null
+          lead_id?: string | null
+          match_found_at?: string | null
+          min_duration_minutes?: number
+          notes?: string | null
+          patient_id?: string | null
+          preferred_periods?: string[]
+          preferred_professional_id?: string | null
+          priority?: Database["public"]["Enums"]["waitlist_priority"]
+          resulting_appointment_id?: string | null
+          status?: Database["public"]["Enums"]["waitlist_status"]
+          treatment_id?: string | null
+          updated_at?: string
+          window_end?: string
+          window_start?: string
+          window_type?: Database["public"]["Enums"]["waitlist_window_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_waitlist_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waitlist_notifications: {
+        Row: {
+          action_taken: string
+          action_taken_at: string | null
+          action_taken_by: string | null
+          clinic_id: string
+          created_at: string
+          id: string
+          matched_professional_id: string | null
+          matched_slot_end: string
+          matched_slot_start: string
+          notification_sent_at: string
+          resulting_appointment_id: string | null
+          waitlist_id: string
+        }
+        Insert: {
+          action_taken?: string
+          action_taken_at?: string | null
+          action_taken_by?: string | null
+          clinic_id: string
+          created_at?: string
+          id?: string
+          matched_professional_id?: string | null
+          matched_slot_end: string
+          matched_slot_start: string
+          notification_sent_at?: string
+          resulting_appointment_id?: string | null
+          waitlist_id: string
+        }
+        Update: {
+          action_taken?: string
+          action_taken_at?: string | null
+          action_taken_by?: string | null
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          matched_professional_id?: string | null
+          matched_slot_end?: string
+          matched_slot_start?: string
+          notification_sent_at?: string
+          resulting_appointment_id?: string | null
+          waitlist_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waitlist_notifications_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waitlist_agent_logs: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          entries_checked: number
+          errors: Json | null
+          finished_at: string | null
+          id: string
+          matches_found: number
+          notifications_sent: number
+          started_at: string
+          status: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          entries_checked?: number
+          errors?: Json | null
+          finished_at?: string | null
+          id?: string
+          matches_found?: number
+          notifications_sent?: number
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          entries_checked?: number
+          errors?: Json | null
+          finished_at?: string | null
+          id?: string
+          matches_found?: number
+          notifications_sent?: number
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waitlist_agent_logs_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      appointment_reminders: {
+        Row: {
+          appointment_id: string
+          channel: Database["public"]["Enums"]["reminder_channel"]
+          clinic_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          payload: Json | null
+          scheduled_for: string
+          sent_at: string | null
+          status: Database["public"]["Enums"]["reminder_status"]
+        }
+        Insert: {
+          appointment_id: string
+          channel?: Database["public"]["Enums"]["reminder_channel"]
+          clinic_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          payload?: Json | null
+          scheduled_for: string
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["reminder_status"]
+        }
+        Update: {
+          appointment_id?: string
+          channel?: Database["public"]["Enums"]["reminder_channel"]
+          clinic_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          payload?: Json | null
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["reminder_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_reminders_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_reminders_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      appointment_whatsapp_tokens: {
+        Row: {
+          appointment_id: string
+          clinic_id: string
+          consumed_at: string | null
+          consumed_command: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          status: Database["public"]["Enums"]["whatsapp_command_status"]
+          token: string
+        }
+        Insert: {
+          appointment_id: string
+          clinic_id: string
+          consumed_at?: string | null
+          consumed_command?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          status?: Database["public"]["Enums"]["whatsapp_command_status"]
+          token: string
+        }
+        Update: {
+          appointment_id?: string
+          clinic_id?: string
+          consumed_at?: string | null
+          consumed_command?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["whatsapp_command_status"]
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_whatsapp_tokens_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_whatsapp_tokens_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_command_logs: {
+        Row: {
+          appointment_id: string | null
+          clinic_id: string
+          created_at: string
+          details: Json | null
+          id: string
+          incoming_text: string | null
+          parsed_command: string | null
+          result_status: string
+          source_phone: string | null
+          token_id: string | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          clinic_id: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          incoming_text?: string | null
+          parsed_command?: string | null
+          result_status?: string
+          source_phone?: string | null
+          token_id?: string | null
+        }
+        Update: {
+          appointment_id?: string | null
+          clinic_id?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          incoming_text?: string | null
+          parsed_command?: string | null
+          result_status?: string
+          source_phone?: string | null
+          token_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_command_logs_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_command_logs_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agenda_job_executions: {
+        Row: {
+          clinic_id: string | null
+          created_at: string
+          details: Json | null
+          finished_at: string | null
+          id: string
+          job_name: string
+          run_key: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          clinic_id?: string | null
+          created_at?: string
+          details?: Json | null
+          finished_at?: string | null
+          id?: string
+          job_name: string
+          run_key: string
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          clinic_id?: string | null
+          created_at?: string
+          details?: Json | null
+          finished_at?: string | null
+          id?: string
+          job_name?: string
+          run_key?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agenda_job_executions_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1970,6 +2359,20 @@ export type Database = {
       payment_status: "pending" | "paid" | "overdue" | "cancelled" | "refunded"
       photo_type: "before" | "during" | "after" | "progress"
       proposal_status: "draft" | "sent" | "accepted" | "rejected" | "expired"
+      reminder_channel: "whatsapp" | "email" | "sms"
+      reminder_status: "pending" | "sent" | "failed" | "cancelled"
+      waitlist_contact_preference: "whatsapp" | "phone" | "email"
+      waitlist_priority: "normal" | "high" | "urgent"
+      waitlist_status:
+        | "waiting"
+        | "match_found"
+        | "contact_attempted"
+        | "scheduled"
+        | "expired"
+        | "cancelled_by_patient"
+        | "cancelled_by_clinic"
+      waitlist_window_type: "this_week" | "next_week" | "this_month" | "custom"
+      whatsapp_command_status: "pending" | "confirmed" | "cancelled" | "expired"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2119,6 +2522,21 @@ export const Constants = {
       payment_status: ["pending", "paid", "overdue", "cancelled", "refunded"],
       photo_type: ["before", "during", "after", "progress"],
       proposal_status: ["draft", "sent", "accepted", "rejected", "expired"],
+      reminder_channel: ["whatsapp", "email", "sms"],
+      reminder_status: ["pending", "sent", "failed", "cancelled"],
+      waitlist_contact_preference: ["whatsapp", "phone", "email"],
+      waitlist_priority: ["normal", "high", "urgent"],
+      waitlist_status: [
+        "waiting",
+        "match_found",
+        "contact_attempted",
+        "scheduled",
+        "expired",
+        "cancelled_by_patient",
+        "cancelled_by_clinic",
+      ],
+      waitlist_window_type: ["this_week", "next_week", "this_month", "custom"],
+      whatsapp_command_status: ["pending", "confirmed", "cancelled", "expired"],
     },
   },
 } as const

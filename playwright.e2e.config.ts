@@ -1,4 +1,34 @@
 import { defineConfig, devices } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+
+function loadSimpleEnvFile(filename: string) {
+  const filepath = path.resolve(process.cwd(), filename);
+  if (!fs.existsSync(filepath)) return;
+
+  const content = fs.readFileSync(filepath, 'utf-8');
+  for (const rawLine of content.split('\n')) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const separatorIndex = line.indexOf('=');
+    if (separatorIndex <= 0) continue;
+
+    const key = line.slice(0, separatorIndex).trim();
+    const rawValue = line.slice(separatorIndex + 1).trim();
+    if (!key || process.env[key] !== undefined) continue;
+
+    const unquoted =
+      (rawValue.startsWith('"') && rawValue.endsWith('"')) ||
+      (rawValue.startsWith("'") && rawValue.endsWith("'"))
+        ? rawValue.slice(1, -1)
+        : rawValue;
+    process.env[key] = unquoted;
+  }
+}
+
+loadSimpleEnvFile('.env');
+loadSimpleEnvFile('.env.e2e');
+loadSimpleEnvFile('.env.e2e.local');
 
 const baseURL = process.env.E2E_BASE_URL || 'http://127.0.0.1:8080';
 

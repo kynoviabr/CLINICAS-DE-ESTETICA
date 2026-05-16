@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Check, X, AlertTriangle, ClipboardList, UserPlus, CalendarCheck2, Clock3, CheckCircle2, CalendarCog, Lock, Trash2 } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Check, X, AlertTriangle, ClipboardList, UserPlus, CalendarCheck2, Clock3, CheckCircle2, CalendarCog, Lock, Trash2, BellRing } from 'lucide-react';
 import QuickPatientModal from '@/components/patient/QuickPatientModal';
 import { AnamneseAlertBanner } from '@/components/anamnese/AnamneseAlertBanner';
 import {
@@ -45,6 +45,10 @@ const statusConfig: Record<string, { label: string; badge: BadgeStatus; style: s
 };
 
 type ViewMode = 'month' | 'week' | 'day';
+type WaitlistWindowType = Database['public']['Enums']['waitlist_window_type'];
+type WaitlistPriority = Database['public']['Enums']['waitlist_priority'];
+type WaitlistContactPreference = Database['public']['Enums']['waitlist_contact_preference'];
+type WaitlistTargetType = 'lead' | 'patient';
 type AppointmentRow = Database['public']['Tables']['appointments']['Row'] & {
   appointment_type?: 'session' | 'evaluation' | null;
   scheduled_at?: string | null;
@@ -60,6 +64,17 @@ type AppointmentRow = Database['public']['Tables']['appointments']['Row'] & {
   leads?: { full_name?: string | null; phone?: string | null } | null;
   treatments?: { name?: string | null } | null;
 };
+type WaitlistRow = Database['public']['Tables']['appointment_waitlist']['Row'] & {
+  patients?: { full_name?: string | null } | null;
+  leads?: { full_name?: string | null } | null;
+  treatments?: { name?: string | null } | null;
+};
+type WaitlistNotificationRow = Database['public']['Tables']['waitlist_notifications']['Row'] & {
+  appointment_waitlist?: WaitlistRow | null;
+};
+type ReminderRow = Database['public']['Tables']['appointment_reminders']['Row'];
+type WhatsAppCommandLogRow = Database['public']['Tables']['whatsapp_command_logs']['Row'];
+type AgendaJobExecutionRow = Database['public']['Tables']['agenda_job_executions']['Row'];
 const weekDays = [
   { value: 0, label: 'Domingo' },
   { value: 1, label: 'Segunda-feira' },
@@ -69,6 +84,49 @@ const weekDays = [
   { value: 5, label: 'Sexta-feira' },
   { value: 6, label: 'Sábado' },
 ];
+
+function getWindowByType(type: WaitlistWindowType) {
+  const now = new Date();
+  if (type === 'this_week') {
+    return {
+      start: format(startOfWeek(now, { locale: ptBR }), 'yyyy-MM-dd'),
+      end: format(endOfWeek(now, { locale: ptBR }), 'yyyy-MM-dd'),
+    };
+  }
+  if (type === 'next_week') {
+    const nextWeek = addWeeks(now, 1);
+    return {
+      start: format(startOfWeek(nextWeek, { locale: ptBR }), 'yyyy-MM-dd'),
+      end: format(endOfWeek(nextWeek, { locale: ptBR }), 'yyyy-MM-dd'),
+    };
+  }
+  if (type === 'this_month') {
+    return {
+      start: format(startOfMonth(now), 'yyyy-MM-dd'),
+      end: format(endOfMonth(now), 'yyyy-MM-dd'),
+    };
+  }
+  return {
+    start: format(now, 'yyyy-MM-dd'),
+    end: format(addDays(now, 7), 'yyyy-MM-dd'),
+  };
+}
+
+function waitlistPriorityLabel(priority: WaitlistPriority) {
+  if (priority === 'urgent') return 'Urgente';
+  if (priority === 'high') return 'Alta';
+  return 'Normal';
+}
+
+function waitlistStatusLabel(status: Database['public']['Enums']['waitlist_status']) {
+  if (status === 'waiting') return 'Aguardando vaga';
+  if (status === 'match_found') return 'Vaga encontrada';
+  if (status === 'contact_attempted') return 'Contato iniciado';
+  if (status === 'scheduled') return 'Agendado';
+  if (status === 'expired') return 'Expirado';
+  if (status === 'cancelled_by_patient') return 'Cancelado pelo paciente';
+  return 'Cancelado pela clínica';
+}
 
 export default function AppointmentsPage() {
   const { clinicId } = useBranding();
@@ -97,6 +155,7 @@ export default function AppointmentsPage() {
   const [quickPatientOpen, setQuickPatientOpen] = useState(false);
   const [availabilityDialogOpen, setAvailabilityDialogOpen] = useState(false);
   const [blocksDialogOpen, setBlocksDialogOpen] = useState(false);
+  const [waitlistDialogOpen, setWaitlistDialogOpen] = useState(false);
   const [availabilityProfessional, setAvailabilityProfessional] = useState('unassigned');
   const [availabilityDraft, setAvailabilityDraft] = useState<Record<number, { isActive: boolean; start: string; end: string }>>({});
   const [blockProfessional, setBlockProfessional] = useState('all');
@@ -114,6 +173,20 @@ export default function AppointmentsPage() {
   const [rescheduleProfessional, setRescheduleProfessional] = useState('unassigned');
   const [rescheduleNotes, setRescheduleNotes] = useState('');
   const [proposalLoadingId, setProposalLoadingId] = useState<string | null>(null);
+  const [waitlistTargetType, setWaitlistTargetType] = useState<WaitlistTargetType>('lead');
+  const [waitlistLeadId, setWaitlistLeadId] = useState('');
+  const [waitlistPatientId, setWaitlistPatientId] = useState('');
+  const [waitlistProfessionalId, setWaitlistProfessionalId] = useState('any');
+  const [waitlistTreatmentId, setWaitlistTreatmentId] = useState('none');
+  const [waitlistWindowType, setWaitlistWindowType] = useState<WaitlistWindowType>('this_week');
+  const [waitlistWindowStart, setWaitlistWindowStart] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [waitlistWindowEnd, setWaitlistWindowEnd] = useState(format(addDays(new Date(), 7), 'yyyy-MM-dd'));
+  const [waitlistPreferredPeriod, setWaitlistPreferredPeriod] = useState<'morning' | 'afternoon' | 'evening' | 'all'>('all');
+  const [waitlistDuration, setWaitlistDuration] = useState('60');
+  const [waitlistPriority, setWaitlistPriority] = useState<WaitlistPriority>('normal');
+  const [waitlistContactPreference, setWaitlistContactPreference] = useState<WaitlistContactPreference>('whatsapp');
+  const [waitlistContactPhone, setWaitlistContactPhone] = useState('');
+  const [waitlistNotes, setWaitlistNotes] = useState('');
 
   const prefillLeadId = searchParams.get('leadId');
   const prefillProfessionalId = searchParams.get('professionalId');
@@ -216,6 +289,79 @@ export default function AppointmentsPage() {
         .order('start_at');
       if (error) throw error;
       return data || [];
+    },
+    enabled: !!clinicId,
+  });
+  const { data: waitlistEntries = [] } = useQuery({
+    queryKey: ['appointment-waitlist', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('appointment_waitlist')
+        .select('*, patients(full_name), leads(full_name), treatments(name)')
+        .eq('clinic_id', clinicId!)
+        .in('status', ['waiting', 'match_found', 'contact_attempted'])
+        .order('priority', { ascending: false })
+        .order('created_at', { ascending: true })
+        .limit(50);
+      if (error) throw error;
+      return (data || []) as WaitlistRow[];
+    },
+    enabled: !!clinicId,
+  });
+  const { data: waitlistNotifications = [] } = useQuery({
+    queryKey: ['waitlist-notifications', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('waitlist_notifications')
+        .select('*, appointment_waitlist(*)')
+        .eq('clinic_id', clinicId!)
+        .eq('action_taken', 'none')
+        .order('notification_sent_at', { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return (data || []) as WaitlistNotificationRow[];
+    },
+    enabled: !!clinicId,
+  });
+  const { data: reminderQueue = [] } = useQuery({
+    queryKey: ['appointment-reminders', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('appointment_reminders')
+        .select('*')
+        .eq('clinic_id', clinicId!)
+        .order('created_at', { ascending: false })
+        .limit(120);
+      if (error) throw error;
+      return (data || []) as ReminderRow[];
+    },
+    enabled: !!clinicId,
+  });
+  const { data: whatsappLogs = [] } = useQuery({
+    queryKey: ['whatsapp-command-logs', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('whatsapp_command_logs')
+        .select('*')
+        .eq('clinic_id', clinicId!)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return (data || []) as WhatsAppCommandLogRow[];
+    },
+    enabled: !!clinicId,
+  });
+  const { data: agendaJobExecutions = [] } = useQuery({
+    queryKey: ['agenda-job-executions', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('agenda_job_executions')
+        .select('*')
+        .or(`clinic_id.is.null,clinic_id.eq.${clinicId}`)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return (data || []) as AgendaJobExecutionRow[];
     },
     enabled: !!clinicId,
   });
@@ -376,6 +522,14 @@ export default function AppointmentsPage() {
     setAvailabilityDraft(nextDraft);
   }, [availabilityProfessional, availability]);
 
+  useEffect(() => {
+    if (waitlistWindowType !== 'custom') {
+      const window = getWindowByType(waitlistWindowType);
+      setWaitlistWindowStart(window.start);
+      setWaitlistWindowEnd(window.end);
+    }
+  }, [waitlistWindowType]);
+
   const getProfColor = (profId: string | null) => {
     if (!profId) return professionalColors[0];
     const index = professionals.findIndex(p => p.user_id === profId);
@@ -436,6 +590,20 @@ export default function AppointmentsPage() {
       blocks: appointmentBlocks.length,
     };
   }, [filteredAppointments, appointmentBlocks, calendarDays]);
+  const whatsappOpsSummary = useMemo(() => {
+    const pending = reminderQueue.filter((item) => item.status === 'pending').length;
+    const sent = reminderQueue.filter((item) => item.status === 'sent').length;
+    const failed = reminderQueue.filter((item) => item.status === 'failed').length;
+    const inboundApplied = whatsappLogs.filter((log) => log.result_status === 'applied').length;
+    const jobSuccess = agendaJobExecutions.filter((job) => job.status === 'completed').length;
+    return {
+      pending,
+      sent,
+      failed,
+      inboundApplied,
+      jobSuccess,
+    };
+  }, [reminderQueue, whatsappLogs, agendaJobExecutions]);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -716,6 +884,203 @@ export default function AppointmentsPage() {
     },
     onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
+  const sendReminderQueueMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('send-appointment-reminder', {
+        body: { clinicId, lookAheadHours: 24, limit: 150 },
+      });
+      if (error) throw error;
+      return data as { queued?: number; scanned?: number };
+    },
+    onSuccess: (result) => {
+      toast({
+        title: 'Fila de lembretes atualizada',
+        description: `${result?.queued || 0} lembrete(s) preparados de ${result?.scanned || 0} agendamento(s).`,
+      });
+    },
+    onError: (err: Error) => toast({ title: 'Erro ao preparar lembretes', description: err.message, variant: 'destructive' }),
+  });
+  const dispatchReminderMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('dispatch-appointment-reminders', {
+        body: { clinicId, limit: 100 },
+      });
+      if (error) throw error;
+      return data as { processed?: number; sent?: number; failed?: number };
+    },
+    onSuccess: (result) => {
+      toast({
+        title: 'Despacho de lembretes executado',
+        description: `Processados: ${result?.processed || 0} · Enviados: ${result?.sent || 0} · Falhas: ${result?.failed || 0}`,
+      });
+    },
+    onError: (err: Error) => toast({ title: 'Erro no despacho', description: err.message, variant: 'destructive' }),
+  });
+  const generateDailySummaryMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('send-daily-agenda-summary', {
+        body: { clinicId },
+      });
+      if (error) throw error;
+      return data as { generated?: number };
+    },
+    onSuccess: (result) => {
+      toast({
+        title: 'Resumo diário gerado',
+        description: `${result?.generated || 0} clínica(s) processada(s).`,
+      });
+    },
+    onError: (err: Error) => toast({ title: 'Erro ao gerar resumo diário', description: err.message, variant: 'destructive' }),
+  });
+  const runAgendaJobsMutation = useMutation({
+    mutationFn: async (mode: 'morning' | 'hourly' | 'manual') => {
+      const { data, error } = await supabase.functions.invoke('run-agenda-jobs', {
+        body: { clinicId, mode },
+      });
+      if (error) throw error;
+      return data as { runKey?: string; skipped?: boolean; reason?: string };
+    },
+    onSuccess: (result) => {
+      toast({
+        title: result?.skipped ? 'Job já executado' : 'Orquestrador executado',
+        description: result?.runKey ? `Run key: ${result.runKey}` : (result?.reason || 'Processo concluído'),
+      });
+    },
+    onError: (err: Error) => toast({ title: 'Erro no orquestrador', description: err.message, variant: 'destructive' }),
+  });
+  const runWaitlistMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('check-waitlist', {
+        body: { clinicId },
+      });
+      if (error) throw error;
+      return data as { matchesFound?: number; notificationsSent?: number };
+    },
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ['appointment-waitlist'] });
+      qc.invalidateQueries({ queryKey: ['waitlist-notifications'] });
+      toast({
+        title: 'Matching executado',
+        description: `${result?.matchesFound || 0} vaga(s) encontrada(s), ${result?.notificationsSent || 0} notificação(ões).`,
+      });
+    },
+    onError: (err: Error) => toast({ title: 'Erro ao rodar o matching', description: err.message, variant: 'destructive' }),
+  });
+
+  const createAppointmentFromNotificationMutation = useMutation({
+    mutationFn: async (notification: WaitlistNotificationRow) => {
+      const waitlist = notification.appointment_waitlist;
+      if (!clinicId || !waitlist) throw new Error('Dados da lista de espera inválidos.');
+
+      const startTime = notification.matched_slot_start;
+      const endTime = notification.matched_slot_end;
+      const professionalId = notification.matched_professional_id;
+      if (!professionalId) throw new Error('Profissional da vaga não identificado.');
+
+      const appointmentPayload: Record<string, unknown> = {
+        clinic_id: clinicId,
+        patient_id: waitlist.patient_id,
+        lead_id: waitlist.lead_id,
+        treatment_id: waitlist.treatment_id,
+        professional_id: professionalId,
+        start_time: startTime,
+        end_time: endTime,
+        scheduled_at: startTime,
+        duration_minutes: waitlist.min_duration_minutes,
+        appointment_type: waitlist.lead_id ? 'evaluation' : 'session',
+        status: 'scheduled',
+        notes: waitlist.notes || null,
+      };
+
+      const { data: appointment, error: appointmentError } = await supabase
+        .from('appointments')
+        .insert(appointmentPayload)
+        .select('id')
+        .single();
+      if (appointmentError) throw appointmentError;
+
+      const { error: notifError } = await supabase
+        .from('waitlist_notifications')
+        .update({
+          action_taken: 'scheduled',
+          action_taken_at: new Date().toISOString(),
+          action_taken_by: user?.id || null,
+          resulting_appointment_id: appointment.id,
+        })
+        .eq('id', notification.id);
+      if (notifError) throw notifError;
+
+      const waitlistUpdate: Record<string, unknown> = {
+        status: 'scheduled',
+        resulting_appointment_id: appointment.id,
+      };
+      if (waitlist.lead_id) waitlistUpdate['match_found_at'] = new Date().toISOString();
+
+      const { error: waitlistError } = await supabase
+        .from('appointment_waitlist')
+        .update(waitlistUpdate)
+        .eq('id', waitlist.id);
+      if (waitlistError) throw waitlistError;
+
+      if (waitlist.lead_id) {
+        await supabase
+          .from('leads')
+          .update({ appointment_id: appointment.id, kanban_stage: 'scheduled' })
+          .eq('id', waitlist.lead_id)
+          .eq('clinic_id', clinicId);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['appointments'] });
+      qc.invalidateQueries({ queryKey: ['appointment-waitlist'] });
+      qc.invalidateQueries({ queryKey: ['waitlist-notifications'] });
+      qc.invalidateQueries({ queryKey: ['crm-leads'] });
+      toast({ title: 'Agendamento criado a partir da lista de espera' });
+    },
+    onError: (err: Error) => toast({ title: 'Erro ao criar agendamento', description: err.message, variant: 'destructive' }),
+  });
+
+  const createWaitlistMutation = useMutation({
+    mutationFn: async () => {
+      if (!clinicId) throw new Error('Clínica não identificada.');
+      if (waitlistTargetType === 'lead' && !waitlistLeadId) throw new Error('Selecione um lead.');
+      if (waitlistTargetType === 'patient' && !waitlistPatientId) throw new Error('Selecione um paciente.');
+      if (!waitlistWindowStart || !waitlistWindowEnd) throw new Error('Informe a janela de busca.');
+      if (waitlistWindowEnd < waitlistWindowStart) throw new Error('A data final deve ser maior ou igual à data inicial.');
+
+      const periods = waitlistPreferredPeriod === 'all'
+        ? ['morning', 'afternoon', 'evening']
+        : [waitlistPreferredPeriod];
+
+      const payload: Database['public']['Tables']['appointment_waitlist']['Insert'] = {
+        clinic_id: clinicId,
+        lead_id: waitlistTargetType === 'lead' ? waitlistLeadId : null,
+        patient_id: waitlistTargetType === 'patient' ? waitlistPatientId : null,
+        preferred_professional_id: waitlistProfessionalId === 'any' ? null : waitlistProfessionalId,
+        treatment_id: waitlistTreatmentId === 'none' ? null : waitlistTreatmentId,
+        window_type: waitlistWindowType,
+        window_start: waitlistWindowStart,
+        window_end: waitlistWindowEnd,
+        preferred_periods: periods,
+        min_duration_minutes: parseInt(waitlistDuration, 10) || 60,
+        priority: waitlistPriority,
+        status: 'waiting',
+        contact_preference: waitlistContactPreference,
+        contact_phone: waitlistContactPhone.trim() || null,
+        notes: waitlistNotes.trim() || null,
+        created_by: user?.id || null,
+      };
+
+      const { error } = await supabase.from('appointment_waitlist').insert(payload);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['appointment-waitlist'] });
+      toast({ title: 'Lead/paciente adicionado à lista de espera' });
+      resetWaitlistForm();
+    },
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+  });
 
   const resetForm = () => {
     setAppointmentType('session');
@@ -725,6 +1090,24 @@ export default function AppointmentsPage() {
     setSelectedProfessional('');
     setDuration('60');
     setNotes('');
+  };
+
+  const resetWaitlistForm = () => {
+    setWaitlistTargetType('lead');
+    setWaitlistLeadId('');
+    setWaitlistPatientId('');
+    setWaitlistProfessionalId('any');
+    setWaitlistTreatmentId('none');
+    setWaitlistWindowType('this_week');
+    const window = getWindowByType('this_week');
+    setWaitlistWindowStart(window.start);
+    setWaitlistWindowEnd(window.end);
+    setWaitlistPreferredPeriod('all');
+    setWaitlistDuration('60');
+    setWaitlistPriority('normal');
+    setWaitlistContactPreference('whatsapp');
+    setWaitlistContactPhone('');
+    setWaitlistNotes('');
   };
 
   const ensurePatientForLead = async (leadId: string) => {
@@ -829,6 +1212,43 @@ export default function AppointmentsPage() {
             <BrandButton variant="outline" onClick={() => setBlocksDialogOpen(true)}>
               <Lock className="w-4 h-4" /> Bloqueios
             </BrandButton>
+            <BrandButton
+              variant="outline"
+              onClick={() => {
+                resetWaitlistForm();
+                setWaitlistDialogOpen(true);
+              }}
+            >
+              <BellRing className="w-4 h-4" /> Lista de Espera
+            </BrandButton>
+            <BrandButton
+              variant="outline"
+              onClick={() => sendReminderQueueMutation.mutate()}
+              disabled={sendReminderQueueMutation.isPending}
+            >
+              {sendReminderQueueMutation.isPending ? 'Processando...' : 'Fila Lembretes WA'}
+            </BrandButton>
+            <BrandButton
+              variant="outline"
+              onClick={() => dispatchReminderMutation.mutate()}
+              disabled={dispatchReminderMutation.isPending}
+            >
+              {dispatchReminderMutation.isPending ? 'Enviando...' : 'Disparar Lembretes WA'}
+            </BrandButton>
+            <BrandButton
+              variant="outline"
+              onClick={() => generateDailySummaryMutation.mutate()}
+              disabled={generateDailySummaryMutation.isPending}
+            >
+              {generateDailySummaryMutation.isPending ? 'Gerando...' : 'Resumo Diário WA'}
+            </BrandButton>
+            <BrandButton
+              variant="outline"
+              onClick={() => runAgendaJobsMutation.mutate('manual')}
+              disabled={runAgendaJobsMutation.isPending}
+            >
+              {runAgendaJobsMutation.isPending ? 'Executando...' : 'Rodar Jobs Agenda'}
+            </BrandButton>
           </>
           <BrandButton onClick={() => {
             resetForm();
@@ -870,6 +1290,39 @@ export default function AppointmentsPage() {
             <AlertTriangle className="w-5 h-5 text-warning mb-2" />
             <p className="text-2xl font-bold text-foreground">{operationalSummary.noShow}</p>
             <p className="text-xs text-muted-foreground">Não compareceu</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-5 mb-6">
+        <Card className="shadow-card">
+          <CardContent className="p-3">
+            <p className="text-xs text-muted-foreground">WA pendente</p>
+            <p className="text-xl font-semibold">{whatsappOpsSummary.pending}</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-card">
+          <CardContent className="p-3">
+            <p className="text-xs text-muted-foreground">WA enviado</p>
+            <p className="text-xl font-semibold">{whatsappOpsSummary.sent}</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-card">
+          <CardContent className="p-3">
+            <p className="text-xs text-muted-foreground">WA falhou</p>
+            <p className="text-xl font-semibold">{whatsappOpsSummary.failed}</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-card">
+          <CardContent className="p-3">
+            <p className="text-xs text-muted-foreground">Inbound aplicado</p>
+            <p className="text-xl font-semibold">{whatsappOpsSummary.inboundApplied}</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-card">
+          <CardContent className="p-3">
+            <p className="text-xs text-muted-foreground">Jobs concluídos</p>
+            <p className="text-xl font-semibold">{whatsappOpsSummary.jobSuccess}</p>
           </CardContent>
         </Card>
       </div>
@@ -1054,6 +1507,9 @@ export default function AppointmentsPage() {
           </span>
           <span className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
             {agendaSignals.blockedDays} dias com restrição
+          </span>
+          <span className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
+            {waitlistEntries.length} em lista de espera
           </span>
         </div>
       </div>
@@ -1699,6 +2155,250 @@ export default function AppointmentsPage() {
                     </BrandButton>
                   </div>
                 ))
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={waitlistDialogOpen} onOpenChange={setWaitlistDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Lista de Espera Inteligente</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 mt-4">
+            <div className="rounded-xl border border-dashed p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Monitorar vagas agora</p>
+                <p className="text-xs text-muted-foreground">Roda o agente e procura encaixes usando disponibilidade, bloqueios e conflitos.</p>
+              </div>
+              <BrandButton
+                type="button"
+                variant="outline"
+                onClick={() => runWaitlistMutation.mutate()}
+                disabled={runWaitlistMutation.isPending}
+              >
+                {runWaitlistMutation.isPending ? 'Processando...' : 'Buscar vagas'}
+              </BrandButton>
+            </div>
+
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                createWaitlistMutation.mutate();
+              }}
+              className="rounded-2xl border p-4 space-y-4"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Tipo de cadastro</Label>
+                  <Select value={waitlistTargetType} onValueChange={(value) => setWaitlistTargetType(value as WaitlistTargetType)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="lead">Lead</SelectItem>
+                      <SelectItem value="patient">Paciente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {waitlistTargetType === 'lead' ? (
+                  <div className="space-y-2">
+                    <Label>Lead *</Label>
+                    <Select value={waitlistLeadId} onValueChange={setWaitlistLeadId}>
+                      <SelectTrigger><SelectValue placeholder="Selecionar lead" /></SelectTrigger>
+                      <SelectContent>
+                        {leads.map((lead) => (
+                          <SelectItem key={lead.id} value={lead.id}>{lead.full_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Paciente *</Label>
+                    <Select value={waitlistPatientId} onValueChange={setWaitlistPatientId}>
+                      <SelectTrigger><SelectValue placeholder="Selecionar paciente" /></SelectTrigger>
+                      <SelectContent>
+                        {patients.map((patient) => (
+                          <SelectItem key={patient.id} value={patient.id}>{patient.full_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Profissional preferido</Label>
+                  <Select value={waitlistProfessionalId} onValueChange={setWaitlistProfessionalId}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="any">Qualquer profissional</SelectItem>
+                      {professionals.map((professional) => (
+                        <SelectItem key={professional.user_id} value={professional.user_id}>{professional.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Tratamento</Label>
+                  <Select value={waitlistTreatmentId} onValueChange={setWaitlistTreatmentId}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Qualquer tratamento</SelectItem>
+                      {treatments.map((treatment) => (
+                        <SelectItem key={treatment.id} value={treatment.id}>{treatment.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Período preferido</Label>
+                  <Select value={waitlistPreferredPeriod} onValueChange={(value) => setWaitlistPreferredPeriod(value as 'morning' | 'afternoon' | 'evening' | 'all')}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Qualquer horário</SelectItem>
+                      <SelectItem value="morning">Manhã</SelectItem>
+                      <SelectItem value="afternoon">Tarde</SelectItem>
+                      <SelectItem value="evening">Noite</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label>Janela</Label>
+                  <Select value={waitlistWindowType} onValueChange={(value) => setWaitlistWindowType(value as WaitlistWindowType)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="this_week">Esta semana</SelectItem>
+                      <SelectItem value="next_week">Próxima semana</SelectItem>
+                      <SelectItem value="this_month">Este mês</SelectItem>
+                      <SelectItem value="custom">Personalizada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Início</Label>
+                  <Input type="date" value={waitlistWindowStart} onChange={(event) => setWaitlistWindowStart(event.target.value)} disabled={waitlistWindowType !== 'custom'} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fim</Label>
+                  <Input type="date" value={waitlistWindowEnd} onChange={(event) => setWaitlistWindowEnd(event.target.value)} disabled={waitlistWindowType !== 'custom'} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Duração mínima (min)</Label>
+                  <Input type="number" min={15} step={5} value={waitlistDuration} onChange={(event) => setWaitlistDuration(event.target.value)} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Prioridade</Label>
+                  <Select value={waitlistPriority} onValueChange={(value) => setWaitlistPriority(value as WaitlistPriority)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="normal">Normal</SelectItem>
+                      <SelectItem value="high">Alta</SelectItem>
+                      <SelectItem value="urgent">Urgente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Canal de contato</Label>
+                  <Select value={waitlistContactPreference} onValueChange={(value) => setWaitlistContactPreference(value as WaitlistContactPreference)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                      <SelectItem value="phone">Ligação</SelectItem>
+                      <SelectItem value="email">E-mail</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Telefone de contato</Label>
+                  <Input value={waitlistContactPhone} onChange={(event) => setWaitlistContactPhone(event.target.value)} placeholder="Opcional" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Observações</Label>
+                <Textarea rows={2} value={waitlistNotes} onChange={(event) => setWaitlistNotes(event.target.value)} placeholder="Preferências extras do paciente/lead" />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <BrandButton type="button" variant="outline" onClick={resetWaitlistForm}>Limpar</BrandButton>
+                <BrandButton type="submit" disabled={createWaitlistMutation.isPending}>
+                  {createWaitlistMutation.isPending ? 'Salvando...' : 'Adicionar à lista'}
+                </BrandButton>
+              </div>
+            </form>
+
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-foreground">Entradas ativas da lista de espera</h3>
+              {waitlistEntries.length === 0 ? (
+                <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  Nenhuma entrada ativa na lista de espera.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {waitlistEntries.map((entry) => (
+                    <div key={entry.id} className="rounded-xl border p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-foreground">
+                          {entry.patients?.full_name || entry.leads?.full_name || 'Cadastro sem nome'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Janela: {format(new Date(`${entry.window_start}T00:00:00`), 'dd/MM/yyyy')} - {format(new Date(`${entry.window_end}T00:00:00`), 'dd/MM/yyyy')}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {entry.treatments?.name || 'Qualquer tratamento'} · {entry.min_duration_minutes} min · {getProfessionalLabel(entry.preferred_professional_id)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <BrandBadge status={entry.priority === 'urgent' ? 'overdue' : entry.priority === 'high' ? 'pending' : 'default'}>
+                          {waitlistPriorityLabel(entry.priority)}
+                        </BrandBadge>
+                        <BrandBadge status="scheduled">{waitlistStatusLabel(entry.status)}</BrandBadge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-foreground">Vagas encontradas (pendentes de ação)</h3>
+              {waitlistNotifications.length === 0 ? (
+                <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  Nenhuma vaga encontrada pendente.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {waitlistNotifications.map((notification) => (
+                    <div key={notification.id} className="rounded-xl border p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-foreground">
+                          {notification.appointment_waitlist?.patient_id ? 'Paciente' : 'Lead'} · {notification.appointment_waitlist?.id.slice(0, 8)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(notification.matched_slot_start), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })} - {format(new Date(notification.matched_slot_end), "HH:mm", { locale: ptBR })}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {getProfessionalLabel(notification.matched_professional_id)}
+                        </p>
+                      </div>
+                      <BrandButton
+                        size="sm"
+                        onClick={() => createAppointmentFromNotificationMutation.mutate(notification)}
+                        disabled={createAppointmentFromNotificationMutation.isPending}
+                      >
+                        Agendar esta vaga
+                      </BrandButton>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
