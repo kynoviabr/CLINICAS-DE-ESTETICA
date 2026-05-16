@@ -54,10 +54,10 @@ export default function CostItemsTab() {
     queryFn: async () => {
       if (!clinicId) return [];
       const columns = isAdmin ? '*' : 'id,clinic_id,name,type,unit,status,created_at';
-      let q = supabase.from('cost_items' as any).select(columns).eq('clinic_id', clinicId).order('name');
+      let q = supabase.from('cost_items' as unknown).select(columns).eq('clinic_id', clinicId).order('name');
       if (search) q = q.ilike('name', `%${search}%`);
       const { data } = await q;
-      return (data as any[]) || [];
+      return (data as unknown[]) || [];
     },
     enabled: !!clinicId,
   });
@@ -73,10 +73,10 @@ export default function CostItemsTab() {
         clinic_id: clinicId!,
       };
       if (editingId) {
-        const { error } = await supabase.from('cost_items' as any).update(payload as any).eq('id', editingId);
+        const { error } = await supabase.from('cost_items' as unknown).update(payload as unknown).eq('id', editingId);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('cost_items' as any).insert(payload as any);
+        const { error } = await supabase.from('cost_items' as unknown).insert(payload as unknown);
         if (error) throw error;
       }
     },
@@ -87,10 +87,10 @@ export default function CostItemsTab() {
       setForm(emptyForm);
       toast({ title: editingId ? 'Item atualizado!' : 'Item criado!' });
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: unknown) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
-  const openEdit = (item: any) => {
+  const openEdit = (item: unknown) => {
     setEditingId(item.id);
     setForm({
       name: item.name,
@@ -148,7 +148,7 @@ export default function CostItemsTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {costItems.map((item: any) => (
+                  {costItems.map((item: unknown) => (
                     <tr key={item.id} className="border-b last:border-0 hover:bg-secondary/30 transition-colors">
                       <td className="px-4 py-3 text-sm font-medium text-foreground">{item.name}</td>
                       <td className="px-4 py-3">

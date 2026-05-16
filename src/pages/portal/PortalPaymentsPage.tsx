@@ -17,7 +17,7 @@ const statusMap: Record<string, { label: string; className: string }> = {
 
 export default function PortalPaymentsPage() {
   const { user } = useAuth();
-  const [installments, setInstallments] = useState<any[]>([]);
+  const [installments, setInstallments] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

@@ -13,6 +13,7 @@ import OnboardingPage from "./pages/OnboardingPage";
 import ClinicLayout from "./components/layouts/ClinicLayout";
 import PatientPortalLayout from "./components/layouts/PatientPortalLayout";
 import ClinicDashboard from "./pages/clinic/DashboardPage";
+import CrmPage from "./pages/clinic/CrmPage";
 import PatientsPage from "./pages/clinic/PatientsPage";
 import PatientDetailPage from "./pages/clinic/PatientDetailPage";
 import TreatmentsPage from "./pages/clinic/TreatmentsPage";
@@ -60,6 +61,7 @@ const App = () => (
                 </ProtectedRoute>
               }>
                 <Route index element={<ClinicDashboard />} />
+                <Route path="crm" element={<CrmPage />} />
                 <Route path="patients" element={<PatientsPage />} />
                 <Route path="patients/:id" element={<PatientDetailPage />} />
                 <Route path="treatments" element={<TreatmentsPage />} />

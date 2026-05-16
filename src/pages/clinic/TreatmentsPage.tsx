@@ -69,8 +69,8 @@ export default function TreatmentsPage() {
     queryKey: ['treatment-categories-active', clinicId],
     queryFn: async () => {
       if (!clinicId) return [];
-      const { data } = await supabase.from('treatment_categories' as any).select('*').eq('clinic_id', clinicId).eq('status', 'active').order('name');
-      return (data as any[]) || [];
+      const { data } = await supabase.from('treatment_categories' as unknown).select('*').eq('clinic_id', clinicId).eq('status', 'active').order('name');
+      return (data as unknown[]) || [];
     },
     enabled: !!clinicId,
   });
@@ -79,15 +79,15 @@ export default function TreatmentsPage() {
     queryKey: ['cost-items-active', clinicId],
     queryFn: async () => {
       if (!clinicId || !isAdmin) return [];
-      const { data } = await supabase.from('cost_items' as any).select('*').eq('clinic_id', clinicId).eq('status', 'active').order('name');
-      return (data as any[]) || [];
+      const { data } = await supabase.from('cost_items' as unknown).select('*').eq('clinic_id', clinicId).eq('status', 'active').order('name');
+      return (data as unknown[]) || [];
     },
     enabled: !!clinicId && isAdmin,
   });
 
   const saveMutation = useMutation({
     mutationFn: async (data: TreatmentForm) => {
-      const payload: any = {
+      const payload: unknown = {
         name: data.name,
         category_id: data.category_id || null,
         description: data.description || null,
@@ -113,7 +113,7 @@ export default function TreatmentsPage() {
       // Save cost composition (admin only)
       if (isAdmin && treatmentId) {
         // Delete existing
-        await supabase.from('treatment_cost_items' as any).delete().eq('treatment_id', treatmentId);
+        await supabase.from('treatment_cost_items' as unknown).delete().eq('treatment_id', treatmentId);
         // Insert new
         if (costLines.length > 0) {
           const items = costLines.filter(l => l.cost_item_id && parseFloat(l.quantity) > 0).map(l => ({
@@ -122,7 +122,7 @@ export default function TreatmentsPage() {
             quantity: parseFloat(l.quantity) || 1,
           }));
           if (items.length > 0) {
-            const { error } = await supabase.from('treatment_cost_items' as any).insert(items as any);
+            const { error } = await supabase.from('treatment_cost_items' as unknown).insert(items as unknown);
             if (error) throw error;
           }
         }
@@ -136,10 +136,10 @@ export default function TreatmentsPage() {
       setCostLines([]);
       toast({ title: editingId ? 'Tratamento atualizado!' : 'Tratamento criado!' });
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: unknown) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
-  const openEdit = async (t: any) => {
+  const openEdit = async (t: unknown) => {
     setEditingId(t.id);
     setForm({
       name: t.name,
@@ -153,8 +153,8 @@ export default function TreatmentsPage() {
     });
 
     if (isAdmin) {
-      const { data } = await supabase.from('treatment_cost_items' as any).select('*').eq('treatment_id', t.id);
-      setCostLines((data as any[] || []).map((d: any) => ({
+      const { data } = await supabase.from('treatment_cost_items' as unknown).select('*').eq('treatment_id', t.id);
+      setCostLines((data as unknown[] || []).map((d: unknown) => ({
         id: d.id,
         cost_item_id: d.cost_item_id,
         quantity: String(d.quantity),
@@ -177,11 +177,11 @@ export default function TreatmentsPage() {
   const removeCostLine = (idx: number) => setCostLines(costLines.filter((_, i) => i !== idx));
   const updateCostLine = (idx: number, field: string, value: string) => {
     const updated = [...costLines];
-    (updated[idx] as any)[field] = value;
+    (updated[idx] as unknown)[field] = value;
     setCostLines(updated);
   };
 
-  const getCostItemById = (id: string) => costItems.find((c: any) => c.id === id);
+  const getCostItemById = (id: string) => costItems.find((c: unknown) => c.id === id);
   const totalCost = costLines.reduce((sum, l) => {
     const item = getCostItemById(l.cost_item_id);
     return sum + (item ? Number(item.unit_cost) * (parseFloat(l.quantity) || 0) : 0);
@@ -235,7 +235,7 @@ export default function TreatmentsPage() {
 
       {!isLoading && treatments.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {treatments.map((t: any) => (
+          {treatments.map((t: unknown) => (
             <div key={t.id} className="bg-card rounded-xl shadow-card p-5 animate-fade-in hover:shadow-card-hover transition-shadow">
               <div className="flex items-start justify-between mb-3">
                 <div>
@@ -298,7 +298,7 @@ export default function TreatmentsPage() {
                 <Select value={form.category_id} onValueChange={v => setForm({ ...form, category_id: v })}>
                   <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent>
-                    {categories.map((c: any) => (
+                    {categories.map((c: unknown) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -354,7 +354,7 @@ export default function TreatmentsPage() {
                         <Select value={line.cost_item_id} onValueChange={v => updateCostLine(idx, 'cost_item_id', v)}>
                           <SelectTrigger className="flex-1"><SelectValue placeholder="Selecione item..." /></SelectTrigger>
                           <SelectContent>
-                            {costItems.map((c: any) => (
+                            {costItems.map((c: unknown) => (
                               <SelectItem key={c.id} value={c.id}>{c.name} (R$ {Number(c.unit_cost).toFixed(2)}/{c.unit || 'un'})</SelectItem>
                             ))}
                           </SelectContent>

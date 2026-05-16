@@ -41,7 +41,7 @@ export default function NewAnamneseModal({ open, onOpenChange, patientId, clinic
     mutationFn: async () => {
       const validityDays = parseInt(form.validity_days);
       if (!validityDays || validityDays < 1) throw new Error('Validade deve ser no mínimo 1 dia');
-      const payload: Record<string, any> = {
+      const payload: Record<string, unknown> = {
         clinic_id: clinicId,
         patient_id: patientId,
         title: form.title.trim() || null,
@@ -55,7 +55,7 @@ export default function NewAnamneseModal({ open, onOpenChange, patientId, clinic
       if (form.filled_at) {
         payload.filled_at = new Date(form.filled_at).toISOString();
       }
-      const { error } = await supabase.from('patient_anamneses').insert(payload as any);
+      const { error } = await supabase.from('patient_anamneses').insert(payload as unknown);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -65,7 +65,7 @@ export default function NewAnamneseModal({ open, onOpenChange, patientId, clinic
       onOpenChange(false);
       setForm({ title: '', description: '', source_type: 'digital', filled_at: '', validity_days: '180', notes: '' });
     },
-    onError: (err: any) => toast.error(err.message || 'Erro ao criar anamnese'),
+    onError: (err: unknown) => toast.error(err.message || 'Erro ao criar anamnese'),
   });
 
   return (

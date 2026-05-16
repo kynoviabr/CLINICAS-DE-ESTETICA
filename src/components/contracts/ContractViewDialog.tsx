@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface Props {
-  contract: any;
+  contract: unknown;
   clinicName: string;
   onClose: () => void;
 }
@@ -49,7 +49,7 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
 
       toast({ title: 'Documento assinado arquivado!' });
       refreshContracts();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: 'Erro no upload', description: err.message, variant: 'destructive' });
     } finally {
       setUploading(false);
@@ -152,7 +152,7 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
       : null,
   ]
     .filter(Boolean)
-    .sort((a: any, b: any) => a.date.getTime() - b.date.getTime());
+    .sort((a: unknown, b: unknown) => a.date.getTime() - b.date.getTime());
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -176,17 +176,17 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
             <div>
               <span className="text-muted-foreground">Paciente:</span>
               <br />
-              <span className="font-medium">{(c.patients as any)?.full_name}</span>
+              <span className="font-medium">{(c.patients as unknown)?.full_name}</span>
             </div>
             <div>
               <span className="text-muted-foreground">Proposta:</span>
               <br />
-              <span className="font-medium">{(c.proposals as any)?.proposal_number || '—'}</span>
+              <span className="font-medium">{(c.proposals as unknown)?.proposal_number || '—'}</span>
             </div>
             <div>
               <span className="text-muted-foreground">Valor:</span>
               <br />
-              <span className="font-bold">R$ {Number((c.proposals as any)?.final_amount || 0).toFixed(2)}</span>
+              <span className="font-bold">R$ {Number((c.proposals as unknown)?.final_amount || 0).toFixed(2)}</span>
             </div>
             <div>
               <span className="text-muted-foreground">Criado em:</span>
@@ -226,7 +226,7 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
               <p className="text-xs text-muted-foreground">Sem eventos registrados.</p>
             ) : (
               <div className="space-y-2">
-                {timelineEvents.map((event: any) => (
+                {timelineEvents.map((event: unknown) => (
                   <div key={event.key} className="flex items-center justify-between gap-2 rounded-md bg-secondary/30 px-2.5 py-2">
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${event.tone}`}>{event.label}</span>
                     <span className="text-xs text-muted-foreground">

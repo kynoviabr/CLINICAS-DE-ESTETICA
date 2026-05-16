@@ -80,7 +80,7 @@ export default function QuickPatientModal({ open, onOpenChange, onCreated }: Qui
       resetForm();
       onOpenChange(false);
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     },
   });

@@ -46,7 +46,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signIn(email, password);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: 'Erro ao entrar', description: err.message, variant: 'destructive' });
     } finally {
       setLoading(false);
@@ -62,7 +62,7 @@ export default function LoginPage() {
         title: 'Conta criada!',
         description: 'Verifique seu e-mail para confirmar o cadastro.',
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: 'Erro ao cadastrar', description: err.message, variant: 'destructive' });
     } finally {
       setLoading(false);
@@ -79,7 +79,7 @@ export default function LoginPage() {
       });
       if (error) throw error;
       setForgotSent(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     } finally {
       setForgotLoading(false);

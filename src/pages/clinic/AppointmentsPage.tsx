@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -26,6 +26,7 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import type { Database } from '@/integrations/supabase/types';
 
 const professionalColors = [
   'hsl(var(--primary))', 'hsl(210 80% 50%)', 'hsl(280 60% 50%)',
@@ -44,6 +45,21 @@ const statusConfig: Record<string, { label: string; badge: BadgeStatus; style: s
 };
 
 type ViewMode = 'month' | 'week' | 'day';
+type AppointmentRow = Database['public']['Tables']['appointments']['Row'] & {
+  appointment_type?: 'session' | 'evaluation' | null;
+  scheduled_at?: string | null;
+  duration_minutes?: number | null;
+  lead_id?: string | null;
+  is_batch?: boolean | null;
+  patients?: {
+    full_name?: string | null;
+    dissatisfaction_flag?: boolean | null;
+    dissatisfaction_level?: string | null;
+    dissatisfaction_reason?: string | null;
+  } | null;
+  leads?: { full_name?: string | null; phone?: string | null } | null;
+  treatments?: { name?: string | null } | null;
+};
 const weekDays = [
   { value: 0, label: 'Domingo' },
   { value: 1, label: 'Segunda-feira' },
@@ -65,7 +81,7 @@ export default function AppointmentsPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [viewAppt, setViewAppt] = useState<any>(null);
+  const [viewAppt, setViewAppt] = useState<AppointmentRow | null>(null);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('09:00');
   const [appointmentType, setAppointmentType] = useState<'session' | 'evaluation'>('session');
@@ -90,7 +106,7 @@ export default function AppointmentsPage() {
   const [blockEndTime, setBlockEndTime] = useState('10:00');
   const [blockReason, setBlockReason] = useState('');
   const [blockNotes, setBlockNotes] = useState('');
-  const [exceptionModal, setExceptionModal] = useState<{ mode: 'cancel' | 'no_show' | 'reschedule'; appointment: any } | null>(null);
+  const [exceptionModal, setExceptionModal] = useState<{ mode: 'cancel' | 'no_show' | 'reschedule'; appointment: Record<string, unknown> & { id: string; clinic_id: string; status: string; appointment_type?: string | null; lead_id?: string | null } } | null>(null);
   const [exceptionReason, setExceptionReason] = useState('');
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('09:00');
@@ -125,15 +141,15 @@ export default function AppointmentsPage() {
   const { data: appointments = [] } = useQuery({
     queryKey: ['appointments', clinicId, rangeStart.toISOString(), rangeEnd.toISOString()],
     queryFn: async () => {
-      const { data, error } = await (supabase
-        .from('appointments') as any)
+      const { data, error } = await supabase
+        .from('appointments')
         .select('*, patients(full_name, dissatisfaction_flag, dissatisfaction_level, dissatisfaction_reason), leads!appointments_lead_id_fkey(full_name, phone), treatments(name)')
         .eq('clinic_id', clinicId!)
         .gte('scheduled_at', rangeStart.toISOString())
         .lte('scheduled_at', rangeEnd.toISOString())
         .order('scheduled_at');
       if (error) throw error;
-      return data || [];
+      return (data || []) as AppointmentRow[];
     },
     enabled: !!clinicId,
   });
@@ -150,7 +166,7 @@ export default function AppointmentsPage() {
   const { data: leads = [] } = useQuery({
     queryKey: ['leads-select', clinicId],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('leads' as any) as any)
+      const { data, error } = await supabase.from('leads')
         .select('id, full_name, phone, cpf, kanban_stage, assigned_to, appointment_id')
         .eq('clinic_id', clinicId!)
         .is('deleted_at', null)
@@ -175,7 +191,7 @@ export default function AppointmentsPage() {
   const { data: availability = [] } = useQuery({
     queryKey: ['professional-availability', clinicId],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('professional_availability') as any)
+      const { data, error } = await supabase.from('professional_availability')
         .select('*')
         .eq('clinic_id', clinicId!)
         .eq('is_active', true)
@@ -192,7 +208,7 @@ export default function AppointmentsPage() {
     queryFn: async () => {
       const from = startOfDay(addDays(rangeStart, -14)).toISOString();
       const to = endOfDay(addDays(rangeEnd, 30)).toISOString();
-      const { data, error } = await (supabase.from('appointment_blocks') as any)
+      const { data, error } = await supabase.from('appointment_blocks')
         .select('*')
         .eq('clinic_id', clinicId!)
         .gte('start_at', from)
@@ -205,7 +221,7 @@ export default function AppointmentsPage() {
   });
 
   const getSelectedPatientData = (patientId: string) => patients.find((p) => p.id === patientId);
-  const getSelectedLeadData = (leadId: string) => leads.find((lead) => lead.id === leadId);
+  const getSelectedLeadData = useCallback((leadId: string) => leads.find((lead) => lead.id === leadId), [leads]);
   const getAppointmentStartDate = (appointment) => new Date(appointment.start_time || appointment.scheduled_at);
   const getAppointmentEndDate = (appointment) => {
     if (appointment.end_time) return new Date(appointment.end_time);
@@ -213,9 +229,9 @@ export default function AppointmentsPage() {
     return new Date(start.getTime() + (appointment.duration_minutes || 60) * 60000);
   };
   const getAppointmentDisplayName = (appointment) => {
-    return (appointment.patients as any)?.full_name || (appointment.leads as any)?.full_name || 'Lead sem paciente';
+    return (appointment.patients as { full_name?: string | null } | null)?.full_name || (appointment.leads as { full_name?: string | null } | null)?.full_name || 'Lead sem paciente';
   };
-  const getBlocksForDay = (day: Date) => {
+  const getBlocksForDay = useCallback((day: Date) => {
     const dayStart = startOfDay(day).getTime();
     const dayEnd = endOfDay(day).getTime();
     return appointmentBlocks.filter((block) => {
@@ -223,7 +239,7 @@ export default function AppointmentsPage() {
       const blockEnd = new Date(block.end_at).getTime();
       return blockStart <= dayEnd && blockEnd >= dayStart;
     });
-  };
+  }, [appointmentBlocks]);
   const getProfessionalLabel = (professionalId?: string | null) => {
     if (!professionalId) return 'Não atribuído';
     return professionals.find((professional) => professional.user_id === professionalId)?.label || 'Profissional';
@@ -257,7 +273,7 @@ export default function AppointmentsPage() {
   }) => {
     if (!clinicId) return;
 
-    let appointmentsQuery = (supabase.from('appointments') as any)
+    let appointmentsQuery = supabase.from('appointments')
       .select('id, start_time, end_time, status, professional_id')
       .eq('clinic_id', clinicId)
       .lt('start_time', endTime.toISOString())
@@ -276,7 +292,7 @@ export default function AppointmentsPage() {
       throw new Error('Já existe outro agendamento para esse horário.');
     }
 
-    let blocksQuery = (supabase.from('appointment_blocks') as any)
+    let blocksQuery = supabase.from('appointment_blocks')
       .select('id, professional_id, start_at, end_at')
       .eq('clinic_id', clinicId)
       .lt('start_at', endTime.toISOString())
@@ -293,7 +309,7 @@ export default function AppointmentsPage() {
     }
   };
 
-  const openExceptionModal = (mode: 'cancel' | 'no_show' | 'reschedule', appointment: any) => {
+  const openExceptionModal = (mode: 'cancel' | 'no_show' | 'reschedule', appointment: Record<string, unknown> & { id: string; clinic_id: string; status: string; appointment_type?: string | null; lead_id?: string | null }) => {
     setExceptionReason('');
     setRescheduleDate(format(getAppointmentStartDate(appointment), 'yyyy-MM-dd'));
     setRescheduleTime(format(getAppointmentStartDate(appointment), 'HH:mm'));
@@ -328,7 +344,7 @@ export default function AppointmentsPage() {
       return;
     }
 
-    const lead = getSelectedLeadData(selectedLead) as any;
+    const lead = getSelectedLeadData(selectedLead);
     if (!lead?.assigned_to) {
       if (!selectedProfessional && isProfessional && user?.id) {
         setSelectedProfessional(user.id);
@@ -338,7 +354,7 @@ export default function AppointmentsPage() {
 
     const hasProfessionalAssigned = professionals.some((professional) => professional.user_id === lead.assigned_to);
     setSelectedProfessional(hasProfessionalAssigned ? lead.assigned_to : (isProfessional && user?.id ? user.id : ''));
-  }, [appointmentType, selectedLead, leads, professionals, isProfessional, user, dialogOpen, selectedProfessional, getSelectedLeadData]);
+  }, [appointmentType, selectedLead, professionals, isProfessional, user, dialogOpen, selectedProfessional, getSelectedLeadData]);
 
   useEffect(() => {
     if (professionals.length > 0 && availabilityProfessional === 'unassigned') {
@@ -396,14 +412,22 @@ export default function AppointmentsPage() {
   const todayQueue = useMemo(() => {
     return filteredAppointments
       .filter((appointment) => isSameDay(getAppointmentStartDate(appointment), new Date()))
-      .sort((a: any, b: any) => +getAppointmentStartDate(a) - +getAppointmentStartDate(b))
+      .sort((a, b) => +getAppointmentStartDate(a) - +getAppointmentStartDate(b))
       .slice(0, 5);
   }, [filteredAppointments]);
 
   const agendaSignals = useMemo(() => {
     const evaluations = filteredAppointments.filter((appointment) => appointment.appointment_type === 'evaluation').length;
     const batches = filteredAppointments.filter((appointment) => appointment.is_batch).length;
-    const blockedDays = calendarDays.filter((day) => getBlocksForDay(day).length > 0).length;
+    const blockedDays = calendarDays.filter((day) => {
+      const dayStart = startOfDay(day).getTime();
+      const dayEnd = endOfDay(day).getTime();
+      return appointmentBlocks.some((block) => {
+        const blockStart = new Date(block.start_at).getTime();
+        const blockEnd = new Date(block.end_at).getTime();
+        return blockStart <= dayEnd && blockEnd >= dayStart;
+      });
+    }).length;
 
     return {
       evaluations,
@@ -411,7 +435,7 @@ export default function AppointmentsPage() {
       blockedDays,
       blocks: appointmentBlocks.length,
     };
-  }, [filteredAppointments, appointmentBlocks, calendarDays, getBlocksForDay]);
+  }, [filteredAppointments, appointmentBlocks, calendarDays]);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -426,7 +450,7 @@ export default function AppointmentsPage() {
       }
       await assertNoSchedulingConflicts({ professionalId: profId, startTime, endTime });
       const lead = appointmentType === 'evaluation' ? getSelectedLeadData(selectedLead) : null;
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         clinic_id: clinicId!,
         patient_id: appointmentType === 'session' ? selectedPatient : null,
         lead_id: appointmentType === 'evaluation' ? selectedLead : null,
@@ -441,14 +465,14 @@ export default function AppointmentsPage() {
         credit_check_status: appointmentType === 'evaluation' && lead?.cpf ? 'pending' : 'not_required',
         notes: notes || null,
       };
-      const { data: insertedAppointment, error } = await (supabase.from('appointments') as any)
+      const { data: insertedAppointment, error } = await supabase.from('appointments')
         .insert(payload)
         .select('id, start_time, professional_id')
         .single();
       if (error) throw error;
 
       if (appointmentType === 'evaluation' && selectedLead) {
-        const { error: leadError } = await (supabase.from('leads' as any) as any)
+        const { error: leadError } = await supabase.from('leads')
           .update({ kanban_stage: 'scheduled', appointment_id: insertedAppointment.id })
           .eq('clinic_id', clinicId!)
           .eq('id', selectedLead);
@@ -481,17 +505,17 @@ export default function AppointmentsPage() {
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const appointment = appointments.find((item) => item.id === id);
-      const patch: any = { status: status as any };
+      const patch: Record<string, unknown> = { status };
 
       if (status === 'confirmed') patch.confirmed_at = new Date().toISOString();
       if (status === 'in_progress') patch.checked_in_at = new Date().toISOString();
       if (status === 'completed') patch.completed_at = new Date().toISOString();
 
-      const { error } = await (supabase.from('appointments') as any).update(patch).eq('id', id);
+      const { error } = await supabase.from('appointments').update(patch).eq('id', id);
       if (error) throw error;
 
       if (appointment?.lead_id && status === 'completed') {
-        const { error: leadError } = await (supabase.from('leads' as any) as any)
+        const { error: leadError } = await supabase.from('leads')
           .update({ kanban_stage: 'proposal_sent' })
           .eq('clinic_id', clinicId!)
           .eq('id', appointment.lead_id);
@@ -518,21 +542,21 @@ export default function AppointmentsPage() {
           throw new Error('Informe o motivo para continuar.');
         }
 
-        const patch: any = {
+        const patch: Record<string, unknown> = {
           status: exceptionModal.mode === 'cancel' ? 'cancelled' : 'no_show',
         };
 
         if (exceptionModal.mode === 'cancel') patch.cancelled_reason = exceptionReason.trim();
         if (exceptionModal.mode === 'no_show') patch.no_show_reason = exceptionReason.trim();
 
-        const { error } = await (supabase.from('appointments') as any)
+        const { error } = await supabase.from('appointments')
           .update(patch)
           .eq('clinic_id', clinicId)
           .eq('id', appointment.id);
         if (error) throw error;
 
         if (appointment.lead_id && appointment.appointment_type === 'evaluation') {
-          const { error: leadError } = await (supabase.from('leads' as any) as any)
+          const { error: leadError } = await supabase.from('leads')
             .update({ kanban_stage: 'contacted' })
             .eq('clinic_id', clinicId)
             .eq('id', appointment.lead_id);
@@ -561,7 +585,7 @@ export default function AppointmentsPage() {
       });
       const mergedNotes = [appointment.notes, rescheduleNotes].filter(Boolean).join('\n\n');
 
-      const { data: newAppointment, error: createError } = await (supabase.from('appointments') as any)
+      const { data: newAppointment, error: createError } = await supabase.from('appointments')
         .insert({
           clinic_id: clinicId,
           patient_id: appointment.patient_id,
@@ -584,7 +608,7 @@ export default function AppointmentsPage() {
         .single();
       if (createError) throw createError;
 
-      const { error: updateError } = await (supabase.from('appointments') as any)
+      const { error: updateError } = await supabase.from('appointments')
         .update({
           status: 'rescheduled',
           rescheduled_to: newAppointment.id,
@@ -595,7 +619,7 @@ export default function AppointmentsPage() {
       if (updateError) throw updateError;
 
       if (appointment.lead_id && appointment.appointment_type === 'evaluation') {
-        const { error: leadError } = await (supabase.from('leads' as any) as any)
+        const { error: leadError } = await supabase.from('leads')
           .update({ kanban_stage: 'scheduled', appointment_id: newAppointment.id })
           .eq('clinic_id', clinicId)
           .eq('id', appointment.lead_id);
@@ -618,7 +642,7 @@ export default function AppointmentsPage() {
         throw new Error('Selecione um profissional.');
       }
 
-      const { error: deleteError } = await (supabase.from('professional_availability') as any)
+      const { error: deleteError } = await supabase.from('professional_availability')
         .delete()
         .eq('clinic_id', clinicId)
         .eq('professional_id', availabilityProfessional);
@@ -637,7 +661,7 @@ export default function AppointmentsPage() {
         }));
 
       if (rows.length > 0) {
-        const { error: insertError } = await (supabase.from('professional_availability') as any).insert(rows);
+        const { error: insertError } = await supabase.from('professional_availability').insert(rows);
         if (insertError) throw insertError;
       }
     },
@@ -661,7 +685,7 @@ export default function AppointmentsPage() {
         throw new Error('O fim do bloqueio precisa ser depois do início.');
       }
 
-      const { error } = await (supabase.from('appointment_blocks') as any).insert({
+      const { error } = await supabase.from('appointment_blocks').insert({
         clinic_id: clinicId,
         professional_id: blockProfessional === 'all' ? null : blockProfessional,
         start_at: startAt.toISOString(),
@@ -683,7 +707,7 @@ export default function AppointmentsPage() {
 
   const deleteBlockMutation = useMutation({
     mutationFn: async (blockId: string) => {
-      const { error } = await (supabase.from('appointment_blocks') as any).delete().eq('id', blockId);
+      const { error } = await supabase.from('appointment_blocks').delete().eq('id', blockId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -704,7 +728,7 @@ export default function AppointmentsPage() {
   };
 
   const ensurePatientForLead = async (leadId: string) => {
-    const { data: lead, error: leadError } = await (supabase.from('leads' as any) as any)
+    const { data: lead, error: leadError } = await supabase.from('leads')
       .select('*')
       .eq('clinic_id', clinicId!)
       .eq('id', leadId)
@@ -729,7 +753,7 @@ export default function AppointmentsPage() {
       .single();
     if (patientError) throw patientError;
 
-    const { error: updateLeadError } = await (supabase.from('leads' as any) as any)
+    const { error: updateLeadError } = await supabase.from('leads')
       .update({
         patient_id: patient.id,
         converted_at: new Date().toISOString(),
@@ -745,13 +769,13 @@ export default function AppointmentsPage() {
     return patient.id as string;
   };
 
-  const openProposalFromEvaluation = async (appointment: any, finalizeFirst = false) => {
+  const openProposalFromEvaluation = async (appointment: AppointmentRow, finalizeFirst = false) => {
     if (!clinicId || !appointment?.lead_id) return;
 
     setProposalLoadingId(appointment.id);
     try {
       if (finalizeFirst) {
-        const { error: appointmentError } = await (supabase.from('appointments') as any)
+        const { error: appointmentError } = await supabase.from('appointments')
           .update({
             status: 'completed',
             completed_at: new Date().toISOString(),
@@ -760,7 +784,7 @@ export default function AppointmentsPage() {
           .eq('id', appointment.id);
         if (appointmentError) throw appointmentError;
 
-        const { error: leadError } = await (supabase.from('leads' as any) as any)
+        const { error: leadError } = await supabase.from('leads')
           .update({ kanban_stage: 'proposal_sent' })
           .eq('clinic_id', clinicId)
           .eq('id', appointment.lead_id);
@@ -947,7 +971,7 @@ export default function AppointmentsPage() {
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {format(getAppointmentStartDate(appointment), "HH:mm", { locale: ptBR })} · {(appointment.treatments as any)?.name || 'Sem tratamento'}
+                      {format(getAppointmentStartDate(appointment), "HH:mm", { locale: ptBR })} · {(appointment.treatments as { name?: string | null } | null)?.name || 'Sem tratamento'}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {getProfessionalLabel(appointment.professional_id)}
@@ -1122,7 +1146,7 @@ export default function AppointmentsPage() {
                           </div>
                         </div>
                         <div className="truncate">{getAppointmentDisplayName(a)}</div>
-                        <div className="truncate opacity-80">{(a.treatments as any)?.name}</div>
+                        <div className="truncate opacity-80">{(a.treatments as { name?: string | null } | null)?.name}</div>
                         <div className="truncate opacity-80">{getProfessionalLabel(a.professional_id)}</div>
                       </div>
                     ))}
@@ -1175,7 +1199,7 @@ export default function AppointmentsPage() {
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground">{(a.treatments as any)?.name || 'Sem tratamento'}</p>
+                        <p className="text-sm text-muted-foreground">{(a.treatments as { name?: string | null } | null)?.name || 'Sem tratamento'}</p>
                         <p className="text-xs text-muted-foreground">{getProfessionalLabel(a.professional_id)}</p>
                       </div>
                       <div className="text-right">
@@ -1335,14 +1359,14 @@ export default function AppointmentsPage() {
               <div className="space-y-4 mt-4">
                 {(() => {
                   const p = getSelectedPatientData(viewAppt.patient_id);
-                  return p ? <AnamneseAlertBanner status={p?.current_anamnese_status} expiresAt={p?.current_anamnese_expires_at} patientId={viewAppt.patient_id} patientName={(viewAppt.patients as any)?.full_name} showActions={false} /> : null;
+                  return p ? <AnamneseAlertBanner status={p?.current_anamnese_status} expiresAt={p?.current_anamnese_expires_at} patientId={viewAppt.patient_id} patientName={(viewAppt.patients as { full_name?: string | null; dissatisfaction_flag?: boolean | null; dissatisfaction_level?: string | null; dissatisfaction_reason?: string | null } | null)?.full_name} showActions={false} /> : null;
                 })()}
-                {(viewAppt.patients as any)?.dissatisfaction_flag && (
+                {(viewAppt.patients as { full_name?: string | null; dissatisfaction_flag?: boolean | null; dissatisfaction_level?: string | null; dissatisfaction_reason?: string | null } | null)?.dissatisfaction_flag && (
                   <div className="flex items-center gap-2 p-3 rounded-lg border border-destructive bg-destructive/5">
                     <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
                     <div>
-                      <p className="text-sm font-semibold text-destructive">Paciente insatisfeito — {(viewAppt.patients as any)?.dissatisfaction_level || 'N/A'}</p>
-                      {(viewAppt.patients as any)?.dissatisfaction_reason && <p className="text-xs text-muted-foreground">{(viewAppt.patients as any).dissatisfaction_reason}</p>}
+                      <p className="text-sm font-semibold text-destructive">Paciente insatisfeito — {(viewAppt.patients as { full_name?: string | null; dissatisfaction_flag?: boolean | null; dissatisfaction_level?: string | null; dissatisfaction_reason?: string | null } | null)?.dissatisfaction_level || 'N/A'}</p>
+                      {(viewAppt.patients as { full_name?: string | null; dissatisfaction_flag?: boolean | null; dissatisfaction_level?: string | null; dissatisfaction_reason?: string | null } | null)?.dissatisfaction_reason && <p className="text-xs text-muted-foreground">{(viewAppt.patients as { dissatisfaction_reason?: string | null } | null)?.dissatisfaction_reason}</p>}
                     </div>
                   </div>
                 )}
@@ -1350,9 +1374,9 @@ export default function AppointmentsPage() {
                   <div className="flex justify-between"><span className="text-muted-foreground">Paciente:</span><span className="font-medium">{getAppointmentDisplayName(viewAppt)}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Tipo:</span><span className="font-medium">{viewAppt.appointment_type === 'evaluation' ? 'Avaliação' : 'Sessão'}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Profissional:</span><span className="font-medium">{getProfessionalLabel(viewAppt.professional_id)}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Tratamento:</span><span className="font-medium">{(viewAppt.treatments as any)?.name || '—'}</span></div>
-                  {(viewAppt.leads as any)?.phone && (
-                    <div className="flex justify-between"><span className="text-muted-foreground">Contato do lead:</span><span className="font-medium">{(viewAppt.leads as any)?.phone}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Tratamento:</span><span className="font-medium">{(viewAppt.treatments as { name?: string | null } | null)?.name || '—'}</span></div>
+                  {(viewAppt.leads as { phone?: string | null } | null)?.phone && (
+                    <div className="flex justify-between"><span className="text-muted-foreground">Contato do lead:</span><span className="font-medium">{(viewAppt.leads as { phone?: string | null } | null)?.phone}</span></div>
                   )}
                   <div className="flex justify-between"><span className="text-muted-foreground">Horário:</span><span className="font-medium">{format(getAppointmentStartDate(viewAppt), 'dd/MM/yyyy HH:mm', { locale: ptBR })} - {format(getAppointmentEndDate(viewAppt), 'HH:mm')}</span></div>
                   <div className="flex justify-between items-center"><span className="text-muted-foreground">Status:</span><BrandBadge status={statusConfig[viewAppt.status]?.badge || 'default'}>{statusConfig[viewAppt.status]?.label || viewAppt.status}</BrandBadge></div>

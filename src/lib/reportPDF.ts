@@ -245,7 +245,7 @@ export function generateCostPDF(
   });
 
   // Detail: cost composition per treatment
-  let currentY = (doc as any).lastAutoTable?.finalY + 15 || 120;
+  let currentY = (doc as unknown).lastAutoTable?.finalY + 15 || 120;
 
   for (const row of rows) {
     if (row.costItems.length === 0) continue;
@@ -276,7 +276,7 @@ export function generateCostPDF(
       margin: { left: 20 },
     });
 
-    currentY = (doc as any).lastAutoTable?.finalY + 10 || currentY + 30;
+    currentY = (doc as unknown).lastAutoTable?.finalY + 10 || currentY + 30;
   }
 
   doc.save(`relatorio-custos-margem-${format(new Date(), 'yyyy-MM-dd')}.pdf`);

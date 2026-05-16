@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, FileText, ClipboardList, CreditCard,
   CalendarDays, Activity, Camera, MessageSquare, Settings, LogOut,
-  Menu, X, Stethoscope, FileSignature, BarChart3, TrendingUp, Star
+  Menu, X, Stethoscope, FileSignature, BarChart3, TrendingUp, Star, KanbanSquare
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -13,13 +13,14 @@ import NotificationBell from '@/components/NotificationBell';
 
 interface NavItem {
   to: string;
-  icon: any;
+  icon: unknown;
   label: string;
   roles: AppRole[];
 }
 
 const navItems: NavItem[] = [
   { to: '/clinic', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'receptionist', 'professional', 'sales'] },
+  { to: '/clinic/crm', icon: KanbanSquare, label: 'CRM', roles: ['admin', 'receptionist', 'sales'] },
   { to: '/clinic/patients', icon: Users, label: 'Pacientes', roles: ['admin', 'receptionist', 'professional', 'sales'] },
   { to: '/clinic/treatments', icon: Stethoscope, label: 'Tratamentos', roles: ['admin', 'receptionist', 'professional', 'sales'] },
   { to: '/clinic/proposals', icon: FileText, label: 'Propostas', roles: ['admin', 'receptionist', 'sales'] },

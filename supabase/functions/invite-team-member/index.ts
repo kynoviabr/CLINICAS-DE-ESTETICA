@@ -71,7 +71,7 @@ serve(async (req) => {
 
     // Check if user already exists in auth
     const { data: { users: existingUsers } } = await adminClient.auth.admin.listUsers();
-    const existingUser = existingUsers?.find((u: any) => u.email === email.toLowerCase().trim());
+    const existingUser = existingUsers?.find((u: unknown) => u.email === email.toLowerCase().trim());
 
     if (existingUser) {
       // Check if already has a role in this clinic

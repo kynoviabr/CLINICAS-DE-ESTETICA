@@ -13,9 +13,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { AnamneseAlertBanner } from '@/components/anamnese/AnamneseAlertBanner';
+import { useStaffDirectory } from '@/hooks/useStaffDirectory';
 import {
   AlertTriangle,
   CalendarCheck2,
+  CalendarRange,
   CheckCircle2,
   ClipboardList,
   Filter,
@@ -27,6 +29,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useSearchParams } from 'react-router-dom';
+import type { Database } from '@/integrations/supabase/types';
 
 type SessionForm = {
   appointment_id: string;
@@ -48,6 +51,23 @@ type SessionSummaryRow = {
   balance: number;
   lastPerformedAt: string | null;
 };
+type SessionRecordRow = Database['public']['Tables']['session_records']['Row'] & {
+  patients?: { full_name?: string | null; dissatisfaction_flag?: boolean | null; dissatisfaction_level?: string | null } | null;
+  treatments?: { name?: string | null } | null;
+  appointments?: { start_time?: string | null } | null;
+};
+type PatientRow = Pick<Database['public']['Tables']['patients']['Row'], 'id' | 'full_name' | 'current_anamnese_status' | 'current_anamnese_expires_at'>;
+type TreatmentRow = Pick<Database['public']['Tables']['treatments']['Row'], 'id' | 'name' | 'num_sessions' | 'duration_minutes'>;
+type AvailabilityRow = Database['public']['Tables']['professional_availability']['Row'];
+type BlockRow = Database['public']['Tables']['appointment_blocks']['Row'];
+type AppointmentRow = Pick<Database['public']['Tables']['appointments']['Row'], 'id' | 'patient_id' | 'treatment_id' | 'professional_id' | 'start_time' | 'status' | 'end_time'> & {
+  patients?: { full_name?: string | null } | null;
+  treatments?: { name?: string | null } | null;
+};
+type ContractRow = Pick<Database['public']['Tables']['contracts']['Row'], 'id' | 'patient_id' | 'proposal_id' | 'status'>;
+type ProposalItemRow = Pick<Database['public']['Tables']['proposal_items']['Row'], 'proposal_id' | 'quantity' | 'treatment_id'> & {
+  treatments?: { name?: string | null; num_sessions?: number | null } | null;
+};
 
 const emptyForm: SessionForm = {
   appointment_id: 'manual',
@@ -58,15 +78,33 @@ const emptyForm: SessionForm = {
   observations: '',
 };
 
+const weekDays = [
+  { value: 0, label: 'Domingo' },
+  { value: 1, label: 'Segunda-feira' },
+  { value: 2, label: 'Terça-feira' },
+  { value: 3, label: 'Quarta-feira' },
+  { value: 4, label: 'Quinta-feira' },
+  { value: 5, label: 'Sexta-feira' },
+  { value: 6, label: 'Sábado' },
+];
+
 export default function SessionsPage() {
   const { clinicId } = useBranding();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [searchParams] = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [plannerOpen, setPlannerOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [balanceFilter, setBalanceFilter] = useState('all');
   const [form, setForm] = useState<SessionForm>(emptyForm);
+  const [plannerTarget, setPlannerTarget] = useState<SessionSummaryRow | null>(null);
+  const [plannerStartDate, setPlannerStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [plannerTime, setPlannerTime] = useState('09:00');
+  const [plannerIntervalDays, setPlannerIntervalDays] = useState('7');
+  const [plannerCount, setPlannerCount] = useState('1');
+  const [plannerProfessional, setPlannerProfessional] = useState('unassigned');
+  const [plannerNotes, setPlannerNotes] = useState('');
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['sessions', clinicId],
@@ -105,11 +143,40 @@ export default function SessionsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('treatments')
-        .select('id, name, num_sessions')
+        .select('id, name, num_sessions, duration_minutes')
         .eq('clinic_id', clinicId!)
         .eq('is_active', true)
         .order('name');
 
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!clinicId,
+  });
+
+  const { staff: professionals = [] } = useStaffDirectory(clinicId, ['admin', 'professional']);
+
+  const { data: availability = [] } = useQuery({
+    queryKey: ['professional-availability-sessions', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('professional_availability')
+        .select('*')
+        .eq('clinic_id', clinicId!)
+        .eq('is_active', true);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!clinicId,
+  });
+
+  const { data: appointmentBlocks = [] } = useQuery({
+    queryKey: ['appointment-blocks-sessions', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('appointment_blocks')
+        .select('*')
+        .eq('clinic_id', clinicId!)
+        .gte('end_at', new Date().toISOString())
+        .order('start_at');
       if (error) throw error;
       return data || [];
     },
@@ -163,34 +230,34 @@ export default function SessionsPage() {
   });
 
   const sessionByAppointmentId = useMemo(() => {
-    const map = new Map<string, any>();
-    sessions.forEach((session: any) => {
+    const map = new Map<string, SessionRecordRow>();
+    sessions.forEach((session: SessionRecordRow) => {
       if (session.appointment_id) map.set(session.appointment_id, session);
     });
     return map;
   }, [sessions]);
 
   const availableAppointments = useMemo(
-    () => appointments.filter((appointment: any) => !sessionByAppointmentId.has(appointment.id)),
+    () => appointments.filter((appointment: AppointmentRow) => !sessionByAppointmentId.has(appointment.id)),
     [appointments, sessionByAppointmentId]
   );
 
   const summaryRows = useMemo<SessionSummaryRow[]>(() => {
     const patientNameMap = new Map<string, string>();
-    patients.forEach((patient: any) => {
+    patients.forEach((patient: PatientRow) => {
       patientNameMap.set(patient.id, patient.full_name);
     });
 
     const treatmentMap = new Map<string, { name: string; num_sessions: number }>();
-    treatments.forEach((treatment: any) => {
+    treatments.forEach((treatment: TreatmentRow) => {
       treatmentMap.set(treatment.id, {
         name: treatment.name,
         num_sessions: Number(treatment.num_sessions || 1),
       });
     });
 
-    const proposalItemsByProposal = new Map<string, any[]>();
-    proposalItems.forEach((item: any) => {
+    const proposalItemsByProposal = new Map<string, ProposalItemRow[]>();
+    proposalItems.forEach((item: ProposalItemRow) => {
       const current = proposalItemsByProposal.get(item.proposal_id) || [];
       current.push(item);
       proposalItemsByProposal.set(item.proposal_id, current);
@@ -220,10 +287,10 @@ export default function SessionsPage() {
       return row;
     };
 
-    contracts.forEach((contract: any) => {
+    contracts.forEach((contract: ContractRow) => {
       if (!contract.proposal_id) return;
       const items = proposalItemsByProposal.get(contract.proposal_id) || [];
-      items.forEach((item: any) => {
+      items.forEach((item: ProposalItemRow) => {
         const treatmentId = item.treatment_id || null;
         const treatmentInfo = treatmentId ? treatmentMap.get(treatmentId) : null;
         const sessionsPerItem = Number(item.quantity || 1) * Number(treatmentInfo?.num_sessions || 1);
@@ -232,9 +299,9 @@ export default function SessionsPage() {
       });
     });
 
-    sessions.forEach((session: any) => {
+    sessions.forEach((session: SessionRecordRow) => {
       const treatmentId = session.treatment_id || null;
-      const treatmentName = (session.treatments as any)?.name || (treatmentId ? treatmentMap.get(treatmentId)?.name : undefined);
+      const treatmentName = session.treatments?.name || (treatmentId ? treatmentMap.get(treatmentId)?.name : undefined);
       const row = ensureRow(session.patient_id, treatmentId, treatmentName);
       row.performed += 1;
       if (!row.lastPerformedAt || new Date(session.performed_at) > new Date(row.lastPerformedAt)) {
@@ -270,14 +337,14 @@ export default function SessionsPage() {
 
   const selectedAppointment =
     form.appointment_id !== 'manual'
-      ? availableAppointments.find((appointment: any) => appointment.id === form.appointment_id)
+      ? availableAppointments.find((appointment: AppointmentRow) => appointment.id === form.appointment_id)
       : null;
 
   useEffect(() => {
     const appointmentId = searchParams.get('appointmentId');
     if (!appointmentId || availableAppointments.length === 0) return;
 
-    const appointment = availableAppointments.find((item: any) => item.id === appointmentId);
+    const appointment = availableAppointments.find((item: AppointmentRow) => item.id === appointmentId);
     if (!appointment) return;
 
     setForm((current) => ({
@@ -291,13 +358,42 @@ export default function SessionsPage() {
 
   const selectedPatientId = selectedAppointment?.patient_id || form.patient_id;
   const selectedTreatmentId = selectedAppointment?.treatment_id || form.treatment_id || null;
-  const selectedPatient = patients.find((patient: any) => patient.id === selectedPatientId);
+  const selectedPatient = patients.find((patient: PatientRow) => patient.id === selectedPatientId);
 
   const currentFlowSummary = useMemo(() => {
     if (!selectedPatientId) return null;
     const key = `${selectedPatientId}:${selectedTreatmentId || 'none'}`;
     return summaryRows.find((row) => row.key === key) || null;
   }, [selectedPatientId, selectedTreatmentId, summaryRows]);
+
+  const getProfessionalLabel = (professionalId?: string | null) => {
+    if (!professionalId) return 'Não atribuído';
+    return professionals.find((professional) => professional.user_id === professionalId)?.label || 'Profissional';
+  };
+
+  const hasAvailabilityWindow = (professionalId: string, startTime: Date, endTime: Date) => {
+    const dayOfWeek = startTime.getDay();
+    const slots = availability.filter((slot: AvailabilityRow) => slot.professional_id === professionalId && slot.day_of_week === dayOfWeek && slot.is_active);
+    if (slots.length === 0) return false;
+
+    const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
+    const endMinutes = endTime.getHours() * 60 + endTime.getMinutes();
+    return slots.some((slot: AvailabilityRow) => {
+      const [startHour, startMinute] = String(slot.start_time).slice(0, 5).split(':').map(Number);
+      const [endHour, endMinute] = String(slot.end_time).slice(0, 5).split(':').map(Number);
+      const slotStartMinutes = startHour * 60 + startMinute;
+      const slotEndMinutes = endHour * 60 + endMinute;
+      return startMinutes >= slotStartMinutes && endMinutes <= slotEndMinutes;
+    });
+  };
+
+  const hasBlockConflict = (professionalId: string, startTime: Date, endTime: Date) => {
+    return appointmentBlocks.some((block: BlockRow) => {
+      const applies = !block.professional_id || block.professional_id === professionalId;
+      if (!applies) return false;
+      return startTime < new Date(block.end_at) && endTime > new Date(block.start_at);
+    });
+  };
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -346,8 +442,79 @@ export default function SessionsPage() {
       setForm(emptyForm);
       toast({ title: 'Sessão registrada com sucesso!' });
     },
-    onError: (err: any) => {
-      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    onError: (err: unknown) => {
+      toast({ title: 'Erro', description: err instanceof Error ? err.message : 'Erro ao registrar sessão', variant: 'destructive' });
+    },
+  });
+
+  const plannerMutation = useMutation({
+    mutationFn: async () => {
+      if (!plannerTarget || !clinicId) throw new Error('Selecione um tratamento para planejar.');
+      if (!plannerProfessional || plannerProfessional === 'unassigned') throw new Error('Selecione um profissional.');
+      if (!plannerStartDate || !plannerTime) throw new Error('Defina a data e o horário iniciais.');
+
+      const count = Math.max(1, Math.min(parseInt(plannerCount) || 1, plannerTarget.balance || 1));
+      const intervalDays = Math.max(1, parseInt(plannerIntervalDays) || 7);
+      const treatment = treatments.find((item: TreatmentRow) => item.id === plannerTarget.treatmentId);
+      const durationMinutes = Number(treatment?.duration_minutes || 60);
+      const batchId = crypto.randomUUID();
+      const pendingRows: Array<Database['public']['Tables']['appointments']['Insert']> = [];
+
+      for (let index = 0; index < count; index += 1) {
+        const startTime = new Date(`${plannerStartDate}T${plannerTime}:00`);
+        startTime.setDate(startTime.getDate() + index * intervalDays);
+        const endTime = new Date(startTime.getTime() + durationMinutes * 60000);
+
+        if (!hasAvailabilityWindow(plannerProfessional, startTime, endTime)) {
+          const dayLabel = weekDays.find((day) => day.value === startTime.getDay())?.label || 'dia';
+          throw new Error(`O profissional está fora da disponibilidade em ${dayLabel}, ${format(startTime, 'dd/MM HH:mm', { locale: ptBR })}.`);
+        }
+
+        if (hasBlockConflict(plannerProfessional, startTime, endTime)) {
+          throw new Error(`Existe um bloqueio em ${format(startTime, 'dd/MM HH:mm', { locale: ptBR })}.`);
+        }
+
+        const { data: conflicts, error: conflictError } = await supabase.from('appointments')
+          .select('id')
+          .eq('clinic_id', clinicId)
+          .eq('professional_id', plannerProfessional)
+          .lt('start_time', endTime.toISOString())
+          .gt('end_time', startTime.toISOString())
+          .not('status', 'in', '(cancelled,rescheduled)');
+        if (conflictError) throw conflictError;
+        if ((conflicts || []).length > 0) {
+          throw new Error(`Já existe outro atendimento em ${format(startTime, 'dd/MM HH:mm', { locale: ptBR })}.`);
+        }
+
+        pendingRows.push({
+          clinic_id: clinicId,
+          patient_id: plannerTarget.patientId,
+          treatment_id: plannerTarget.treatmentId,
+          professional_id: plannerProfessional,
+          appointment_type: 'session',
+          start_time: startTime.toISOString(),
+          end_time: endTime.toISOString(),
+          scheduled_at: startTime.toISOString(),
+          duration_minutes: durationMinutes,
+          status: 'scheduled',
+          notes: plannerNotes.trim() || null,
+          is_batch: true,
+          batch_id: batchId,
+        });
+      }
+
+      const { error } = await supabase.from('appointments').insert(pendingRows);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['appointments'] });
+      qc.invalidateQueries({ queryKey: ['session-appointments'] });
+      setPlannerOpen(false);
+      setPlannerTarget(null);
+      toast({ title: 'Sessões planejadas com sucesso!' });
+    },
+    onError: (err: unknown) => {
+      toast({ title: 'Erro ao planejar sessões', description: err instanceof Error ? err.message : 'Erro ao planejar sessões', variant: 'destructive' });
     },
   });
 
@@ -363,6 +530,17 @@ export default function SessionsPage() {
       treatment_id: row.treatmentId || '',
     });
     setDialogOpen(true);
+  };
+
+  const openPlanner = (row: SessionSummaryRow) => {
+    setPlannerTarget(row);
+    setPlannerStartDate(format(new Date(), 'yyyy-MM-dd'));
+    setPlannerTime('09:00');
+    setPlannerIntervalDays('7');
+    setPlannerCount(String(Math.max(1, row.balance)));
+    setPlannerProfessional('unassigned');
+    setPlannerNotes('');
+    setPlannerOpen(true);
   };
 
   return (
@@ -484,7 +662,13 @@ export default function SessionsPage() {
                     </div>
                   </div>
 
-                  <div className="flex justify-end">
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {row.balance > 0 && (
+                      <BrandButton variant="outline" onClick={() => openPlanner(row)}>
+                        <CalendarRange className="w-4 h-4" />
+                        Planejar
+                      </BrandButton>
+                    )}
                     <BrandButton onClick={() => registerFromSummary(row)}>
                       <Plus className="w-4 h-4" />
                       Registrar
@@ -522,14 +706,14 @@ export default function SessionsPage() {
 
           {!isLoading && sessions.length > 0 && (
             <div className="space-y-3">
-              {sessions.map((session: any) => (
+              {sessions.map((session: SessionRecordRow) => (
                 <Card key={session.id} className="shadow-card border-border/60">
                   <CardContent className="p-4">
                     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-semibold text-foreground">{(session.patients as any)?.full_name}</p>
-                          {(session.patients as any)?.dissatisfaction_flag && (
+                          <p className="font-semibold text-foreground">{session.patients?.full_name}</p>
+                          {session.patients?.dissatisfaction_flag && (
                             <span className="flex items-center gap-1 text-xs text-destructive font-medium">
                               <AlertTriangle className="w-3.5 h-3.5" />
                               Insatisfeito
@@ -538,7 +722,7 @@ export default function SessionsPage() {
                           {session.appointment_id && <BrandBadge status={'scheduled' as BadgeStatus} />}
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          {(session.treatments as any)?.name || 'Tratamento não informado'} · Sessão {session.session_number}/{session.total_sessions}
+                          {session.treatments?.name || 'Tratamento não informado'} · Sessão {session.session_number}/{session.total_sessions}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
                           Realizada em {format(new Date(session.performed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
@@ -591,10 +775,10 @@ export default function SessionsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="manual">Registro manual (sem agendamento)</SelectItem>
-                  {availableAppointments.map((appointment: any) => (
+                  {availableAppointments.map((appointment: AppointmentRow) => (
                     <SelectItem key={appointment.id} value={appointment.id}>
                       {format(new Date(appointment.start_time), 'dd/MM HH:mm', { locale: ptBR })} ·{' '}
-                      {(appointment.patients as any)?.full_name} · {(appointment.treatments as any)?.name || 'Sem tratamento'}
+                      {appointment.patients?.full_name} · {appointment.treatments?.name || 'Sem tratamento'}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -610,7 +794,7 @@ export default function SessionsPage() {
                       <SelectValue placeholder="Selecionar paciente" />
                     </SelectTrigger>
                     <SelectContent>
-                      {patients.map((patient: any) => (
+                      {patients.map((patient: PatientRow) => (
                         <SelectItem key={patient.id} value={patient.id}>
                           {patient.full_name}
                         </SelectItem>
@@ -625,7 +809,7 @@ export default function SessionsPage() {
                       <SelectValue placeholder="Selecionar tratamento" />
                     </SelectTrigger>
                     <SelectContent>
-                      {treatments.map((treatment: any) => (
+                      {treatments.map((treatment: TreatmentRow) => (
                         <SelectItem key={treatment.id} value={treatment.id}>
                           {treatment.name}
                         </SelectItem>
@@ -705,6 +889,94 @@ export default function SessionsPage() {
               </BrandButton>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={plannerOpen} onOpenChange={setPlannerOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Planejar sessões</DialogTitle>
+          </DialogHeader>
+
+          {plannerTarget && (
+            <div className="space-y-5 mt-4">
+              <div className="rounded-xl border bg-secondary/30 p-4">
+                <p className="font-semibold text-foreground">{plannerTarget.patientName}</p>
+                <p className="text-sm text-muted-foreground">{plannerTarget.treatmentName}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Saldo pendente: {plannerTarget.balance} sessão{plannerTarget.balance === 1 ? '' : 'ões'}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Profissional *</Label>
+                  <Select value={plannerProfessional} onValueChange={setPlannerProfessional}>
+                    <SelectTrigger><SelectValue placeholder="Selecionar profissional" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">Selecionar</SelectItem>
+                      {professionals.map((professional) => (
+                        <SelectItem key={professional.user_id} value={professional.user_id}>
+                          {professional.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Quantidade de sessões</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={Math.max(1, plannerTarget.balance)}
+                    value={plannerCount}
+                    onChange={(event) => setPlannerCount(event.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Data inicial</Label>
+                  <Input type="date" value={plannerStartDate} onChange={(event) => setPlannerStartDate(event.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Horário</Label>
+                  <Input type="time" value={plannerTime} onChange={(event) => setPlannerTime(event.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Intervalo em dias</Label>
+                  <Input type="number" min={1} value={plannerIntervalDays} onChange={(event) => setPlannerIntervalDays(event.target.value)} />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notas para todos os agendamentos</Label>
+                <Textarea
+                  value={plannerNotes}
+                  onChange={(event) => setPlannerNotes(event.target.value)}
+                  rows={3}
+                  placeholder="Ex.: pacote pós-operatório, manter mesmo horário semanal, etc."
+                />
+              </div>
+
+              {plannerProfessional !== 'unassigned' && (
+                <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                  Sessões serão criadas para <span className="font-medium text-foreground">{getProfessionalLabel(plannerProfessional)}</span>,
+                  respeitando disponibilidade semanal e bloqueios já cadastrados.
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <BrandButton type="button" variant="outline" className="flex-1" onClick={() => setPlannerOpen(false)}>
+                  Cancelar
+                </BrandButton>
+                <BrandButton className="flex-1" onClick={() => plannerMutation.mutate()} disabled={plannerMutation.isPending}>
+                  {plannerMutation.isPending ? 'Planejando...' : 'Criar agenda das sessões'}
+                </BrandButton>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

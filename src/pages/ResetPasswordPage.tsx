@@ -55,7 +55,7 @@ export default function ResetPasswordPage() {
       if (error) throw error;
       setSuccess(true);
       toast.success('Senha definida com sucesso!');
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(err.message || 'Erro ao redefinir senha');
     } finally {
       setLoading(false);

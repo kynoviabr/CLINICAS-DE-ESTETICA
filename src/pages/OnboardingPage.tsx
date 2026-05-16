@@ -44,7 +44,7 @@ export default function OnboardingPage() {
       toast({ title: 'Clínica criada com sucesso!', description: 'Bem-vindo ao Clinic Journey.' });
       // Small delay to let role propagate
       setTimeout(() => navigate('/clinic', { replace: true }), 500);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     } finally {
       setLoading(false);

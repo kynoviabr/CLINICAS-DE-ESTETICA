@@ -14,12 +14,12 @@ const sourceLabels: Record<string, string> = {
 };
 
 interface Props {
-  anamnese: any;
+  anamnese: unknown;
   patientId: string;
   onValidate: (id: string) => void;
   onArchive: (id: string) => void;
-  onEdit?: (anamnese: any) => void;
-  onView?: (anamnese: any) => void;
+  onEdit?: (anamnese: unknown) => void;
+  onView?: (anamnese: unknown) => void;
   validating?: boolean;
   archiving?: boolean;
 }

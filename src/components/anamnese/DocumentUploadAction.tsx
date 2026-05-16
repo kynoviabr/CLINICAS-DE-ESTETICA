@@ -48,12 +48,12 @@ export default function DocumentUploadAction({ anamneseId, patientId, size = 'sm
         document_mime_type: file.type,
         document_uploaded_at: new Date().toISOString(),
         uploaded_by: user?.id,
-      } as any).eq('id', anamneseId);
+      } as unknown).eq('id', anamneseId);
       if (dbErr) throw dbErr;
 
       qc.invalidateQueries({ queryKey: ['patient-anamneses', patientId] });
       toast.success('Documento anexado com sucesso!');
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(err.message || 'Erro no upload');
     } finally {
       setUploading(false);

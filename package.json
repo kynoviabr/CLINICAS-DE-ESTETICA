@@ -10,7 +10,12 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test -c playwright.e2e.config.ts",
+    "test:e2e:headed": "playwright test -c playwright.e2e.config.ts --headed",
+    "test:e2e:smoke": "playwright test -c playwright.e2e.config.ts e2e/smoke",
+    "test:e2e:flow": "playwright test -c playwright.e2e.config.ts e2e/flows",
+    "test:qa": "npm run lint && npm run test && npm run test:e2e:smoke && npm run test:e2e:flow"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

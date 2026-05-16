@@ -43,10 +43,10 @@ export default function CombosTab() {
     queryKey: ['treatment-combos', clinicId],
     queryFn: async () => {
       if (!clinicId) return [];
-      const { data } = await supabase.from('treatment_combos' as any)
+      const { data } = await supabase.from('treatment_combos' as unknown)
         .select('*, treatment_combo_items(*, treatments(id, name, price, default_price, min_price))')
         .eq('clinic_id', clinicId).order('name');
-      return (data as any[]) || [];
+      return (data as unknown[]) || [];
     },
     enabled: !!clinicId,
   });
@@ -61,7 +61,7 @@ export default function CombosTab() {
     enabled: !!clinicId,
   });
 
-  const getTreatment = (id: string) => treatments.find((t: any) => t.id === id);
+  const getTreatment = (id: string) => treatments.find((t: unknown) => t.id === id);
 
   const totalDefault = form.items.reduce((s, item) => {
     const t = getTreatment(item.treatment_id);
@@ -83,31 +83,31 @@ export default function CombosTab() {
 
       let comboId = editingId;
       if (editingId) {
-        const { error } = await supabase.from('treatment_combos' as any).update({
+        const { error } = await supabase.from('treatment_combos' as unknown).update({
           name: form.name,
           promotional_price: promoPrice || null,
           active: form.active,
-        } as any).eq('id', editingId);
+        } as unknown).eq('id', editingId);
         if (error) throw error;
-        await supabase.from('treatment_combo_items' as any).delete().eq('combo_id', editingId);
+        await supabase.from('treatment_combo_items' as unknown).delete().eq('combo_id', editingId);
       } else {
-        const { data: inserted, error } = await supabase.from('treatment_combos' as any).insert({
+        const { data: inserted, error } = await supabase.from('treatment_combos' as unknown).insert({
           clinic_id: clinicId,
           name: form.name,
           promotional_price: promoPrice || null,
           active: form.active,
-        } as any).select('id').single();
+        } as unknown).select('id').single();
         if (error) throw error;
-        comboId = (inserted as any).id;
+        comboId = (inserted as unknown).id;
       }
 
       if (form.items.length > 0 && comboId) {
-        const { error } = await supabase.from('treatment_combo_items' as any).insert(
+        const { error } = await supabase.from('treatment_combo_items' as unknown).insert(
           form.items.filter(i => i.treatment_id).map(i => ({
             combo_id: comboId,
             treatment_id: i.treatment_id,
             quantity: i.quantity,
-          })) as any
+          })) as unknown
         );
         if (error) throw error;
       }
@@ -119,16 +119,16 @@ export default function CombosTab() {
       setForm(emptyForm);
       toast({ title: editingId ? 'Combo atualizado!' : 'Combo criado!' });
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: unknown) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
-  const openEdit = (combo: any) => {
+  const openEdit = (combo: unknown) => {
     setEditingId(combo.id);
     setForm({
       name: combo.name,
       promotional_price: combo.promotional_price ? String(combo.promotional_price) : '',
       active: combo.active,
-      items: (combo.treatment_combo_items || []).map((ci: any) => ({
+      items: (combo.treatment_combo_items || []).map((ci: unknown) => ({
         treatment_id: ci.treatment_id,
         quantity: ci.quantity || 1,
       })),
@@ -180,15 +180,15 @@ export default function CombosTab() {
                 </tr>
               </thead>
               <tbody>
-                {combos.map((combo: any) => {
+                {combos.map((combo: unknown) => {
                   const comboItems = combo.treatment_combo_items || [];
-                  const totalPrice = comboItems.reduce((s: number, ci: any) => s + Number(ci.treatments?.default_price || ci.treatments?.price || 0) * (ci.quantity || 1), 0);
-                  const totalMin = comboItems.reduce((s: number, ci: any) => s + Number(ci.treatments?.min_price || 0) * (ci.quantity || 1), 0);
+                  const totalPrice = comboItems.reduce((s: number, ci: unknown) => s + Number(ci.treatments?.default_price || ci.treatments?.price || 0) * (ci.quantity || 1), 0);
+                  const totalMin = comboItems.reduce((s: number, ci: unknown) => s + Number(ci.treatments?.min_price || 0) * (ci.quantity || 1), 0);
                   return (
                     <tr key={combo.id} className="border-b last:border-0 hover:bg-secondary/30 transition-colors">
                       <td className="px-4 py-3 text-sm font-medium text-foreground">{combo.name}</td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">
-                        {comboItems.map((ci: any) => `${ci.treatments?.name} (x${ci.quantity})`).join(', ') || '—'}
+                        {comboItems.map((ci: unknown) => `${ci.treatments?.name} (x${ci.quantity})`).join(', ') || '—'}
                       </td>
                       <td className="px-4 py-3 text-sm text-foreground text-right">R$ {totalPrice.toFixed(2)}</td>
                       <td className="px-4 py-3 text-sm text-muted-foreground text-right">R$ {totalMin.toFixed(2)}</td>
@@ -244,7 +244,7 @@ export default function CombosTab() {
                       }}>
                         <SelectTrigger className="flex-1"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                         <SelectContent>
-                          {treatments.map((t: any) => (
+                          {treatments.map((t: unknown) => (
                             <SelectItem key={t.id} value={t.id}>{t.name} (R$ {Number(t.default_price || t.price).toFixed(2)})</SelectItem>
                           ))}
                         </SelectContent>

@@ -15,8 +15,8 @@ import { cn } from '@/lib/utils';
 export default function PortalFeedbackPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [feedbacks, setFeedbacks] = useState<any[]>([]);
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [feedbacks, setFeedbacks] = useState<unknown[]>([]);
+  const [sessions, setSessions] = useState<unknown[]>([]);
   const [patientId, setPatientId] = useState<string | null>(null);
   const [clinicId, setClinicId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -80,7 +80,7 @@ export default function PortalFeedbackPage() {
     setFeedbacks(data || []);
   };
 
-  const RatingSelector = ({ value, onChange, label, icon: Icon }: { value: number; onChange: (v: number) => void; label: string; icon: any }) => (
+  const RatingSelector = ({ value, onChange, label, icon: Icon }: { value: number; onChange: (v: number) => void; label: string; icon: unknown }) => (
     <div className="space-y-2">
       <Label className="flex items-center gap-1.5"><Icon className="w-4 h-4 text-primary" />{label}</Label>
       <div className="flex gap-1">
@@ -108,7 +108,7 @@ export default function PortalFeedbackPage() {
                 <SelectTrigger><SelectValue placeholder="Selecione a sessão" /></SelectTrigger>
                 <SelectContent>{sessions.map(s => (
                   <SelectItem key={s.id} value={s.id}>
-                    {(s as any).treatments?.name || 'Sessão'} #{s.session_number} — {format(new Date(s.performed_at), 'dd/MM', { locale: ptBR })}
+                    {(s as unknown).treatments?.name || 'Sessão'} #{s.session_number} — {format(new Date(s.performed_at), 'dd/MM', { locale: ptBR })}
                   </SelectItem>
                 ))}</SelectContent>
               </Select>

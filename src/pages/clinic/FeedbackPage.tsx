@@ -12,7 +12,7 @@ import { subDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
-function isNegativeFeedback(f: any): boolean {
+function isNegativeFeedback(f: unknown): boolean {
   return f.rating <= 3 || (f.service_attention != null && f.service_attention <= 2) || (f.waiting_time != null && f.waiting_time <= 2);
 }
 
@@ -35,12 +35,12 @@ export default function FeedbackPage() {
     enabled: !!clinicId,
   });
 
-  const last30 = feedbacks.filter((f: any) => new Date(f.created_at) >= subDays(new Date(), 30));
-  const avgRating = last30.length > 0 ? last30.reduce((s: number, f: any) => s + f.rating, 0) / last30.length : 0;
-  const avgService = last30.filter((f: any) => f.service_attention != null);
-  const avgServiceScore = avgService.length > 0 ? avgService.reduce((s: number, f: any) => s + f.service_attention, 0) / avgService.length : 0;
-  const avgWaiting = last30.filter((f: any) => f.waiting_time != null);
-  const avgWaitingScore = avgWaiting.length > 0 ? avgWaiting.reduce((s: number, f: any) => s + f.waiting_time, 0) / avgWaiting.length : 0;
+  const last30 = feedbacks.filter((f: unknown) => new Date(f.created_at) >= subDays(new Date(), 30));
+  const avgRating = last30.length > 0 ? last30.reduce((s: number, f: unknown) => s + f.rating, 0) / last30.length : 0;
+  const avgService = last30.filter((f: unknown) => f.service_attention != null);
+  const avgServiceScore = avgService.length > 0 ? avgService.reduce((s: number, f: unknown) => s + f.service_attention, 0) / avgService.length : 0;
+  const avgWaiting = last30.filter((f: unknown) => f.waiting_time != null);
+  const avgWaitingScore = avgWaiting.length > 0 ? avgWaiting.reduce((s: number, f: unknown) => s + f.waiting_time, 0) / avgWaiting.length : 0;
   const negativeCount = last30.filter(isNegativeFeedback).length;
 
   return (
@@ -100,7 +100,7 @@ export default function FeedbackPage() {
 
       {!isLoading && feedbacks.length > 0 && (
         <div className="space-y-3">
-          {feedbacks.map((f: any) => {
+          {feedbacks.map((f: unknown) => {
             const negative = isNegativeFeedback(f);
             return (
               <Card key={f.id} className={cn("shadow-card animate-fade-in", negative && "border-destructive/30")}>
@@ -109,10 +109,10 @@ export default function FeedbackPage() {
                     <div>
                       <div className="flex items-center gap-2">
                         {negative && <AlertTriangle className="w-4 h-4 text-destructive" />}
-                        <p className="font-semibold text-foreground">{(f.patients as any)?.full_name}</p>
+                        <p className="font-semibold text-foreground">{(f.patients as unknown)?.full_name}</p>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {(f.session_records as any)?.treatments?.name || '—'}
+                        {(f.session_records as unknown)?.treatments?.name || '—'}
                       </p>
                       <div className="flex items-center gap-1 mt-1">
                         {[1, 2, 3, 4, 5].map(s => (

@@ -80,7 +80,7 @@ export default function PatientsPage() {
         q = q.or(`full_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
       }
       if (statusFilter !== 'all') {
-        q = q.eq('status', statusFilter as any);
+        q = q.eq('status', statusFilter as unknown);
       }
 
       const { data, error } = await q.limit(100);
@@ -96,11 +96,11 @@ export default function PatientsPage() {
     queryFn: async () => {
       if (!clinicId) return [];
       const { data } = await supabase
-        .from('patient_anamneses' as any)
+        .from('patient_anamneses' as unknown)
         .select('patient_id, uploaded_at')
         .eq('clinic_id', clinicId)
         .order('uploaded_at', { ascending: false });
-      return (data as any[]) || [];
+      return (data as unknown[]) || [];
     },
     enabled: !!clinicId,
   });
@@ -109,19 +109,19 @@ export default function PatientsPage() {
     queryKey: ['anamnese-validity', clinicId],
     queryFn: async () => {
       const { data } = await supabase
-        .from('clinic_settings' as any)
+        .from('clinic_settings' as unknown)
         .select('value')
         .eq('clinic_id', clinicId)
         .eq('key', 'anamnese_validity_days')
         .maybeSingle();
-      return data ? parseInt((data as any).value) || 45 : 45;
+      return data ? parseInt((data as unknown).value) || 45 : 45;
     },
     enabled: !!clinicId,
   });
 
   // Build anamnese map (latest per patient)
   const anamneseMap: Record<string, string> = {};
-  anamneses.forEach((a: any) => {
+  anamneses.forEach((a: unknown) => {
     if (!anamneseMap[a.patient_id]) anamneseMap[a.patient_id] = a.uploaded_at;
   });
 
@@ -180,7 +180,7 @@ export default function PatientsPage() {
           if (!payerData.new_payer.name.trim()) throw new Error('Nome do pagador é obrigatório');
           if (!payerData.new_payer.cpf.trim()) throw new Error('CPF do pagador é obrigatório');
           const { data: newPayer, error: payerError } = await supabase
-            .from('payers' as any)
+            .from('payers' as unknown)
             .insert({
               clinic_id: clinicId,
               name: payerData.new_payer.name.trim(),
@@ -190,11 +190,11 @@ export default function PatientsPage() {
             .select('id')
             .single();
           if (payerError) throw payerError;
-          payerId = (newPayer as any).id;
+          payerId = (newPayer as unknown).id;
         }
       }
 
-      const payload: any = {
+      const payload: unknown = {
         ...data,
         clinic_id: clinicId,
         date_of_birth: data.date_of_birth || null,
@@ -214,7 +214,7 @@ export default function PatientsPage() {
         // Auto-create payer from patient data if self-payer
         if (payerData.is_self_payer) {
           const { data: autoPayer, error: autoErr } = await supabase
-            .from('payers' as any)
+            .from('payers' as unknown)
             .insert({
               clinic_id: clinicId,
               name: data.full_name.trim(),
@@ -226,7 +226,7 @@ export default function PatientsPage() {
             .select('id')
             .single();
           if (!autoErr && autoPayer) {
-            payload.payer_id = (autoPayer as any).id;
+            payload.payer_id = (autoPayer as unknown).id;
           }
         }
         const { error } = await supabase.from('patients').insert(payload);
@@ -241,12 +241,12 @@ export default function PatientsPage() {
       setPayerData(defaultPayerData);
       toast({ title: editingId ? 'Paciente atualizado!' : 'Paciente criado!' });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     },
   });
 
-  const openEdit = (patient: any) => {
+  const openEdit = (patient: unknown) => {
     setEditingId(patient.id);
     setForm({
       full_name: patient.full_name || '',

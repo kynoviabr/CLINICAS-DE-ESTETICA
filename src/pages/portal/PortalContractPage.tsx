@@ -16,7 +16,7 @@ const statusMap: Record<string, { label: string; className: string }> = {
 
 export default function PortalContractPage() {
   const { user } = useAuth();
-  const [contracts, setContracts] = useState<any[]>([]);
+  const [contracts, setContracts] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

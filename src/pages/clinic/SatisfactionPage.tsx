@@ -34,7 +34,7 @@ export default function SatisfactionPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [periodDays, setPeriodDays] = useState('30');
-  const [selectedPatient, setSelectedPatient] = useState<any>(null);
+  const [selectedPatient, setSelectedPatient] = useState<unknown>(null);
 
   useEffect(() => {
     if (role && role !== 'admin') {
@@ -87,15 +87,15 @@ export default function SatisfactionPage() {
 
   // === Cross-analysis metrics ===
   const crossMetrics = useMemo(() => {
-    const withService = feedbacks.filter((f: any) => f.service_attention != null);
-    const withWaiting = feedbacks.filter((f: any) => f.waiting_time != null);
-    const avgRating = feedbacks.length > 0 ? feedbacks.reduce((s: number, f: any) => s + f.rating, 0) / feedbacks.length : 0;
-    const avgService = withService.length > 0 ? withService.reduce((s: number, f: any) => s + f.service_attention, 0) / withService.length : 0;
-    const avgWaiting = withWaiting.length > 0 ? withWaiting.reduce((s: number, f: any) => s + f.waiting_time, 0) / withWaiting.length : 0;
-    const negativeCount = feedbacks.filter((f: any) => f.is_negative).length;
+    const withService = feedbacks.filter((f: unknown) => f.service_attention != null);
+    const withWaiting = feedbacks.filter((f: unknown) => f.waiting_time != null);
+    const avgRating = feedbacks.length > 0 ? feedbacks.reduce((s: number, f: unknown) => s + f.rating, 0) / feedbacks.length : 0;
+    const avgService = withService.length > 0 ? withService.reduce((s: number, f: unknown) => s + f.service_attention, 0) / withService.length : 0;
+    const avgWaiting = withWaiting.length > 0 ? withWaiting.reduce((s: number, f: unknown) => s + f.waiting_time, 0) / withWaiting.length : 0;
+    const negativeCount = feedbacks.filter((f: unknown) => f.is_negative).length;
 
-    const promoters = npsResponses.filter((r: any) => r.score >= 9).length;
-    const detractors = npsResponses.filter((r: any) => r.score <= 6).length;
+    const promoters = npsResponses.filter((r: unknown) => r.score >= 9).length;
+    const detractors = npsResponses.filter((r: unknown) => r.score <= 6).length;
     const npsScore = npsResponses.length > 0 ? Math.round(((promoters - detractors) / npsResponses.length) * 100) : null;
 
     return { avgRating, avgService, avgWaiting, negativeCount, npsScore, totalFeedbacks: feedbacks.length, totalNps: npsResponses.length };
@@ -111,9 +111,9 @@ export default function SatisfactionPage() {
   // By Treatment
   const byTreatment = useMemo(() => {
     const map: Record<string, { name: string; ratings: number[]; service: number[]; waiting: number[] }> = {};
-    feedbacks.forEach((f: any) => {
-      const tid = f.treatment_id || (f.session_records as any)?.treatment_id;
-      const tname = (f.session_records as any)?.treatments?.name || '—';
+    feedbacks.forEach((f: unknown) => {
+      const tid = f.treatment_id || (f.session_records as unknown)?.treatment_id;
+      const tname = (f.session_records as unknown)?.treatments?.name || '—';
       if (!tid) return;
       if (!map[tid]) map[tid] = { name: tname, ratings: [], service: [], waiting: [] };
       map[tid].ratings.push(f.rating);
@@ -132,8 +132,8 @@ export default function SatisfactionPage() {
   // By Professional
   const byProfessional = useMemo(() => {
     const map: Record<string, { ratings: number[]; service: number[]; waiting: number[] }> = {};
-    feedbacks.forEach((f: any) => {
-      const pid = f.professional_id || (f.session_records as any)?.professional_id || (f.session_records as any)?.appointments?.professional_id;
+    feedbacks.forEach((f: unknown) => {
+      const pid = f.professional_id || (f.session_records as unknown)?.professional_id || (f.session_records as unknown)?.appointments?.professional_id;
       if (!pid) return;
       if (!map[pid]) map[pid] = { ratings: [], service: [], waiting: [] };
       map[pid].ratings.push(f.rating);
@@ -152,15 +152,15 @@ export default function SatisfactionPage() {
   // By Patient with trends
   const byPatient = useMemo(() => {
     const map: Record<string, { name: string; ratings: number[]; lastDate: string }> = {};
-    feedbacks.forEach((f: any) => {
+    feedbacks.forEach((f: unknown) => {
       const pid = f.patient_id;
-      const pname = (f.patients as any)?.full_name || '—';
+      const pname = (f.patients as unknown)?.full_name || '—';
       if (!map[pid]) map[pid] = { name: pname, ratings: [], lastDate: f.created_at };
       map[pid].ratings.push(f.rating);
       if (f.created_at > map[pid].lastDate) map[pid].lastDate = f.created_at;
     });
     const prevMap: Record<string, number[]> = {};
-    prevFeedbacks.forEach((f: any) => {
+    prevFeedbacks.forEach((f: unknown) => {
       if (!prevMap[f.patient_id]) prevMap[f.patient_id] = [];
       prevMap[f.patient_id].push(f.rating);
     });
@@ -177,21 +177,21 @@ export default function SatisfactionPage() {
     const weeks = eachWeekOfInterval({ start: subDays(new Date(), 84), end: new Date() }, { locale: ptBR });
     return weeks.map(weekStart => {
       const weekEnd = new Date(weekStart.getTime() + 7 * 86400000);
-      const wf = feedbacks.filter((f: any) => { const d = new Date(f.created_at); return d >= weekStart && d < weekEnd; });
-      const avg = wf.length > 0 ? wf.reduce((s: number, f: any) => s + f.rating, 0) / wf.length : null;
+      const wf = feedbacks.filter((f: unknown) => { const d = new Date(f.created_at); return d >= weekStart && d < weekEnd; });
+      const avg = wf.length > 0 ? wf.reduce((s: number, f: unknown) => s + f.rating, 0) / wf.length : null;
       return { week: format(weekStart, 'dd/MM', { locale: ptBR }), media: avg ? parseFloat(avg.toFixed(2)) : null, quantidade: wf.length };
     });
   }, [feedbacks]);
 
   // By Shift
   const byShift = useMemo(() => {
-    const shifts: Record<string, { label: string; icon: any; ratings: number[] }> = {
+    const shifts: Record<string, { label: string; icon: unknown; ratings: number[] }> = {
       morning: { label: 'Manhã', icon: Sunrise, ratings: [] },
       afternoon: { label: 'Tarde', icon: Sun, ratings: [] },
       evening: { label: 'Noite', icon: Moon, ratings: [] },
     };
-    feedbacks.forEach((f: any) => {
-      const apptTime = (f.session_records as any)?.appointments?.start_time;
+    feedbacks.forEach((f: unknown) => {
+      const apptTime = (f.session_records as unknown)?.appointments?.start_time;
       if (!apptTime) return;
       const hour = new Date(apptTime).getHours();
       if (hour < 12) shifts.morning.ratings.push(f.rating);
@@ -468,14 +468,14 @@ export default function SatisfactionPage() {
                   <th className="text-center px-3 py-2">Coerência</th>
                 </tr></thead>
                 <tbody>
-                  {npsResponses.slice(0, 20).map((r: any) => {
+                  {npsResponses.slice(0, 20).map((r: unknown) => {
                     const cls = classifyNps(r.score);
-                    const patientFb = feedbacks.filter((f: any) => f.patient_id === r.patient_id);
-                    const fbAvg = patientFb.length > 0 ? patientFb.reduce((s: number, f: any) => s + f.rating, 0) / patientFb.length : null;
+                    const patientFb = feedbacks.filter((f: unknown) => f.patient_id === r.patient_id);
+                    const fbAvg = patientFb.length > 0 ? patientFb.reduce((s: number, f: unknown) => s + f.rating, 0) / patientFb.length : null;
                     const coherent = fbAvg === null ? null : (r.score >= 9 && fbAvg >= 4) || (r.score <= 6 && fbAvg <= 3) || (r.score >= 7 && r.score <= 8 && fbAvg >= 3 && fbAvg <= 4);
                     return (
                       <tr key={r.id} className="border-b last:border-0">
-                        <td className="px-3 py-2 font-medium">{(r.patients as any)?.full_name}</td>
+                        <td className="px-3 py-2 font-medium">{(r.patients as unknown)?.full_name}</td>
                         <td className={cn("px-3 py-2 text-center font-bold", cls.color)}>{r.score}</td>
                         <td className="px-3 py-2 text-center"><BrandBadge status={r.score >= 9 ? 'approved' : r.score >= 7 ? 'pending' : 'cancelled'}>{cls.label}</BrandBadge></td>
                         <td className="px-3 py-2 text-center">{fbAvg !== null ? <StarRating value={fbAvg} /> : <span className="text-muted-foreground">—</span>}</td>
@@ -497,7 +497,7 @@ export default function SatisfactionPage() {
         <SheetContent className="overflow-y-auto">
           <SheetHeader><SheetTitle>Histórico — {selectedPatient?.name}</SheetTitle></SheetHeader>
           <div className="mt-4 space-y-3">
-            {patientFeedbackHistory.map((f: any) => (
+            {patientFeedbackHistory.map((f: unknown) => (
               <div key={f.id} className="p-3 rounded-lg bg-secondary/50">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-1">
@@ -505,7 +505,7 @@ export default function SatisfactionPage() {
                   </div>
                   <span className="text-xs text-muted-foreground">{format(new Date(f.created_at), 'dd/MM/yyyy', { locale: ptBR })}</span>
                 </div>
-                <p className="text-xs text-muted-foreground">{(f.session_records as any)?.treatments?.name || '—'}</p>
+                <p className="text-xs text-muted-foreground">{(f.session_records as unknown)?.treatments?.name || '—'}</p>
                 <div className="flex gap-3 text-xs text-muted-foreground mt-1">
                   {f.service_attention != null && <span>Atenção: {f.service_attention}/5</span>}
                   {f.waiting_time != null && <span>Espera: {f.waiting_time}/5</span>}

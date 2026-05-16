@@ -1,7 +1,7 @@
 import { AlertTriangle, CheckCircle2, Clock, Upload } from 'lucide-react';
 
 interface Props {
-  contracts: any[];
+  contracts: unknown[];
 }
 
 export function ComplianceDashboard({ contracts }: Props) {

@@ -9,7 +9,7 @@ import { ptBR } from 'date-fns/locale';
 
 export default function PortalSessionsPage() {
   const { user } = useAuth();
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export default function PortalSessionsPage() {
         <Card key={s.id} className="shadow-card">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="font-semibold text-foreground text-sm">{(s as any).treatments?.name || 'Sessão'}</span>
+              <span className="font-semibold text-foreground text-sm">{(s as unknown).treatments?.name || 'Sessão'}</span>
               <Badge variant="outline">#{s.session_number}/{s.total_sessions}</Badge>
             </div>
             <p className="text-xs text-muted-foreground">{format(new Date(s.performed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>

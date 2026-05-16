@@ -142,7 +142,7 @@ function getSchemaMissingColumn(error) {
   return match?.[1] || null;
 }
 
-function stripUnsupportedLeadFields<T extends Record<string, any>>(payload: T, missingColumn: string | null) {
+function stripUnsupportedLeadFields<T extends Record<string, unknown>>(payload: T, missingColumn: string | null) {
   if (!missingColumn || !(missingColumn in payload)) return payload;
   const nextPayload = { ...payload };
   delete nextPayload[missingColumn];
@@ -249,7 +249,7 @@ export default function CrmPage() {
   const { data: leads = [], isLoading } = useQuery({
     queryKey: ['crm-leads', clinicId],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('leads' as any) as any)
+      const { data, error } = await supabase.from('leads')
         .select('*')
         .eq('clinic_id', clinicId)
         .is('deleted_at', null)
@@ -279,7 +279,7 @@ export default function CrmPage() {
       try {
         const parsed = JSON.parse(data.value);
         if (!Array.isArray(parsed) || parsed.length === 0) return defaultStages;
-        return parsed.map((stage: any, index: number) =>
+        return parsed.map((stage: { code?: string; label?: string; description?: string }, index: number) =>
           stageAppearance({
             code: normalizeStageCode(stage.code),
             label: stage.label || stage.code,
@@ -324,7 +324,7 @@ export default function CrmPage() {
     queryKey: ['crm-interactions', clinicId, leadDrawer?.id],
     queryFn: async () => {
       if (!leadDrawer) return [];
-      const { data, error } = await (supabase.from('lead_interactions' as any) as any)
+      const { data, error } = await supabase.from('lead_interactions')
         .select('*')
         .eq('clinic_id', clinicId)
         .eq('lead_id', leadDrawer.id)
@@ -339,7 +339,7 @@ export default function CrmPage() {
     queryKey: ['crm-appointments', clinicId, leadDrawer?.id],
     queryFn: async () => {
       if (!leadDrawer) return [];
-      const { data, error } = await (supabase.from('appointments' as any) as any)
+      const { data, error } = await supabase.from('appointments')
         .select('id, status, scheduled_at, start_time, appointment_type')
         .eq('clinic_id', clinicId)
         .eq('lead_id', leadDrawer.id)
@@ -635,7 +635,7 @@ export default function CrmPage() {
       let requestPayload = payload;
 
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        const { data, error } = await (supabase.from('leads' as any) as any).insert(requestPayload).select('*').single();
+        const { data, error } = await supabase.from('leads').insert(requestPayload).select('*').single();
         if (!error) return data as LeadRow;
 
         const missingColumn = getSchemaMissingColumn(error);
@@ -677,7 +677,7 @@ export default function CrmPage() {
 
     const convertedAt = new Date().toISOString();
 
-    await (supabase.from('leads' as any) as any)
+    await supabase.from('leads')
       .update({ patient_id: data.id, converted_at: convertedAt })
       .eq('id', lead.id);
 
@@ -703,7 +703,7 @@ export default function CrmPage() {
     notes?: string | null;
     autoAdvance?: boolean;
   }) {
-    const { error } = await (supabase.from('lead_interactions' as any) as any).insert({
+    const { error } = await supabase.from('lead_interactions').insert({
       clinic_id: lead.clinic_id,
       lead_id: lead.id,
       type,
@@ -713,7 +713,7 @@ export default function CrmPage() {
     if (error) throw error;
 
     if (autoAdvance && lead.kanban_stage === 'new_lead') {
-      const { error: updateError } = await (supabase.from('leads' as any) as any)
+      const { error: updateError } = await supabase.from('leads')
         .update({ kanban_stage: 'contacted' })
         .eq('clinic_id', lead.clinic_id)
         .eq('id', lead.id);
@@ -742,7 +742,7 @@ export default function CrmPage() {
 
     let nextPatientId = lead.patient_id;
     let nextAppointmentId = lead.appointment_id;
-    const patch: Record<string, any> = {
+    const patch: Record<string, unknown> = {
       kanban_stage: targetStage,
     };
 
@@ -751,7 +751,7 @@ export default function CrmPage() {
       start.setHours(9, 0, 0, 0);
       const end = new Date(start.getTime() + 60 * 60000);
       const assignedProfessionalId = lead.assigned_to || null;
-      const { data: appointment, error } = await (supabase.from('appointments' as any) as any)
+      const { data: appointment, error } = await supabase.from('appointments')
         .insert({
           clinic_id: lead.clinic_id,
           lead_id: lead.id,
@@ -779,7 +779,7 @@ export default function CrmPage() {
     }
 
     if (targetStage === 'proposal_sent' && lead.appointment_id) {
-      const { error } = await (supabase.from('appointments' as any) as any)
+      const { error } = await supabase.from('appointments')
         .update({
           status: 'completed',
           completed_at: new Date().toISOString(),
@@ -805,7 +805,7 @@ export default function CrmPage() {
       patch.lost_reason_notes = lostReasonNotes || null;
     }
 
-    const { error } = await (supabase.from('leads' as any) as any).update(patch).eq('id', lead.id);
+    const { error } = await supabase.from('leads').update(patch).eq('id', lead.id);
     if (error) throw error;
 
     return { nextPatientId, nextAppointmentId };
@@ -833,7 +833,7 @@ export default function CrmPage() {
       let requestPayload = payload;
 
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        const { error } = await (supabase.from('leads' as any) as any).update(requestPayload).eq('id', leadDrawer.id);
+        const { error } = await supabase.from('leads').update(requestPayload).eq('id', leadDrawer.id);
         if (!error) break;
 
         const missingColumn = getSchemaMissingColumn(error);
@@ -845,7 +845,7 @@ export default function CrmPage() {
 
       if ('assigned_to' in requestPayload && leadDrawer.appointment_id) {
         const professionalId = requestPayload.assigned_to || null;
-        const { error: appointmentError } = await (supabase.from('appointments' as any) as any)
+        const { error: appointmentError } = await supabase.from('appointments')
           .update({ professional_id: professionalId })
           .eq('clinic_id', leadDrawer.clinic_id)
           .eq('id', leadDrawer.appointment_id);
@@ -862,7 +862,7 @@ export default function CrmPage() {
 
   const assignLeadMutation = useMutation({
     mutationFn: async ({ leadId, assignedTo, appointmentId, clinicId: targetClinicId }: { leadId: string; assignedTo: string | null; appointmentId: string | null; clinicId: string }) => {
-      const { error } = await (supabase.from('leads' as any) as any)
+      const { error } = await supabase.from('leads')
         .update({ assigned_to: assignedTo })
         .eq('clinic_id', targetClinicId)
         .eq('id', leadId);
@@ -870,7 +870,7 @@ export default function CrmPage() {
 
       if (appointmentId) {
         const professionalId = assignedTo || null;
-        const { error: appointmentError } = await (supabase.from('appointments' as any) as any)
+        const { error: appointmentError } = await supabase.from('appointments')
           .update({ professional_id: professionalId })
           .eq('clinic_id', targetClinicId)
           .eq('id', appointmentId);
@@ -888,7 +888,7 @@ export default function CrmPage() {
   const bulkAssignMutation = useMutation({
     mutationFn: async (assignedTo: string | null) => {
       for (const lead of selectedLeads) {
-        const { error } = await (supabase.from('leads' as any) as any)
+        const { error } = await supabase.from('leads')
           .update({ assigned_to: assignedTo })
           .eq('clinic_id', lead.clinic_id)
           .eq('id', lead.id);
@@ -896,7 +896,7 @@ export default function CrmPage() {
 
         if (lead.appointment_id) {
           const professionalId = assignedTo || null;
-          const { error: appointmentError } = await (supabase.from('appointments' as any) as any)
+          const { error: appointmentError } = await supabase.from('appointments')
             .update({ professional_id: professionalId })
             .eq('clinic_id', lead.clinic_id)
             .eq('id', lead.appointment_id);
@@ -939,7 +939,7 @@ export default function CrmPage() {
   const createInteractionMutation = useMutation({
     mutationFn: async () => {
       if (!leadDrawer) return;
-      const { error } = await (supabase.from('lead_interactions' as any) as any).insert({
+      const { error } = await supabase.from('lead_interactions').insert({
         clinic_id: leadDrawer.clinic_id,
         lead_id: leadDrawer.id,
         type: interactionForm.type,
@@ -979,7 +979,7 @@ export default function CrmPage() {
         autoAdvance: true,
       });
 
-      const { error } = await (supabase.from('leads' as any) as any)
+      const { error } = await supabase.from('leads')
         .update({
           next_action: null,
           next_action_at: null,
@@ -1011,7 +1011,7 @@ export default function CrmPage() {
           autoAdvance: true,
         });
 
-        const { error } = await (supabase.from('leads' as any) as any)
+        const { error } = await supabase.from('leads')
           .update({
             next_action: null,
             next_action_at: null,

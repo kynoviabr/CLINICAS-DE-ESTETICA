@@ -13,7 +13,7 @@ export default function PortalHomePage() {
   const { user } = useAuth();
   const { clinicName } = useBranding();
   const [patientName, setPatientName] = useState('');
-  const [nextSession, setNextSession] = useState<any>(null);
+  const [nextSession, setNextSession] = useState<unknown>(null);
   const [progress, setProgress] = useState({ done: 0, total: 1 });
   const [photoCount, setPhotoCount] = useState(0);
 
@@ -99,7 +99,7 @@ export default function PortalHomePage() {
               </div>
               <div className="flex-1">
                 <p className="font-medium text-sm text-foreground">
-                  {(nextSession as any).treatments?.name || 'Sessão'}
+                  {(nextSession as unknown).treatments?.name || 'Sessão'}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {format(new Date(nextSession.start_time), "EEEE, dd MMM '•' HH:mm", { locale: ptBR })}

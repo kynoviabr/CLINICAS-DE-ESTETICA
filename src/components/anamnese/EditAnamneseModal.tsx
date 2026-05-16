@@ -14,7 +14,7 @@ import { Loader2 } from 'lucide-react';
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  anamnese: any;
+  anamnese: unknown;
   patientId: string;
 }
 
@@ -59,7 +59,7 @@ export default function EditAnamneseModal({ open, onOpenChange, anamnese, patien
         validity_days: validityDays,
         notes: form.notes.trim() || null,
         updated_by: user?.id,
-      } as any).eq('id', anamnese.id);
+      } as unknown).eq('id', anamnese.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -68,7 +68,7 @@ export default function EditAnamneseModal({ open, onOpenChange, anamnese, patien
       toast.success('Anamnese atualizada!');
       onOpenChange(false);
     },
-    onError: (err: any) => toast.error(err.message || 'Erro ao atualizar'),
+    onError: (err: unknown) => toast.error(err.message || 'Erro ao atualizar'),
   });
 
   return (

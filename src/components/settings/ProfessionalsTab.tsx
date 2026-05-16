@@ -55,7 +55,7 @@ export default function ProfessionalsTab() {
   const { items: profTreatments, create: linkTreatment } = useProfessionalTreatments();
   const { clinicId } = useUserRole();
 
-  const [treatments, setTreatments] = useState<any[]>([]);
+  const [treatments, setTreatments] = useState<unknown[]>([]);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [cpfError, setCpfError] = useState('');
@@ -148,7 +148,7 @@ export default function ProfessionalsTab() {
   // Filter, sort, paginate
   const { filtered, totalPages, paged } = useMemo(() => {
     const searchLower = search.toLowerCase().replace(/\D/g, '') || search.toLowerCase();
-    let result = items.filter(p => {
+    const result = items.filter(p => {
       if (filterStatus !== 'all' && p.status !== filterStatus) return false;
       if (filterRoleId !== 'all' && p.role_id !== filterRoleId) return false;
       if (filterTreatmentId !== 'all') {

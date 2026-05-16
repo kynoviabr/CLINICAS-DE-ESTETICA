@@ -77,13 +77,13 @@ export default function AnamneseSection({ patientId, clinicId }: AnamneseSection
     queryKey: ['patient-anamnese', patientId],
     queryFn: async () => {
       const { data } = await supabase
-        .from('patient_anamneses' as any)
+        .from('patient_anamneses' as unknown)
         .select('*')
         .eq('patient_id', patientId)
         .order('uploaded_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      return data as any;
+      return data as unknown;
     },
     enabled: !!patientId,
   });
@@ -92,12 +92,12 @@ export default function AnamneseSection({ patientId, clinicId }: AnamneseSection
     queryKey: ['anamnese-validity', clinicId],
     queryFn: async () => {
       const { data } = await supabase
-        .from('clinic_settings' as any)
+        .from('clinic_settings' as unknown)
         .select('value')
         .eq('clinic_id', clinicId)
         .eq('key', 'anamnese_validity_days')
         .maybeSingle();
-      return data ? parseInt((data as any).value) || 45 : 45;
+      return data ? parseInt((data as unknown).value) || 45 : 45;
     },
     enabled: !!clinicId,
   });
@@ -133,7 +133,7 @@ export default function AnamneseSection({ patientId, clinicId }: AnamneseSection
 
       const validUntil = addDays(new Date(), validityDays);
 
-      const { error: insertError } = await supabase.from('patient_anamneses' as any).insert({
+      const { error: insertError } = await supabase.from('patient_anamneses' as unknown).insert({
         clinic_id: clinicId,
         patient_id: patientId,
         file_url: publicUrl,
@@ -141,12 +141,12 @@ export default function AnamneseSection({ patientId, clinicId }: AnamneseSection
         uploaded_by: user?.id,
         valid_until: validUntil.toISOString().split('T')[0],
         status: 'valid',
-      } as any);
+      } as unknown);
       if (insertError) throw insertError;
 
       qc.invalidateQueries({ queryKey: ['patient-anamnese', patientId] });
       toast({ title: 'Anamnese enviada com sucesso!' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: 'Erro no upload', description: err.message, variant: 'destructive' });
     } finally {
       setUploading(false);

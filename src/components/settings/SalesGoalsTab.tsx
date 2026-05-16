@@ -37,8 +37,8 @@ function goalStatusBadge(pct: number) {
 export default function SalesGoalsTab() {
   const { clinicId } = useUserRole();
   const { user } = useAuth();
-  const [goals, setGoals] = useState<any[]>([]);
-  const [staff, setStaff] = useState<any[]>([]);
+  const [goals, setGoals] = useState<unknown[]>([]);
+  const [staff, setStaff] = useState<unknown[]>([]);
   const [sales, setSales] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -62,17 +62,17 @@ export default function SalesGoalsTab() {
     setLoading(true);
 
     const [goalsRes, staffRes, proposalsRes] = await Promise.all([
-      supabase.from('sales_goals' as any).select('*').eq('clinic_id', clinicId).order('period_reference', { ascending: false }),
+      supabase.from('sales_goals' as unknown).select('*').eq('clinic_id', clinicId).order('period_reference', { ascending: false }),
       supabase.from('user_roles').select('user_id, role').eq('clinic_id', clinicId).eq('is_active', true),
-      supabase.from('proposals').select('created_by, final_amount, status').eq('clinic_id', clinicId).eq('status', 'accepted' as any),
+      supabase.from('proposals').select('created_by, final_amount, status').eq('clinic_id', clinicId).eq('status', 'accepted' as unknown),
     ]);
 
-    setGoals((goalsRes.data as any[]) || []);
+    setGoals((goalsRes.data as unknown[]) || []);
     setStaff(staffRes.data || []);
 
     // Calculate realized amounts per user
     const salesMap: Record<string, number> = {};
-    ((proposalsRes.data as any[]) || []).forEach((p: any) => {
+    ((proposalsRes.data as unknown[]) || []).forEach((p: unknown) => {
       if (p.created_by) {
         salesMap[p.created_by] = (salesMap[p.created_by] || 0) + Number(p.final_amount || 0);
       }
@@ -86,14 +86,14 @@ export default function SalesGoalsTab() {
     if (!clinicId || !formUserId || !formAmount) return;
     setSaving(true);
 
-    const { error } = await supabase.from('sales_goals' as any).insert({
+    const { error } = await supabase.from('sales_goals' as unknown).insert({
       clinic_id: clinicId,
       user_id: formUserId,
       period_type: formPeriodType,
       period_reference: formPeriodRef,
       goal_amount: parseFloat(formAmount),
       created_by: user?.id,
-    } as any);
+    } as unknown);
 
     setSaving(false);
     if (error) {
@@ -120,7 +120,7 @@ export default function SalesGoalsTab() {
     return true;
   });
 
-  const getRealizedForGoal = (goal: any) => {
+  const getRealizedForGoal = (goal: unknown) => {
     // This is simplified - ideally filter by period too
     return sales[goal.user_id] || 0;
   };
@@ -224,7 +224,7 @@ export default function SalesGoalsTab() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {filteredGoals.map((g: any) => {
+                  {filteredGoals.map((g: unknown) => {
                     const realized = getRealizedForGoal(g);
                     const pct = g.goal_amount > 0 ? Math.round((realized / g.goal_amount) * 100) : 0;
                     const staffMember = staff.find(s => s.user_id === g.user_id);

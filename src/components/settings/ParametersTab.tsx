@@ -19,15 +19,15 @@ export default function ParametersTab() {
     queryKey: ['clinic-settings', clinicId],
     queryFn: async () => {
       if (!clinicId) return [];
-      const { data } = await supabase.from('clinic_settings' as any).select('*').eq('clinic_id', clinicId);
-      return (data as any[]) || [];
+      const { data } = await supabase.from('clinic_settings' as unknown).select('*').eq('clinic_id', clinicId);
+      return (data as unknown[]) || [];
     },
     enabled: !!clinicId,
   });
 
   useEffect(() => {
     if (settings) {
-      const found = settings.find((s: any) => s.key === 'anamnese_validity_days');
+      const found = settings.find((s: unknown) => s.key === 'anamnese_validity_days');
       if (found) setAnamneseDays(found.value);
     }
   }, [settings]);
@@ -35,16 +35,16 @@ export default function ParametersTab() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!clinicId) throw new Error('Clínica não encontrada');
-      const existing = settings?.find((s: any) => s.key === 'anamnese_validity_days');
+      const existing = settings?.find((s: unknown) => s.key === 'anamnese_validity_days');
       if (existing) {
-        const { error } = await supabase.from('clinic_settings' as any).update({ value: anamneseDays } as any).eq('id', existing.id);
+        const { error } = await supabase.from('clinic_settings' as unknown).update({ value: anamneseDays } as unknown).eq('id', existing.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('clinic_settings' as any).insert({
+        const { error } = await supabase.from('clinic_settings' as unknown).insert({
           clinic_id: clinicId,
           key: 'anamnese_validity_days',
           value: anamneseDays,
-        } as any);
+        } as unknown);
         if (error) throw error;
       }
     },
@@ -52,7 +52,7 @@ export default function ParametersTab() {
       qc.invalidateQueries({ queryKey: ['clinic-settings'] });
       toast({ title: 'Parâmetros salvos!' });
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: unknown) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   return (

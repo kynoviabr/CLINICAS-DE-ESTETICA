@@ -33,11 +33,11 @@ export default function PayerSection({ value, onChange, patientName }: PayerSect
     queryFn: async () => {
       if (!clinicId) return [];
       const { data } = await supabase
-        .from('payers' as any)
+        .from('payers' as unknown)
         .select('id, name, cpf')
         .eq('clinic_id', clinicId)
         .order('name');
-      return (data as any[]) || [];
+      return (data as unknown[]) || [];
     },
     enabled: !!clinicId && !value.is_self_payer,
   });
@@ -94,7 +94,7 @@ export default function PayerSection({ value, onChange, patientName }: PayerSect
               >
                 <SelectTrigger><SelectValue placeholder="Selecionar pagador existente" /></SelectTrigger>
                 <SelectContent>
-                  {payers.map((p: any) => (
+                  {payers.map((p: unknown) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name} {p.cpf ? `(${p.cpf})` : ''}
                     </SelectItem>

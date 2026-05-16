@@ -13,9 +13,9 @@ const typeColors: Record<string, string> = { before: 'bg-blue-100 text-blue-700'
 
 export default function PortalPhotosPage() {
   const { user } = useAuth();
-  const [photos, setPhotos] = useState<any[]>([]);
+  const [photos, setPhotos] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewPhoto, setViewPhoto] = useState<any>(null);
+  const [viewPhoto, setViewPhoto] = useState<unknown>(null);
 
   useEffect(() => {
     if (!user) return;

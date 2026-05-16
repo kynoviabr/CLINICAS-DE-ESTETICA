@@ -30,9 +30,9 @@ function hexToHsl(hex: string): { h: number; s: number; l: number } {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   if (!result) return { h: 174, s: 58, l: 28 };
 
-  let r = parseInt(result[1], 16) / 255;
-  let g = parseInt(result[2], 16) / 255;
-  let b = parseInt(result[3], 16) / 255;
+  const r = parseInt(result[1], 16) / 255;
+  const g = parseInt(result[2], 16) / 255;
+  const b = parseInt(result[3], 16) / 255;
 
   const max = Math.max(r, g, b), min = Math.min(r, g, b);
   let h = 0, s = 0;
@@ -117,13 +117,13 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
       // If not staff, try patient_portal_access
       if (!clinicId) {
         const { data: portalData } = await supabase
-          .from('patient_portal_access' as any)
+          .from('patient_portal_access')
           .select('clinic_id')
           .eq('auth_user_id', user.id)
           .eq('access_status', 'active')
           .limit(1)
           .maybeSingle();
-        clinicId = (portalData as any)?.clinic_id;
+        clinicId = (portalData as unknown)?.clinic_id;
       }
 
       if (!clinicId) {

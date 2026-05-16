@@ -53,14 +53,14 @@ export default function NpsPage() {
   const { data: responses = [], isLoading } = useQuery({
     queryKey: ['nps-responses', clinicId, filterPeriod, filterClassification, search],
     queryFn: async () => {
-      let q = supabase
-        .from('nps_responses' as any)
+      const q = supabase
+        .from('nps_responses')
         .select('*, patients(full_name), treatments(name)')
         .eq('clinic_id', clinicId!)
         .gte('submitted_at', periodStart)
         .order('submitted_at', { ascending: false });
       const { data } = await q;
-      let results = (data as any[]) || [];
+      let results = (data as unknown[]) || [];
       
       if (filterClassification !== 'all') {
         results = results.filter(r => {
@@ -107,9 +107,9 @@ export default function NpsPage() {
 
   // NPS calculation
   const totalResponses = responses.length;
-  const promoters = responses.filter((r: any) => r.score >= 9).length;
-  const neutrals = responses.filter((r: any) => r.score >= 7 && r.score <= 8).length;
-  const detractors = responses.filter((r: any) => r.score <= 6).length;
+  const promoters = responses.filter((r: unknown) => r.score >= 9).length;
+  const neutrals = responses.filter((r: unknown) => r.score >= 7 && r.score <= 8).length;
+  const detractors = responses.filter((r: unknown) => r.score <= 6).length;
   const npsScore = totalResponses > 0
     ? Math.round(((promoters - detractors) / totalResponses) * 100)
     : 0;
@@ -118,14 +118,14 @@ export default function NpsPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       if (score === null) throw new Error('Selecione uma nota');
-      const { error } = await supabase.from('nps_responses' as any).insert({
+      const { error } = await supabase.from('nps_responses' as unknown).insert({
         clinic_id: clinicId!,
         patient_id: selectedPatient,
         treatment_id: selectedTreatment || null,
         professional_user_id: selectedProfessional || null,
         score,
         comment: comment || null,
-      } as any);
+      } as unknown);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -134,7 +134,7 @@ export default function NpsPage() {
       resetForm();
       toast({ title: 'NPS registrado com sucesso!' });
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: unknown) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   const resetForm = () => {
@@ -222,7 +222,7 @@ export default function NpsPage() {
                 </tr>
               </thead>
               <tbody>
-                {responses.map((r: any) => {
+                {responses.map((r: unknown) => {
                   const cls = classifyNps(r.score);
                   return (
                     <tr key={r.id} className="border-b last:border-0 hover:bg-secondary/30 transition-colors">
@@ -256,7 +256,7 @@ export default function NpsPage() {
               <Label>Paciente *</Label>
               <Select value={selectedPatient} onValueChange={setSelectedPatient}>
                 <SelectTrigger><SelectValue placeholder="Selecionar paciente" /></SelectTrigger>
-                <SelectContent>{patients.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}</SelectContent>
+                <SelectContent>{patients.map((p: unknown) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -264,7 +264,7 @@ export default function NpsPage() {
                 <Label>Tratamento</Label>
                 <Select value={selectedTreatment} onValueChange={setSelectedTreatment}>
                   <SelectTrigger><SelectValue placeholder="Opcional" /></SelectTrigger>
-                  <SelectContent>{treatments.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>{treatments.map((t: unknown) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">

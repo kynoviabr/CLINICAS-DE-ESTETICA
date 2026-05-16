@@ -25,6 +25,7 @@ import {
 import PatientAnamneseTab from '@/components/anamnese/PatientAnamneseTab';
 import { FileText as FileTextIcon } from 'lucide-react';
 import { ContractStatusBadge } from '@/components/contracts/ContractStatusBadge';
+import type { Database } from '@/integrations/supabase/types';
 
 const typeLabels: Record<string, string> = { before: 'Antes', during: 'Durante', after: 'Depois', progress: 'Progresso' };
 const typeColors: Record<string, string> = { before: 'bg-blue-100 text-blue-700', during: 'bg-yellow-100 text-yellow-700', after: 'bg-green-100 text-green-700', progress: 'bg-purple-100 text-purple-700' };
@@ -56,7 +57,18 @@ export default function PatientDetailPage() {
   const navigate = useNavigate();
   const { clinicId } = useUserRole();
   const queryClient = useQueryClient();
-  const [viewPhoto, setViewPhoto] = useState<any>(null);
+  type AppointmentRow = Database['public']['Tables']['appointments']['Row'] & { treatments?: { name?: string | null } | null };
+  type SessionRow = Database['public']['Tables']['session_records']['Row'] & { treatments?: { name?: string | null } | null };
+  type PhotoRow = Database['public']['Tables']['patient_photos']['Row'];
+  type MetricRow = Database['public']['Tables']['patient_metrics']['Row'];
+  type FeedbackRow = Database['public']['Tables']['session_feedback']['Row'] & {
+    session_records?: { performed_at?: string | null; treatments?: { name?: string | null } | null } | null;
+  };
+  type ProposalRow = Pick<Database['public']['Tables']['proposals']['Row'], 'id' | 'proposal_number' | 'status' | 'final_amount' | 'created_at' | 'valid_until'>;
+  type ContractRow = Database['public']['Tables']['contracts']['Row'] & {
+    proposals?: { proposal_number?: string | null; final_amount?: number | null } | null;
+  };
+  const [viewPhoto, setViewPhoto] = useState<PhotoRow | null>(null);
   const [grantingAccess, setGrantingAccess] = useState(false);
 
   const { data: patient, isLoading } = useQuery({
@@ -169,15 +181,16 @@ export default function PatientDetailPage() {
       if (data?.error) throw new Error(data.error);
       toast.success(data?.message || 'Acesso ao portal concedido!');
       queryClient.invalidateQueries({ queryKey: ['patient-portal-access', id] });
-    } catch (err: any) {
-      toast.error(err.message || 'Erro ao conceder acesso');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erro ao conceder acesso';
+      toast.error(message);
     } finally {
       setGrantingAccess(false);
     }
   };
 
   // Group metrics by type for evolution chart
-  const metricTypes = [...new Set(metrics.map((m: any) => m.metric_type))];
+  const metricTypes = [...new Set(metrics.map((m: MetricRow) => m.metric_type))];
   const metricLabels: Record<string, string> = {
     weight: 'Peso', waist: 'Cintura', hip: 'Quadril', arm: 'Braço',
     thigh: 'Coxa', abdomen: 'Abdômen',
@@ -205,14 +218,14 @@ export default function PatientDetailPage() {
   const currentAnamneseStatus = patient.current_anamnese_status || 'none';
   const currentAnamneseConfig = anamneseBadgeConfig[currentAnamneseStatus] || anamneseBadgeConfig.none;
   const upcomingAppointments = [...appointments]
-    .filter((appointment: any) => new Date(appointment.start_time).getTime() >= Date.now())
-    .sort((a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+    .filter((appointment: AppointmentRow) => new Date(appointment.start_time).getTime() >= Date.now())
+    .sort((a: AppointmentRow, b: AppointmentRow) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
   const nextAppointment = upcomingAppointments[0] || null;
   const lastSession = sessions[0] || null;
   const latestProposal = proposals[0] || null;
   const latestContract = contracts[0] || null;
   const averageFeedback = feedbacks.length
-    ? feedbacks.reduce((sum: number, feedback: any) => sum + Number(feedback.rating || 0), 0) / feedbacks.length
+    ? feedbacks.reduce((sum: number, feedback: FeedbackRow) => sum + Number(feedback.rating || 0), 0) / feedbacks.length
     : null;
   const operationalStep = currentAnamneseStatus === 'none'
     ? 'Cadastrar anamnese'
@@ -226,7 +239,7 @@ export default function PatientDetailPage() {
             ? 'Gerar contrato'
             : (latestProposal?.status === 'sent' || latestProposal?.status === 'draft')
               ? 'Acompanhar proposta'
-              : (!latestProposal && appointments.some((appointment: any) => appointment.status === 'completed'))
+              : (!latestProposal && appointments.some((appointment: AppointmentRow) => appointment.status === 'completed'))
                 ? 'Criar proposta'
                 : nextAppointment
                   ? 'Acompanhar próximo atendimento'
@@ -245,7 +258,7 @@ export default function PatientDetailPage() {
               ? 'A proposta já foi enviada. Vale acompanhar retorno e objeções do paciente.'
               : latestProposal?.status === 'draft'
                 ? 'A proposta ainda está em rascunho. Complete e envie para avançar a conversão.'
-                : (!latestProposal && appointments.some((appointment: any) => appointment.status === 'completed'))
+                : (!latestProposal && appointments.some((appointment: AppointmentRow) => appointment.status === 'completed'))
                   ? 'A avaliação já aconteceu. O momento agora é transformar esse atendimento em proposta.'
                   : nextAppointment
                     ? 'Há atendimento previsto. Use esse momento para evoluir clínica e comercialmente.'
@@ -472,7 +485,7 @@ export default function PatientDetailPage() {
                 <p className="text-sm text-muted-foreground text-center py-8">Nenhum agendamento encontrado</p>
               ) : (
                 <div className="space-y-3">
-                  {appointments.map((a: any) => (
+                  {appointments.map((a: AppointmentRow) => (
                     <div key={a.id} className="flex flex-col gap-3 rounded-lg bg-secondary/50 p-3 md:flex-row md:items-center md:justify-between">
                       <div>
                         <p className="text-sm font-medium text-foreground">{a.treatments?.name || 'Tratamento'}</p>
@@ -521,7 +534,7 @@ export default function PatientDetailPage() {
                 <p className="text-sm text-muted-foreground text-center py-8">Nenhuma proposta encontrada</p>
               ) : (
                 <div className="space-y-3">
-                  {proposals.map((proposal: any) => (
+                  {proposals.map((proposal: ProposalRow) => (
                     <div key={proposal.id} className="flex flex-col gap-3 rounded-lg bg-secondary/50 p-3 md:flex-row md:items-center md:justify-between">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -573,7 +586,7 @@ export default function PatientDetailPage() {
                 <p className="text-sm text-muted-foreground text-center py-8">Nenhum contrato encontrado</p>
               ) : (
                 <div className="space-y-3">
-                  {contracts.map((contract: any) => (
+                  {contracts.map((contract: ContractRow) => (
                     <div key={contract.id} className="flex flex-col gap-3 rounded-lg bg-secondary/50 p-3 md:flex-row md:items-center md:justify-between">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -638,7 +651,7 @@ export default function PatientDetailPage() {
                 <p className="text-sm text-muted-foreground text-center py-8">Nenhuma sessão registrada</p>
               ) : (
                 <div className="space-y-3">
-                  {sessions.map((s: any) => (
+                  {sessions.map((s: SessionRow) => (
                     <div key={s.id} className="p-3 rounded-lg bg-secondary/50">
                       <div className="flex items-center justify-between mb-1">
                         <p className="text-sm font-medium text-foreground">
@@ -670,8 +683,8 @@ export default function PatientDetailPage() {
           ) : (
             <div className="space-y-4">
               {metricTypes.map(type => {
-                const typeMetrics = metrics.filter((m: any) => m.metric_type === type);
-                const chartData = typeMetrics.map((m: any) => ({
+                const typeMetrics = metrics.filter((m: MetricRow) => m.metric_type === type);
+                const chartData = typeMetrics.map((m: MetricRow) => ({
                   date: format(new Date(m.recorded_at), 'dd/MM', { locale: ptBR }),
                   value: Number(m.value),
                 }));
@@ -724,7 +737,7 @@ export default function PatientDetailPage() {
             </Card>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {photos.map((p: any) => (
+              {photos.map((p: PhotoRow) => (
                 <Card key={p.id} className="shadow-card overflow-hidden cursor-pointer hover:shadow-card-hover transition-all" onClick={() => setViewPhoto(p)}>
                   <div className="relative aspect-square">
                     <img src={p.photo_url} alt={p.description || ''} className="w-full h-full object-cover" />
@@ -751,7 +764,7 @@ export default function PatientDetailPage() {
             </Card>
           ) : (
             <div className="space-y-3">
-              {feedbacks.map((fb: any) => (
+              {feedbacks.map((fb: FeedbackRow) => (
                 <Card key={fb.id} className="shadow-card">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-2">

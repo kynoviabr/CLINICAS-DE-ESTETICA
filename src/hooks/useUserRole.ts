@@ -37,7 +37,7 @@ export function useUserRole(): UserRoleData {
 
       // Check patient portal access
       const { data: portalData } = await supabase
-        .from('patient_portal_access' as any)
+        .from('patient_portal_access' as unknown)
         .select('clinic_id')
         .eq('auth_user_id', user.id)
         .eq('access_status', 'active')
@@ -45,7 +45,7 @@ export function useUserRole(): UserRoleData {
         .maybeSingle();
 
       if (portalData) {
-        setData({ role: 'patient', clinicId: (portalData as any).clinic_id, loading: false });
+        setData({ role: 'patient', clinicId: (portalData as unknown).clinic_id, loading: false });
       } else {
         setData({ role: null, clinicId: null, loading: false });
       }

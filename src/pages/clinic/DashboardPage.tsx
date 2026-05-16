@@ -27,8 +27,25 @@ import {
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import { useMemo } from 'react';
+import type { Database } from '@/integrations/supabase/types';
 
 const CHART_COLORS = ['hsl(var(--primary))', 'hsl(var(--accent))', '#34d399', '#f59e0b', '#8b5cf6', '#ec4899'];
+type ContractStatusRow = Pick<Database['public']['Tables']['contracts']['Row'], 'process_status'>;
+type AnamneseRow = Pick<Database['public']['Tables']['patient_anamneses']['Row'], 'patient_id' | 'uploaded_at'>;
+type RevenueInstallmentRow = Pick<Database['public']['Tables']['payment_installments']['Row'], 'amount' | 'paid_date'>;
+type SessionRecordRow = Pick<Database['public']['Tables']['session_records']['Row'], 'performed_at'>;
+type PatientCreatedRow = Pick<Database['public']['Tables']['patients']['Row'], 'created_at'>;
+type AppointmentTreatmentRow = {
+  treatment_id: string | null;
+  treatments?: { name?: string | null } | null;
+};
+type AppointmentStartRow = Pick<Database['public']['Tables']['appointments']['Row'], 'start_time'>;
+type SalesProposalRow = Pick<Database['public']['Tables']['proposals']['Row'], 'id' | 'final_amount' | 'created_by' | 'created_at'>;
+type SalesGoalRow = Pick<Database['public']['Tables']['sales_goals']['Row'], 'user_id' | 'goal_amount'>;
+type TodaySessionRow = Pick<Database['public']['Tables']['appointments']['Row'], 'id' | 'start_time' | 'status'> & {
+  patients?: { full_name?: string | null } | null;
+  treatments?: { name?: string | null } | null;
+};
 
 function npsScoreColor(nps: number): string {
   if (nps < 0) return 'text-destructive';
@@ -133,9 +150,9 @@ export default function ClinicDashboard() {
       if (error) throw error;
       const contracts = data || [];
       return {
-        pendingUpload: contracts.filter((contract: any) => contract.process_status === 'pending_upload').length,
-        pendingConfirmation: contracts.filter((contract: any) => contract.process_status === 'pending_confirmation').length,
-        overdue: contracts.filter((contract: any) => contract.process_status === 'overdue').length,
+        pendingUpload: contracts.filter((contract: ContractStatusRow) => contract.process_status === 'pending_upload').length,
+        pendingConfirmation: contracts.filter((contract: ContractStatusRow) => contract.process_status === 'pending_confirmation').length,
+        overdue: contracts.filter((contract: ContractStatusRow) => contract.process_status === 'overdue').length,
       };
     },
     enabled: !!clinicId && !isSales,
@@ -170,7 +187,7 @@ export default function ClinicDashboard() {
       const { data: anamneses } = await supabase.from('patient_anamneses')
         .select('patient_id, uploaded_at').eq('clinic_id', clinicId!).order('uploaded_at', { ascending: false });
       const latestMap: Record<string, string> = {};
-      (anamneses || []).forEach((a: any) => { if (!latestMap[a.patient_id]) latestMap[a.patient_id] = a.uploaded_at; });
+      (anamneses || []).forEach((a: AnamneseRow) => { if (!latestMap[a.patient_id]) latestMap[a.patient_id] = a.uploaded_at; });
       let expired = 0, expiring = 0;
       const now = new Date();
       const warningDate = addDays(now, 7);
@@ -230,8 +247,8 @@ export default function ClinicDashboard() {
         supabase.from('patients').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId!).eq('dissatisfaction_flag', true),
       ]);
 
-      const currRev = (currRevenue.data || []).reduce((s: number, r: any) => s + Number(r.amount), 0);
-      const prevRev = (prevRevenue.data || []).reduce((s: number, r: any) => s + Number(r.amount), 0);
+      const currRev = (currRevenue.data || []).reduce((s: number, r: RevenueInstallmentRow) => s + Number(r.amount), 0);
+      const prevRev = (prevRevenue.data || []).reduce((s: number, r: RevenueInstallmentRow) => s + Number(r.amount), 0);
 
       return {
         newPatients: { current: currPatients.count || 0, previous: prevPatients.count || 0 },
@@ -268,7 +285,7 @@ export default function ClinicDashboard() {
       let query = supabase.from('proposals')
         .select('id, final_amount, created_by, created_at')
         .eq('clinic_id', clinicId!)
-        .eq('status', 'accepted' as any)
+        .eq('status', 'accepted')
         .gte('updated_at', monthStart).lte('updated_at', monthEnd);
       if (isSales) query = query.eq('created_by', user!.id);
       const { data: proposals } = await query;
@@ -276,7 +293,7 @@ export default function ClinicDashboard() {
         .select('user_id, role').eq('clinic_id', clinicId!).eq('is_active', true);
       const { data: goalsData } = await supabase.from('sales_goals')
         .select('*').eq('clinic_id', clinicId!).eq('period_reference', currentMonth);
-      return { proposals: proposals || [], staff: staffData || [], goals: (goalsData as any[]) || [] };
+      return { proposals: (proposals as SalesProposalRow[]) || [], staff: staffData || [], goals: (goalsData as SalesGoalRow[]) || [] };
     },
     enabled: !!clinicId && showCommercial,
   });
@@ -296,10 +313,10 @@ export default function ClinicDashboard() {
       const revByMonth: Record<string, number> = {};
       const sessByMonth: Record<string, number> = {};
       months.forEach(m => { const k = format(m, 'yyyy-MM'); revByMonth[k] = 0; sessByMonth[k] = 0; });
-      (revenueRes.data || []).forEach((inst: any) => {
+      (revenueRes.data || []).forEach((inst: RevenueInstallmentRow) => {
         if (inst.paid_date) { const k = inst.paid_date.slice(0, 7); if (revByMonth[k] !== undefined) revByMonth[k] += Number(inst.amount); }
       });
-      (sessionsRes.data || []).forEach((s: any) => {
+      (sessionsRes.data || []).forEach((s: SessionRecordRow) => {
         const k = s.performed_at.slice(0, 7); if (sessByMonth[k] !== undefined) sessByMonth[k]++;
       });
       return months.map(m => {
@@ -317,7 +334,7 @@ export default function ClinicDashboard() {
         .eq('clinic_id', clinicId!).gte('created_at', startOfMonth(sixMonthsAgo).toISOString());
       const byMonth: Record<string, number> = {};
       months.forEach(m => { byMonth[format(m, 'yyyy-MM')] = 0; });
-      (data || []).forEach((p: any) => { const key = p.created_at.slice(0, 7); if (byMonth[key] !== undefined) byMonth[key]++; });
+      (data || []).forEach((p: PatientCreatedRow) => { const key = p.created_at.slice(0, 7); if (byMonth[key] !== undefined) byMonth[key]++; });
       let acc = 0;
       return months.map(m => { const k = format(m, 'yyyy-MM'); acc += byMonth[k]; return { month: format(m, 'MMM', { locale: ptBR }), novos: byMonth[k], acumulado: acc }; });
     },
@@ -331,7 +348,7 @@ export default function ClinicDashboard() {
         .eq('clinic_id', clinicId!).not('treatment_id', 'is', null);
       if (!data) return [];
       const counts: Record<string, { name: string; count: number }> = {};
-      data.forEach((a: any) => { const name = a.treatments?.name || 'Outro'; const tid = a.treatment_id; if (!counts[tid]) counts[tid] = { name, count: 0 }; counts[tid].count++; });
+      data.forEach((a: AppointmentTreatmentRow) => { const name = a.treatments?.name || 'Outro'; const tid = a.treatment_id; if (!tid) return; if (!counts[tid]) counts[tid] = { name, count: 0 }; counts[tid].count++; });
       return Object.values(counts).sort((a, b) => b.count - a.count).slice(0, 6);
     },
     enabled: !!clinicId && !isSales,
@@ -347,30 +364,30 @@ export default function ClinicDashboard() {
       const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
       const counts = [0, 0, 0, 0, 0, 0, 0];
       const weeksCounted = Math.ceil(60 / 7);
-      (data || []).forEach((a: any) => { counts[new Date(a.start_time).getDay()]++; });
+      (data || []).forEach((a: AppointmentStartRow) => { counts[new Date(a.start_time).getDay()]++; });
       return days.map((d, i) => ({ day: d, media: Math.round(counts[i] / weeksCounted * 10) / 10 }));
     },
     enabled: !!clinicId && !isSales,
   });
 
   // Sales computed values
-  const totalSalesMonth = salesData?.proposals.reduce((s, p: any) => s + Number(p.final_amount || 0), 0) || 0;
+  const totalSalesMonth = salesData?.proposals.reduce((s, p: SalesProposalRow) => s + Number(p.final_amount || 0), 0) || 0;
   const approvedCount = salesData?.proposals.length || 0;
   const ticketMedio = approvedCount > 0 ? totalSalesMonth / approvedCount : 0;
-  const myGoal = salesData?.goals.find((g: any) => g.user_id === user?.id);
+  const myGoal = salesData?.goals.find((g: SalesGoalRow) => g.user_id === user?.id);
   const myGoalAmount = myGoal ? Number(myGoal.goal_amount) : 0;
   const myPct = myGoalAmount > 0 ? Math.round((totalSalesMonth / myGoalAmount) * 100) : 0;
 
   // Ranking (admin)
   const ranking = isAdmin && salesData ? (() => {
     const byUser: Record<string, number> = {};
-    salesData.proposals.forEach((p: any) => {
+    salesData.proposals.forEach((p: SalesProposalRow) => {
       if (p.created_by) byUser[p.created_by] = (byUser[p.created_by] || 0) + Number(p.final_amount || 0);
     });
     return Object.entries(byUser)
       .map(([userId, total]) => {
         const staffMember = salesData.staff.find(s => s.user_id === userId);
-        const goal = salesData.goals.find((g: any) => g.user_id === userId);
+        const goal = salesData.goals.find((g: SalesGoalRow) => g.user_id === userId);
         const goalAmount = goal ? Number(goal.goal_amount) : 0;
         return { userId, total, role: staffMember?.role || 'admin', goalAmount, pct: goalAmount > 0 ? Math.round((total / goalAmount) * 100) : 0 };
       })
@@ -441,7 +458,7 @@ export default function ClinicDashboard() {
             <CardContent>
               {salesData && salesData.proposals.length > 0 ? (
                 <div className="space-y-3">
-                  {salesData.proposals.slice(0, 5).map((p: any) => (
+                  {salesData.proposals.slice(0, 5).map((p: SalesProposalRow) => (
                     <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
                       <div>
                         <p className="text-sm font-medium text-foreground">{formatCurrency(Number(p.final_amount))}</p>
@@ -788,7 +805,7 @@ export default function ClinicDashboard() {
               <p className="text-sm text-muted-foreground text-center py-6">Nenhuma sessão agendada para hoje</p>
             ) : (
               <div className="space-y-3">
-                {todaySessions.map((s: any) => (
+                {todaySessions.map((s: TodaySessionRow) => (
                   <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-semibold text-sm">

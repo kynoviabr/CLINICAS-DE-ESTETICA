@@ -32,10 +32,10 @@ export default function CategoriesTab() {
     queryKey: ['treatment-categories', clinicId, search],
     queryFn: async () => {
       if (!clinicId) return [];
-      let q = supabase.from('treatment_categories' as any).select('*').eq('clinic_id', clinicId).order('name');
+      let q = supabase.from('treatment_categories' as unknown).select('*').eq('clinic_id', clinicId).order('name');
       if (search) q = q.ilike('name', `%${search}%`);
       const { data } = await q;
-      return (data as any[]) || [];
+      return (data as unknown[]) || [];
     },
     enabled: !!clinicId,
   });
@@ -50,10 +50,10 @@ export default function CategoriesTab() {
     mutationFn: async (data: CategoryForm) => {
       const payload = { name: data.name, status: data.status, clinic_id: clinicId! };
       if (editingId) {
-        const { error } = await supabase.from('treatment_categories' as any).update(payload as any).eq('id', editingId);
+        const { error } = await supabase.from('treatment_categories' as unknown).update(payload as unknown).eq('id', editingId);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('treatment_categories' as any).insert(payload as any);
+        const { error } = await supabase.from('treatment_categories' as unknown).insert(payload as unknown);
         if (error) throw error;
       }
     },
@@ -64,10 +64,10 @@ export default function CategoriesTab() {
       setForm(emptyForm);
       toast({ title: editingId ? 'Categoria atualizada!' : 'Categoria criada!' });
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: unknown) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
-  const openEdit = (cat: any) => {
+  const openEdit = (cat: unknown) => {
     setEditingId(cat.id);
     setForm({ name: cat.name, status: cat.status });
     setDialogOpen(true);
@@ -103,7 +103,7 @@ export default function CategoriesTab() {
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {categories.map((cat: any) => (
+              {categories.map((cat: unknown) => (
                 <div key={cat.id} className="flex items-center justify-between py-3">
                   <div>
                     <p className="text-sm font-medium text-foreground">{cat.name}</p>

@@ -12,7 +12,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  anamnese: any;
+  anamnese: unknown;
 }
 
 const sourceLabels: Record<string, string> = {
@@ -115,7 +115,7 @@ function fmtDateShort(d: string | null) {
   return format(new Date(d), 'dd/MM/yyyy', { locale: ptBR });
 }
 
-function formatValue(value: any): string {
+function formatValue(value: unknown): string {
   if (value === true) return 'Sim';
   if (value === false) return 'Não';
   if (value === null || value === undefined || value === '') return '—';
@@ -125,7 +125,7 @@ function formatValue(value: any): string {
 export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: Props) {
   if (!anamnese) return null;
   const a = anamnese;
-  const formData = a.form_data as Record<string, Record<string, any>> | null;
+  const formData = a.form_data as Record<string, Record<string, unknown>> | null;
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>

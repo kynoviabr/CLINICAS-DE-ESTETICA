@@ -26,8 +26,8 @@ const METRIC_TYPES = [
 export default function EvolutionPage() {
   const { clinicId } = useUserRole();
   const { toast } = useToast();
-  const [metrics, setMetrics] = useState<any[]>([]);
-  const [patients, setPatients] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState<unknown[]>([]);
+  const [patients, setPatients] = useState<unknown[]>([]);
   const [selectedPatient, setSelectedPatient] = useState('');
   const [selectedMetric, setSelectedMetric] = useState('weight');
   const [open, setOpen] = useState(false);

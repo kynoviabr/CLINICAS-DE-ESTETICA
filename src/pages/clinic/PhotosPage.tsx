@@ -22,14 +22,14 @@ const typeColors: Record<string, string> = { before: 'bg-blue-100 text-blue-700'
 export default function PhotosPage() {
   const { user } = useAuth();
   const { clinicId } = useUserRole();
-  const [photos, setPhotos] = useState<any[]>([]);
-  const [patients, setPatients] = useState<any[]>([]);
+  const [photos, setPhotos] = useState<unknown[]>([]);
+  const [patients, setPatients] = useState<unknown[]>([]);
   const [selectedPatient, setSelectedPatient] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [loading, setLoading] = useState(true);
-  const [viewPhoto, setViewPhoto] = useState<any>(null);
+  const [viewPhoto, setViewPhoto] = useState<unknown>(null);
   const [compareMode, setCompareMode] = useState(false);
-  const [comparePhotos, setComparePhotos] = useState<any[]>([]);
+  const [comparePhotos, setComparePhotos] = useState<unknown[]>([]);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadType, setUploadType] = useState<string>('progress');
@@ -47,7 +47,7 @@ export default function PhotosPage() {
     if (!clinicId || !selectedPatient) { setPhotos([]); setLoading(false); return; }
     setLoading(true);
     let q = supabase.from('patient_photos').select('*').eq('clinic_id', clinicId).eq('patient_id', selectedPatient).order('taken_at', { ascending: false });
-    if (filterType !== 'all') q = q.eq('photo_type', filterType as any);
+    if (filterType !== 'all') q = q.eq('photo_type', filterType as unknown);
     const { data } = await q;
     setPhotos(data || []);
     setLoading(false);
@@ -78,7 +78,7 @@ export default function PhotosPage() {
           clinic_id: clinicId,
           patient_id: selectedPatient,
           photo_url: publicUrl,
-          photo_type: uploadType as any,
+          photo_type: uploadType as unknown,
           description: uploadDesc || null,
           uploaded_by: user.id,
         });
@@ -91,14 +91,14 @@ export default function PhotosPage() {
       setSelectedFiles([]);
       setUploadDesc('');
       fetchPhotos();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(err.message || 'Erro ao enviar foto');
     } finally {
       setUploading(false);
     }
   };
 
-  const handleDelete = async (photo: any) => {
+  const handleDelete = async (photo: unknown) => {
     if (!confirm('Deseja realmente excluir esta foto?')) return;
 
     try {
@@ -115,12 +115,12 @@ export default function PhotosPage() {
       toast.success('Foto excluída');
       setPhotos(prev => prev.filter(p => p.id !== photo.id));
       setViewPhoto(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(err.message || 'Erro ao excluir');
     }
   };
 
-  const toggleCompare = (photo: any) => {
+  const toggleCompare = (photo: unknown) => {
     if (comparePhotos.find(p => p.id === photo.id)) {
       setComparePhotos(comparePhotos.filter(p => p.id !== photo.id));
     } else if (comparePhotos.length < 2) {

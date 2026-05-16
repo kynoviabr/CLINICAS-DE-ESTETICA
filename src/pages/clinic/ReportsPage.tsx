@@ -79,7 +79,7 @@ export default function ReportsPage() {
       let query = supabase.from('proposals')
         .select('id, final_amount, created_by, created_at, updated_at, status')
         .eq('clinic_id', clinicId!)
-        .eq('status', 'accepted' as any)
+        .eq('status', 'accepted' as unknown)
         .gte('updated_at', startDate)
         .lte('updated_at', endDate + 'T23:59:59');
 
@@ -89,7 +89,7 @@ export default function ReportsPage() {
 
       // Proposal items for treatment breakdown
       const proposalIds = (proposals || []).map(p => p.id);
-      let items: any[] = [];
+      let items: unknown[] = [];
       if (proposalIds.length > 0) {
         const { data } = await supabase.from('proposal_items')
           .select('*, treatments(name, id)')
@@ -98,12 +98,12 @@ export default function ReportsPage() {
       }
 
       // Cost data for margin (admin only)
-      let costMap: Record<string, number> = {};
+      const costMap: Record<string, number> = {};
       if (isAdmin) {
         const { data: costItems } = await supabase.from('treatment_cost_items')
           .select('treatment_id, quantity, cost_items(unit_cost)');
-        const ci = (costItems as any[]) || [];
-        ci.forEach((c: any) => {
+        const ci = (costItems as unknown[]) || [];
+        ci.forEach((c: unknown) => {
           const tid = c.treatment_id;
           const cost = Number(c.quantity) * Number(c.cost_items?.unit_cost || 0);
           costMap[tid] = (costMap[tid] || 0) + cost;
@@ -112,10 +112,10 @@ export default function ReportsPage() {
 
       // Goals
       const currentMonth = format(now, 'yyyy-MM');
-      const { data: goals } = await supabase.from('sales_goals' as any)
+      const { data: goals } = await supabase.from('sales_goals' as unknown)
         .select('*').eq('clinic_id', clinicId!);
 
-      return { proposals: proposals || [], items, costMap, goals: (goals as any[]) || [] };
+      return { proposals: proposals || [], items, costMap, goals: (goals as unknown[]) || [] };
     },
     enabled: !!clinicId,
   });
@@ -154,7 +154,7 @@ export default function ReportsPage() {
     return Object.entries(byUser)
       .map(([userId, data]) => {
         const staff = staffList.find(s => s.user_id === userId);
-        const goal = salesReport.goals.find((g: any) => g.user_id === userId);
+        const goal = salesReport.goals.find((g: unknown) => g.user_id === userId);
         const goalAmount = goal ? Number(goal.goal_amount) : 0;
         const pct = goalAmount > 0 ? Math.round((data.total / goalAmount) * 100) : 0;
         return { userId, ...data, ticket: data.count > 0 ? data.total / data.count : 0, role: staff?.role || 'admin', goalAmount, pct };
@@ -166,7 +166,7 @@ export default function ReportsPage() {
   const treatmentData = (() => {
     if (!salesReport) return [];
     const byTreatment: Record<string, { name: string; count: number; revenue: number; treatmentId: string }> = {};
-    salesReport.items.forEach((item: any) => {
+    salesReport.items.forEach((item: unknown) => {
       const tid = item.treatment_id;
       const name = item.treatments?.name || 'Desconhecido';
       if (!byTreatment[tid]) byTreatment[tid] = { name, count: 0, revenue: 0, treatmentId: tid };
@@ -180,7 +180,7 @@ export default function ReportsPage() {
   const marginData = (() => {
     if (!salesReport || !isAdmin) return { rows: [], totalRevenue: 0, totalCost: 0 };
     const byTreatment: Record<string, { name: string; units: number; revenue: number; cost: number }> = {};
-    salesReport.items.forEach((item: any) => {
+    salesReport.items.forEach((item: unknown) => {
       const tid = item.treatment_id;
       const name = item.treatments?.name || 'Desconhecido';
       if (!byTreatment[tid]) byTreatment[tid] = { name, units: 0, revenue: 0, cost: 0 };
@@ -210,7 +210,7 @@ export default function ReportsPage() {
       if (p.created_by) byUser[p.created_by] = (byUser[p.created_by] || 0) + Number(p.final_amount || 0);
     });
 
-    let entries = goals.map((g: any) => {
+    let entries = goals.map((g: unknown) => {
       const staff = staffList.find(s => s.user_id === g.user_id);
       const realized = byUser[g.user_id] || 0;
       const goalAmount = Number(g.goal_amount);
@@ -236,7 +236,7 @@ export default function ReportsPage() {
       const { data: installments } = await supabase.from('payment_installments')
         .select('*').in('payment_plan_id', planIds)
         .gte('due_date', startDate).lte('due_date', endDate);
-      const installmentsByPlan = (installments || []).reduce((acc: Record<string, any[]>, inst) => {
+      const installmentsByPlan = (installments || []).reduce((acc: Record<string, unknown[]>, inst) => {
         (acc[inst.payment_plan_id] = acc[inst.payment_plan_id] || []).push(inst);
         return acc;
       }, {});
@@ -245,23 +245,23 @@ export default function ReportsPage() {
       for (const plan of plans) {
         const insts = installmentsByPlan[plan.id] || [];
         if (!insts.length) continue;
-        const paidInsts = insts.filter((i: any) => i.status === 'paid');
-        const paidAmount = paidInsts.reduce((s: number, i: any) => s + Number(i.amount), 0);
-        const totalAmount = insts.reduce((s: number, i: any) => s + Number(i.amount), 0);
+        const paidInsts = insts.filter((i: unknown) => i.status === 'paid');
+        const paidAmount = paidInsts.reduce((s: number, i: unknown) => s + Number(i.amount), 0);
+        const totalAmount = insts.reduce((s: number, i: unknown) => s + Number(i.amount), 0);
         const pendingAmount = totalAmount - paidAmount;
-        const overdueInsts = insts.filter((i: any) => i.status === 'overdue');
-        const overdueAmount = overdueInsts.reduce((s: number, i: any) => s + Number(i.amount), 0);
+        const overdueInsts = insts.filter((i: unknown) => i.status === 'overdue');
+        const overdueAmount = overdueInsts.reduce((s: number, i: unknown) => s + Number(i.amount), 0);
         totalRevenue += totalAmount; totalPaid += paidAmount; totalPending += pendingAmount; totalOverdue += overdueAmount;
         rows.push({
-          patient: (plan as any).patients?.full_name || '—',
-          contractNumber: (plan as any).contracts?.contract_number || '—',
+          patient: (plan as unknown).patients?.full_name || '—',
+          contractNumber: (plan as unknown).contracts?.contract_number || '—',
           totalAmount, numInstallments: insts.length, paidCount: paidInsts.length, paidAmount, pendingAmount,
           method: paymentMethodLabels[plan.payment_method] || plan.payment_method,
         });
       }
       generateFinancialPDF(clinicName, periodLabel, rows, { totalRevenue, totalPaid, totalPending, totalOverdue });
       toast.success('Relatório financeiro gerado!');
-    } catch (err: any) { toast.error(err.message || 'Erro ao gerar relatório'); } finally { setLoadingFinancial(false); }
+    } catch (err: unknown) { toast.error(err.message || 'Erro ao gerar relatório'); } finally { setLoadingFinancial(false); }
   };
 
   const handleSessionsExport = async () => {
@@ -277,14 +277,14 @@ export default function ReportsPage() {
       const uniquePatients = new Set(sessions.map(s => s.patient_id)).size;
       const uniqueTreatments = new Set(sessions.filter(s => s.treatment_id).map(s => s.treatment_id)).size;
       const rows: SessionRow[] = sessions.map(s => ({
-        patient: (s as any).patients?.full_name || '—', treatment: (s as any).treatments?.name || '—',
+        patient: (s as unknown).patients?.full_name || '—', treatment: (s as unknown).treatments?.name || '—',
         sessionNumber: `${s.session_number}/${s.total_sessions}`,
         performedAt: format(new Date(s.performed_at), 'dd/MM/yyyy', { locale: ptBR }),
         professional: '—', observations: s.observations?.slice(0, 80) || '—',
       }));
       generateSessionsPDF(clinicName, periodLabel, rows, { totalSessions: sessions.length, uniquePatients, uniqueTreatments });
       toast.success('Relatório de sessões gerado!');
-    } catch (err: any) { toast.error(err.message || 'Erro ao gerar relatório'); } finally { setLoadingSessions(false); }
+    } catch (err: unknown) { toast.error(err.message || 'Erro ao gerar relatório'); } finally { setLoadingSessions(false); }
   };
 
   const totalSalesRevenue = salesReport?.proposals.reduce((s, p) => s + Number(p.final_amount || 0), 0) || 0;

@@ -111,30 +111,30 @@ export default function PaymentsPage() {
 
   const plansByContractId = useMemo(() => {
     const ids = new Set<string>();
-    plans.forEach((plan: any) => ids.add(plan.contract_id));
+    plans.forEach((plan: unknown) => ids.add(plan.contract_id));
     return ids;
   }, [plans]);
 
   const availableContracts = useMemo(
-    () => contracts.filter((contract: any) => !plansByContractId.has(contract.id)),
+    () => contracts.filter((contract: unknown) => !plansByContractId.has(contract.id)),
     [contracts, plansByContractId]
   );
 
   const normalizedPlans = useMemo(() => {
-    return plans.map((plan: any) => {
+    return plans.map((plan: unknown) => {
       const installments = [...(plan.payment_installments || [])].sort(
-        (a: any, b: any) => a.installment_number - b.installment_number
+        (a: unknown, b: unknown) => a.installment_number - b.installment_number
       );
       const totalAmount = Number(plan.total_amount || 0);
       const paidAmount = installments
-        .filter((installment: any) => installment.status === 'paid')
-        .reduce((sum: number, installment: any) => sum + Number(installment.amount || 0), 0);
+        .filter((installment: unknown) => installment.status === 'paid')
+        .reduce((sum: number, installment: unknown) => sum + Number(installment.amount || 0), 0);
       const overdueAmount = installments
-        .filter((installment: any) => installment.status === 'overdue')
-        .reduce((sum: number, installment: any) => sum + Number(installment.amount || 0), 0);
+        .filter((installment: unknown) => installment.status === 'overdue')
+        .reduce((sum: number, installment: unknown) => sum + Number(installment.amount || 0), 0);
       const pendingAmount = Math.max(totalAmount - paidAmount, 0);
-      const paidCount = installments.filter((installment: any) => installment.status === 'paid').length;
-      const nextInstallment = installments.find((installment: any) =>
+      const paidCount = installments.filter((installment: unknown) => installment.status === 'paid').length;
+      const nextInstallment = installments.find((installment: unknown) =>
         installment.status !== 'paid' && installment.status !== 'cancelled'
       );
 
@@ -152,7 +152,7 @@ export default function PaymentsPage() {
   }, [plans]);
 
   const filteredPlans = useMemo(() => {
-    return normalizedPlans.filter((plan: any) => {
+    return normalizedPlans.filter((plan: unknown) => {
       const searchValue = search.trim().toLowerCase();
       const matchesSearch =
         !searchValue ||
@@ -167,7 +167,7 @@ export default function PaymentsPage() {
 
   const totals = useMemo(() => {
     return normalizedPlans.reduce(
-      (acc, plan: any) => {
+      (acc, plan: unknown) => {
         acc.total += plan.totalAmount;
         acc.paid += plan.paidAmount;
         acc.pending += plan.pendingAmount;
@@ -190,11 +190,11 @@ export default function PaymentsPage() {
 
       if (error) throw error;
 
-      const plan = normalizedPlans.find((item: any) => item.id === planId);
+      const plan = normalizedPlans.find((item: unknown) => item.id === planId);
       if (!plan) return;
 
       const remainingOpen = plan.installments.filter(
-        (installment: any) =>
+        (installment: unknown) =>
           installment.id !== installmentId && installment.status !== 'paid' && installment.status !== 'cancelled'
       );
 
@@ -206,14 +206,14 @@ export default function PaymentsPage() {
       qc.invalidateQueries({ queryKey: ['payment-plans'] });
       toast({ title: 'Pagamento registrado!' });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     },
   });
 
   const createPlanMutation = useMutation({
     mutationFn: async () => {
-      const selectedContract = contracts.find((contract: any) => contract.id === form.contractId);
+      const selectedContract = contracts.find((contract: unknown) => contract.id === form.contractId);
       if (!selectedContract) throw new Error('Selecione um contrato');
 
       const totalAmount = Number(form.totalAmount || 0);
@@ -266,12 +266,12 @@ export default function PaymentsPage() {
       setForm(emptyForm);
       toast({ title: 'Plano de pagamento criado!' });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     },
   });
 
-  const selectedContract = contracts.find((contract: any) => contract.id === form.contractId);
+  const selectedContract = contracts.find((contract: unknown) => contract.id === form.contractId);
 
   return (
     <div>
@@ -363,7 +363,7 @@ export default function PaymentsPage() {
 
           {!isLoading && filteredPlans.length > 0 && (
             <div className="space-y-4">
-              {filteredPlans.map((plan: any) => (
+              {filteredPlans.map((plan: unknown) => (
                 <Card key={plan.id} className="shadow-card border-border/60">
                   <CardContent className="p-4 space-y-4">
                     <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
@@ -402,7 +402,7 @@ export default function PaymentsPage() {
                     </div>
 
                     <div className="space-y-2">
-                      {plan.installments.map((installment: any) => (
+                      {plan.installments.map((installment: unknown) => (
                         <div
                           key={installment.id}
                           className="rounded-xl border bg-background px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
@@ -459,7 +459,7 @@ export default function PaymentsPage() {
               <Select
                 value={form.contractId}
                 onValueChange={(value) => {
-                  const contract = contracts.find((item: any) => item.id === value);
+                  const contract = contracts.find((item: unknown) => item.id === value);
                   setForm((current) => ({
                     ...current,
                     contractId: value,
@@ -471,7 +471,7 @@ export default function PaymentsPage() {
                   <SelectValue placeholder="Selecionar contrato" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableContracts.map((contract: any) => (
+                  {availableContracts.map((contract: unknown) => (
                     <SelectItem key={contract.id} value={contract.id}>
                       {contract.contract_number} · {contract.patients?.full_name || 'Paciente'} · R$ {Number(contract.proposals?.final_amount || 0).toFixed(2)}
                     </SelectItem>

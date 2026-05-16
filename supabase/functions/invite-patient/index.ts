@@ -91,7 +91,7 @@ serve(async (req) => {
     let authUserId: string;
     let accountCreated = false;
 
-    const existingUser = existingUsers?.find((u: any) => u.email === email);
+    const existingUser = existingUsers?.find((u: unknown) => u.email === email);
 
     if (existingUser) {
       authUserId = existingUser.id;

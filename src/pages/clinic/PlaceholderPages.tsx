@@ -2,7 +2,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Activity, Camera, Settings } from 'lucide-react';
 
-const placeholder = (title: string, description: string, Icon: any) => (
+const placeholder = (title: string, description: string, Icon: unknown) => (
   <div>
     <PageHeader title={title} description={description} />
     <Card className="shadow-card">

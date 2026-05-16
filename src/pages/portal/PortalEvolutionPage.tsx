@@ -19,7 +19,7 @@ const METRIC_TYPES = [
 
 export default function PortalEvolutionPage() {
   const { user } = useAuth();
-  const [metrics, setMetrics] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState<unknown[]>([]);
   const [selectedMetric, setSelectedMetric] = useState('weight');
   const [loading, setLoading] = useState(true);
 

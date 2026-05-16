@@ -49,10 +49,10 @@ export default function SettingsPage() {
   const [uploading, setUploading] = useState(false);
 
   // Staff
-  const [staff, setStaff] = useState<any[]>([]);
+  const [staff, setStaff] = useState<unknown[]>([]);
 
   // Invitations
-  const [invitations, setInvitations] = useState<any[]>([]);
+  const [invitations, setInvitations] = useState<unknown[]>([]);
 
   // Invite form
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -61,7 +61,7 @@ export default function SettingsPage() {
   const [inviting, setInviting] = useState(false);
 
   // Treatments
-  const [treatments, setTreatments] = useState<any[]>([]);
+  const [treatments, setTreatments] = useState<unknown[]>([]);
 
   useEffect(() => {
     if (!clinicId) return;
@@ -88,10 +88,10 @@ export default function SettingsPage() {
     if (!clinicId) return;
     const [staffRes, invRes] = await Promise.all([
       supabase.from('user_roles').select('id, user_id, role, is_active, created_at').eq('clinic_id', clinicId),
-      supabase.from('team_invitations' as any).select('*').eq('clinic_id', clinicId).order('created_at', { ascending: false }),
+      supabase.from('team_invitations' as unknown).select('*').eq('clinic_id', clinicId).order('created_at', { ascending: false }),
     ]);
     if (staffRes.data) setStaff(staffRes.data);
-    if (invRes.data) setInvitations(invRes.data as any[]);
+    if (invRes.data) setInvitations(invRes.data as unknown[]);
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -158,7 +158,7 @@ export default function SettingsPage() {
       setInviteEmail('');
       setInviteOpen(false);
       loadTeam();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     } finally {
       setInviting(false);
@@ -173,7 +173,7 @@ export default function SettingsPage() {
   };
 
   const handleCancelInvitation = async (invId: string) => {
-    const { error } = await supabase.from('team_invitations' as any).update({ status: 'cancelled' } as any).eq('id', invId);
+    const { error } = await supabase.from('team_invitations' as unknown).update({ status: 'cancelled' } as unknown).eq('id', invId);
     if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); return; }
     toast({ title: 'Convite cancelado' });
     loadTeam();
@@ -393,7 +393,7 @@ export default function SettingsPage() {
                 <CardHeader><CardTitle className="flex items-center gap-2"><Mail className="w-5 h-5" />Convites</CardTitle></CardHeader>
                 <CardContent>
                   <div className="divide-y divide-border">
-                    {invitations.map((inv: any) => {
+                    {invitations.map((inv: unknown) => {
                       const isPending = inv.status === 'pending';
                       const isAccepted = inv.status === 'accepted';
                       return (
