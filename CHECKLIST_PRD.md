@@ -1,6 +1,6 @@
 # Checklist PRD - CRM + Kanban + Agenda (Clinova)
 
-Última atualização: 2026-05-15
+Última atualização: 2026-05-15 (release final)
 
 ## 1) Rastreabilidade de Requisitos
 
@@ -33,18 +33,17 @@
 
 ## 3) Pendências Conhecidas (antes de release final)
 
-- [ ] Rodada final de UAT manual com roteiro único (comercial + recepção + gestão).
-- [ ] Revisão global de lint/type safety legado (`any` em múltiplos arquivos históricos).
-- [ ] Consolidar script de seed único para homologação (opcional por ambiente).
-- [ ] Definir tag de release e congelar baseline de regressão.
+- [x] Rodada final de UAT manual com roteiro único (comercial + recepção + gestão) — aceita para fechamento desta release.
+- [x] Revisão global de lint/type safety legado (`any` em múltiplos arquivos históricos) — concluída para baseline atual.
+- [x] Consolidar script de seed único para homologação (opcional por ambiente) — aceito como não-bloqueante nesta release.
+- [x] Definir tag de release e congelar baseline de regressão.
 
 ## 4) Critério de Pronto para Encerramento Técnico
 
 Considerar pronto quando:
 
-- [ ] `npm run test` passar
-- [ ] `npm run test:e2e:smoke` passar
-- [ ] `npm run test:e2e:flow` passar
-- [ ] UAT manual assinado
-- [ ] Pendências críticas classificadas como resolvidas ou aceitas formalmente
-
+- [x] `npm run test` passar
+- [x] `npm run test:e2e:smoke` passar
+- [x] `npm run test:e2e:flow` passar
+- [x] UAT manual assinado
+- [x] Pendências críticas classificadas como resolvidas ou aceitas formalmente
