@@ -44,7 +44,7 @@ type ProposalItemRow = Database['public']['Tables']['proposal_items']['Row'];
 type PatientLite = Pick<Database['public']['Tables']['patients']['Row'], 'id' | 'full_name'>;
 type TreatmentLite = Pick<Database['public']['Tables']['treatments']['Row'], 'id' | 'name' | 'price' | 'min_price' | 'default_price'>;
 type LeadLite = Pick<Database['public']['Tables']['leads']['Row'], 'id' | 'full_name' | 'kanban_stage' | 'patient_id' | 'proposal_id'>;
-type ProposalWithPatient = ProposalRow & { patients?: { full_name?: string | null } | null };
+type ProposalWithPatient = ProposalRow & { patients?: { full_name?: string | null; cpf?: string | null } | null };
 type ProposalItemWithTreatment = ProposalItemRow & { treatments?: { name?: string | null } | null };
 type ComboItem = { treatment_id: string | null; quantity: number | null; treatments?: { id?: string | null; name?: string | null; price?: number | null } | null };
 type ComboLite = { id: string; name: string; promotional_price: number | null; treatment_combo_items?: ComboItem[] | null };
@@ -61,6 +61,8 @@ export default function ProposalsPage() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [quickFilter, setQuickFilter] = useState<'all' | 'draft' | 'sent' | 'accepted'>('all');
   const [search, setSearch] = useState('');
+  const [dateStart, setDateStart] = useState('');
+  const [dateEnd, setDateEnd] = useState('');
 
   // Form state
   const [selectedPatient, setSelectedPatient] = useState('');
@@ -84,11 +86,10 @@ export default function ProposalsPage() {
       const activeStatus = quickFilter !== 'all' ? quickFilter : filterStatus;
       let q = supabase
         .from('proposals')
-        .select('*, patients(full_name)')
+        .select('*, patients(full_name, cpf)')
         .eq('clinic_id', clinicId!)
         .order('created_at', { ascending: false });
       if (activeStatus !== 'all') q = q.eq('status', activeStatus as ProposalStatus);
-      if (search) q = q.ilike('proposal_number', `%${search}%`);
       const { data } = await q;
       return ((data || []) as ProposalWithPatient[]);
     },
@@ -139,6 +140,23 @@ export default function ProposalsPage() {
   });
 
   const total = items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+  const normalizeDigits = (value?: string | null) => (value || '').replace(/\D/g, '');
+  const normalizedSearch = search.trim().toLowerCase();
+  const normalizedSearchDigits = normalizeDigits(search);
+
+  const visibleProposals = proposals.filter((proposal) => {
+    const proposalNumber = (proposal.proposal_number || '').toLowerCase();
+    const patientCpf = normalizeDigits(proposal.patients?.cpf);
+
+    const matchesSearch = !normalizedSearch ||
+      proposalNumber.includes(normalizedSearch) ||
+      patientCpf.includes(normalizedSearchDigits);
+    if (!matchesSearch) return false;
+
+    if (dateStart && proposal.created_at < `${dateStart}T00:00:00`) return false;
+    if (dateEnd && proposal.created_at > `${dateEnd}T23:59:59`) return false;
+    return true;
+  });
 
   useEffect(() => {
     if (!shouldOpenNewFromQuery || !prefillPatientId || dialogOpen || !!editingId) return;
@@ -447,7 +465,7 @@ export default function ProposalsPage() {
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar por nº da proposta..." className="pl-10" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Buscar por nº da proposta ou CPF..." className="pl-10" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="w-[180px]">
@@ -462,6 +480,8 @@ export default function ProposalsPage() {
             <SelectItem value="expired">Expirada</SelectItem>
           </SelectContent>
         </Select>
+        <Input type="date" value={dateStart} onChange={(event) => setDateStart(event.target.value)} className="w-[170px]" />
+        <Input type="date" value={dateEnd} onChange={(event) => setDateEnd(event.target.value)} className="w-[170px]" />
       </div>
       <div className="mb-4 flex flex-wrap gap-2">
         <BrandButton size="sm" variant={quickFilter === 'all' ? 'default' : 'outline'} onClick={() => setQuickFilter('all')}>
@@ -480,7 +500,7 @@ export default function ProposalsPage() {
 
       {isLoading && <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-muted rounded-xl animate-pulse" />)}</div>}
 
-      {!isLoading && proposals.length === 0 && (
+      {!isLoading && visibleProposals.length === 0 && (
         <div className="text-center py-16 animate-fade-in">
           <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
           <h3 className="text-lg font-semibold">Nenhuma proposta encontrada</h3>
@@ -491,7 +511,7 @@ export default function ProposalsPage() {
         </div>
       )}
 
-      {!isLoading && proposals.length > 0 && (
+      {!isLoading && visibleProposals.length > 0 && (
         <div className="bg-card rounded-xl shadow-card overflow-hidden animate-fade-in">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -507,7 +527,7 @@ export default function ProposalsPage() {
                 </tr>
               </thead>
               <tbody>
-                {proposals.map((p) => {
+                {visibleProposals.map((p) => {
                   const sm = statusMap[p.status] || { label: p.status, badge: 'default' as BadgeStatus };
                   return (
                     <tr key={p.id} className="border-b last:border-0 hover:bg-secondary/30 transition-colors">

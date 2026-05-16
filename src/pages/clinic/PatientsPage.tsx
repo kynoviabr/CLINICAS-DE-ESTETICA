@@ -62,6 +62,9 @@ export default function PatientsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [anamneseFilter, setAnamneseFilter] = useState<string>(searchParams.get('anamnese') || 'all');
+  const [treatmentFilter, setTreatmentFilter] = useState<string>('all');
+  const [contractDateStart, setContractDateStart] = useState('');
+  const [contractDateEnd, setContractDateEnd] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<PatientForm>(emptyForm);
@@ -76,9 +79,6 @@ export default function PatientsPage() {
         .eq('clinic_id', clinicId)
         .order('created_at', { ascending: false });
 
-      if (search) {
-        q = q.or(`full_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
-      }
       if (statusFilter !== 'all') {
         q = q.eq('status', statusFilter as unknown);
       }
@@ -86,6 +86,20 @@ export default function PatientsPage() {
       const { data, error } = await q.limit(100);
       if (error) throw error;
       return data;
+    },
+    enabled: !!clinicId,
+  });
+
+  const { data: patientContracts = [] } = useQuery({
+    queryKey: ['patient-contracts-filter-map', clinicId],
+    queryFn: async () => {
+      if (!clinicId) return [];
+      const { data, error } = await supabase
+        .from('contract_items' as unknown)
+        .select('treatment_id, treatments(name), contracts!inner(patient_id, created_at, clinic_id)')
+        .eq('contracts.clinic_id', clinicId);
+      if (error) throw error;
+      return (data as unknown[]) || [];
     },
     enabled: !!clinicId,
   });
@@ -155,11 +169,66 @@ export default function PatientsPage() {
   };
 
   // Filter patients by anamnese status
+  const normalizeDigits = (value?: string | null) => (value || '').replace(/\D/g, '');
+  const normalizedSearch = search.trim().toLowerCase();
+  const normalizedSearchDigits = normalizeDigits(search);
+
+  const patientContractMeta = patientContracts.reduce<Record<string, { treatments: Set<string>; contractDates: string[] }>>((acc, row: unknown) => {
+    const patientId = row?.contracts?.patient_id;
+    if (!patientId) return acc;
+    if (!acc[patientId]) {
+      acc[patientId] = { treatments: new Set<string>(), contractDates: [] };
+    }
+    const treatmentId = row?.treatment_id;
+    if (treatmentId) acc[patientId].treatments.add(treatmentId);
+    if (row?.contracts?.created_at) acc[patientId].contractDates.push(row.contracts.created_at);
+    return acc;
+  }, {});
+
   const filteredPatients = patients.filter(p => {
-    if (anamneseFilter === 'all') return true;
-    const s = getPatientAnamneseStatus(p.id);
-    return s === anamneseFilter;
+    const fullName = (p.full_name || '').toLowerCase();
+    const email = (p.email || '').toLowerCase();
+    const phone = normalizeDigits(p.phone);
+    const cpf = normalizeDigits(p.cpf);
+
+    const matchSearch = !normalizedSearch ||
+      fullName.includes(normalizedSearch) ||
+      email.includes(normalizedSearch) ||
+      phone.includes(normalizedSearchDigits) ||
+      cpf.includes(normalizedSearchDigits);
+
+    if (!matchSearch) return false;
+    if (anamneseFilter !== 'all') {
+      const s = getPatientAnamneseStatus(p.id);
+      if (s !== anamneseFilter) return false;
+    }
+
+    const contractMeta = patientContractMeta[p.id];
+    if (treatmentFilter !== 'all') {
+      if (!contractMeta || !contractMeta.treatments.has(treatmentFilter)) return false;
+    }
+
+    if (contractDateStart || contractDateEnd) {
+      if (!contractMeta || contractMeta.contractDates.length === 0) return false;
+      const hasDateInRange = contractMeta.contractDates.some((dateValue) => {
+        const date = new Date(dateValue);
+        if (Number.isNaN(date.getTime())) return false;
+        if (contractDateStart && date < new Date(`${contractDateStart}T00:00:00`)) return false;
+        if (contractDateEnd && date > new Date(`${contractDateEnd}T23:59:59`)) return false;
+        return true;
+      });
+      if (!hasDateInRange) return false;
+    }
+
+    return true;
   });
+
+  const treatmentOptions = patientContracts.reduce<Array<{ id: string; name: string }>>((acc, row: unknown) => {
+    if (!row?.treatment_id || !row?.treatments?.name) return acc;
+    if (acc.some((item) => item.id === row.treatment_id)) return acc;
+    acc.push({ id: row.treatment_id, name: row.treatments.name });
+    return acc;
+  }, []).sort((a, b) => a.name.localeCompare(b.name));
 
   const anamneseCounts = filteredPatients.reduce<Record<AnamneseStatus, number>>((acc, patient) => {
     const status = getPatientAnamneseStatus(patient.id);
@@ -297,7 +366,7 @@ export default function PatientsPage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome, e-mail ou telefone..."
+            placeholder="Buscar por nome, e-mail, telefone ou CPF..."
             className="pl-10"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -327,12 +396,44 @@ export default function PatientsPage() {
             <SelectItem value="expired">Vencida</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={treatmentFilter} onValueChange={setTreatmentFilter}>
+          <SelectTrigger className="w-full sm:w-52">
+            <SelectValue placeholder="Tratamento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos tratamentos</SelectItem>
+            {treatmentOptions.map((option) => (
+              <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          type="date"
+          value={contractDateStart}
+          onChange={(event) => setContractDateStart(event.target.value)}
+          className="w-full sm:w-44"
+        />
+        <Input
+          type="date"
+          value={contractDateEnd}
+          onChange={(event) => setContractDateEnd(event.target.value)}
+          className="w-full sm:w-44"
+        />
       </div>
 
       {!isLoading && patients.length > 0 && (
         <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-2 xl:grid-cols-4">
           {(['none', 'valid', 'expiring', 'expired'] as AnamneseStatus[]).map((status) => (
-            <div key={status} className="rounded-2xl border bg-card p-4 shadow-card">
+            <div
+              key={status}
+              className={`rounded-2xl border p-4 shadow-card ${
+                status === 'expired'
+                  ? 'border-destructive/40 bg-destructive/5'
+                  : status === 'expiring' || status === 'none'
+                    ? 'border-warning/40 bg-warning/10'
+                    : 'bg-card'
+              }`}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

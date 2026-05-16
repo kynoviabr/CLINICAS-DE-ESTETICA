@@ -61,6 +61,9 @@ export default function ContractsPage() {
       : 'all'
   );
   const [search, setSearch] = useState('');
+  const [dateStart, setDateStart] = useState('');
+  const [dateEnd, setDateEnd] = useState('');
+  const [treatmentFilter, setTreatmentFilter] = useState('all');
   const [viewContract, setViewContract] = useState<ContractWithRelations | null>(null);
   const [createDialog, setCreateDialog] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState('');
@@ -87,11 +90,22 @@ export default function ContractsPage() {
         .order('created_at', { ascending: false });
 
       if (filterStatus !== 'all') query = query.eq('process_status', filterStatus);
-      if (search) query = query.or(`contract_number.ilike.%${search}%,patients.full_name.ilike.%${search}%`);
-
       const { data, error } = await query;
       if (error) throw error;
       return (data || []) as ContractWithRelations[];
+    },
+    enabled: !!clinicId,
+  });
+
+  const { data: contractItems = [] } = useQuery({
+    queryKey: ['contract-items-filter-map', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('contract_items' as unknown)
+        .select('contract_id, treatment_id, treatments(name), contracts!inner(clinic_id)')
+        .eq('contracts.clinic_id', clinicId!);
+      if (error) throw error;
+      return (data as unknown[]) || [];
     },
     enabled: !!clinicId,
   });
@@ -133,7 +147,36 @@ export default function ContractsPage() {
 
   const visibleContracts = useMemo(() => {
     const today = format(new Date(), 'yyyy-MM-dd');
+    const normalizeDigits = (value?: string | null) => (value || '').replace(/\D/g, '');
+    const normalizedSearch = search.trim().toLowerCase();
+    const normalizedSearchDigits = normalizeDigits(search);
+    const treatmentByContract = contractItems.reduce<Record<string, Set<string>>>((acc, item: unknown) => {
+      if (!item?.contract_id || !item?.treatment_id) return acc;
+      if (!acc[item.contract_id]) acc[item.contract_id] = new Set<string>();
+      acc[item.contract_id].add(item.treatment_id);
+      return acc;
+    }, {});
+
     return contracts.filter((contract) => {
+      const contractNumber = (contract.contract_number || '').toLowerCase();
+      const patientName = (contract.patients?.full_name || '').toLowerCase();
+      const patientCpf = normalizeDigits(contract.patients?.cpf);
+      const payerCpf = normalizeDigits(contract.payers?.cpf);
+
+      const matchesSearch = !normalizedSearch ||
+        contractNumber.includes(normalizedSearch) ||
+        patientName.includes(normalizedSearch) ||
+        patientCpf.includes(normalizedSearchDigits) ||
+        payerCpf.includes(normalizedSearchDigits);
+      if (!matchesSearch) return false;
+
+      if (dateStart && contract.created_at < `${dateStart}T00:00:00`) return false;
+      if (dateEnd && contract.created_at > `${dateEnd}T23:59:59`) return false;
+      if (treatmentFilter !== 'all') {
+        const treatmentSet = treatmentByContract[contract.id];
+        if (!treatmentSet || !treatmentSet.has(treatmentFilter)) return false;
+      }
+
       if (quickFilter === 'pending_signature') return contract.process_status === 'pending_confirmation';
       if (quickFilter === 'overdue') return contract.process_status === 'overdue';
       if (quickFilter === 'mine_today') {
@@ -142,7 +185,14 @@ export default function ContractsPage() {
       }
       return true;
     });
-  }, [contracts, quickFilter, user?.id]);
+  }, [contracts, quickFilter, user?.id, search, dateStart, dateEnd, treatmentFilter, contractItems]);
+
+  const treatmentOptions = contractItems.reduce<Array<{ id: string; name: string }>>((acc, item: unknown) => {
+    if (!item?.treatment_id || !item?.treatments?.name) return acc;
+    if (acc.some((row) => row.id === item.treatment_id)) return acc;
+    acc.push({ id: item.treatment_id, name: item.treatments.name });
+    return acc;
+  }, []).sort((a, b) => a.name.localeCompare(b.name));
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -346,7 +396,7 @@ export default function ContractsPage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por contrato ou paciente..."
+            placeholder="Buscar por contrato, paciente ou CPF..."
             className="pl-10"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -366,6 +416,19 @@ export default function ContractsPage() {
             <SelectItem value="cancelled">Cancelados</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={treatmentFilter} onValueChange={setTreatmentFilter}>
+          <SelectTrigger className="w-[220px]">
+            <SelectValue placeholder="Tratamento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos tratamentos</SelectItem>
+            {treatmentOptions.map((option) => (
+              <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input type="date" value={dateStart} onChange={(event) => setDateStart(event.target.value)} className="w-[170px]" />
+        <Input type="date" value={dateEnd} onChange={(event) => setDateEnd(event.target.value)} className="w-[170px]" />
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">

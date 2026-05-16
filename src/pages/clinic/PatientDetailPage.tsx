@@ -321,8 +321,26 @@ export default function PatientDetailPage() {
                 )}
               </div>
               <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                {patient.email && <span className="flex items-center gap-1"><Mail className="w-4 h-4" />{patient.email}</span>}
-                {patient.phone && <span className="flex items-center gap-1"><Phone className="w-4 h-4" />{patient.phone}</span>}
+                {patient.email && (
+                  <a
+                    href={`mailto:${patient.email}`}
+                    className="flex items-center gap-1 hover:text-primary transition-colors"
+                  >
+                    <Mail className="w-4 h-4" />
+                    {patient.email}
+                  </a>
+                )}
+                {patient.phone && (
+                  <a
+                    href={`https://wa.me/55${(patient.phone || '').replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 hover:text-primary transition-colors"
+                  >
+                    <Phone className="w-4 h-4" />
+                    {patient.phone}
+                  </a>
+                )}
                 {patient.date_of_birth && <span className="flex items-center gap-1"><Calendar className="w-4 h-4" />{new Date(patient.date_of_birth).toLocaleDateString('pt-BR')}</span>}
               </div>
               {patient.cpf && <p className="text-sm text-muted-foreground">CPF: {patient.cpf}</p>}

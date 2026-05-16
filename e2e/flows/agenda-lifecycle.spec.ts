@@ -144,7 +144,9 @@ test.describe('Fluxo E2E - Agenda', () => {
       while (attemptStart.getDay() === 0 || attemptStart.getDay() === 6) {
         attemptStart.setDate(attemptStart.getDate() + 1);
       }
-      attemptStart.setHours(10, 0, 0, 0);
+      // Spread attempts across business hours to avoid persistent slot collisions in seeded environments.
+      const hourSlot = 8 + (attempt % 10);
+      attemptStart.setHours(hourSlot, 0, 0, 0);
       await dateInput.fill(toDateInput(attemptStart));
       await timeInput.fill(toTimeInput(attemptStart));
       await durationInput.fill('60');

@@ -555,7 +555,9 @@ export default function AppointmentsPage() {
 
   const filteredAppointments = useMemo(() => {
     let filtered = appointments;
-    if (filterProfessional !== 'all') {
+    if (filterProfessional === 'unassigned') {
+      filtered = filtered.filter((appointment) => !appointment.professional_id);
+    } else if (filterProfessional !== 'all') {
       filtered = filtered.filter((a) => a.professional_id === filterProfessional);
     }
     if (filterStatus !== 'all') {
@@ -577,6 +579,7 @@ export default function AppointmentsPage() {
       today: todayAppointments.length,
       readyForSession: readyForSession.length,
       noShow: filteredAppointments.filter((appointment) => appointment.status === 'no_show').length,
+      unassigned: filteredAppointments.filter((appointment) => !appointment.professional_id).length,
     };
   }, [filteredAppointments]);
 
@@ -1280,7 +1283,7 @@ export default function AppointmentsPage() {
         </div>
       </PageHeader>
 
-      <div className="grid gap-3 md:grid-cols-4 mb-6">
+      <div className="grid gap-3 md:grid-cols-5 mb-6">
         <Card className="shadow-card animate-fade-in">
           <CardContent className="p-4">
             <CalendarCheck2 className="w-5 h-5 text-primary mb-2" />
@@ -1307,6 +1310,13 @@ export default function AppointmentsPage() {
             <AlertTriangle className="w-5 h-5 text-warning mb-2" />
             <p className="text-2xl font-bold text-foreground">{operationalSummary.noShow}</p>
             <p className="text-xs text-muted-foreground">Não compareceu</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-card animate-fade-in border-warning/30 cursor-pointer" onClick={() => setFilterProfessional('unassigned')}>
+          <CardContent className="p-4">
+            <AlertTriangle className="w-5 h-5 text-warning mb-2" />
+            <p className="text-2xl font-bold text-foreground">{operationalSummary.unassigned}</p>
+            <p className="text-xs text-muted-foreground">Não atribuído</p>
           </CardContent>
         </Card>
       </div>
@@ -1357,6 +1367,7 @@ export default function AppointmentsPage() {
             <SelectTrigger className="w-[180px]"><SelectValue placeholder="Todos profissionais" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos os responsáveis</SelectItem>
+              <SelectItem value="unassigned">Não atribuído</SelectItem>
               {professionals.map(p => (
                 <SelectItem key={p.user_id} value={p.user_id}>
                   <span className="flex items-center gap-2">
