@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, formatDistanceToNow, startOfDay, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, ArrowDown, ArrowUp, CalendarDays, GripVertical, Lock, MessageSquare, Plus, Search, Settings2, TrendingUp, Trash2, UserCheck2, UserRound } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, CalendarDays, Clock3, GripVertical, Lock, MessageSquare, Phone, Plus, Search, Settings2, TrendingUp, Trash2, UserCheck2, UserRound } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { BrandBadge } from '@/components/ui/brand-badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { getRenewalAlertLevel, getSnoozeLimitDays } from '@/lib/renewal/rules';
 
 type StageCode = string;
 
@@ -63,6 +64,35 @@ interface LeadRow {
   converted_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface RenewalTaskRow {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  treatment_id: string;
+  contract_id: string | null;
+  status: 'pending' | 'contacted' | 'revaluation_scheduled' | 'snoozed' | 'converted' | 'discarded';
+  patient_name: string;
+  patient_phone: string | null;
+  treatment_name: string;
+  suggested_treatment_name: string | null;
+  suggested_treatment_id: string | null;
+  patient_ltv: number | null;
+  avg_rating: number | null;
+  patient_created_at: string | null;
+  sessions_completed: number | null;
+  sessions_total: number | null;
+  days_since_last_action: number | null;
+  created_at: string;
+}
+
+interface RenewalInteractionRow {
+  id: string;
+  renewal_task_id: string;
+  type: string;
+  notes: string | null;
+  performed_at: string;
 }
 
 const defaultStages: StageDefinition[] = [
@@ -221,6 +251,8 @@ export default function CrmPage() {
   const [insightFilter, setInsightFilter] = useState<'all' | 'without_owner' | 'stalled' | 'scheduled' | 'proposal_open' | 'overdue_follow_up' | 'high_priority'>('all');
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const [renewalsExpanded, setRenewalsExpanded] = useState(true);
+  const [renewalHistoryTaskId, setRenewalHistoryTaskId] = useState<string | null>(null);
   const [dragLeadId, setDragLeadId] = useState<string | null>(null);
   const [leadDrawer, setLeadDrawer] = useState<LeadRow | null>(null);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
@@ -316,6 +348,34 @@ export default function CrmPage() {
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
+    },
+    enabled: !!clinicId,
+  });
+
+  const { data: renewalTasks = [] } = useQuery({
+    queryKey: ['crm-renewal-tasks', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('v_renewal_tasks_active' as unknown)
+        .select('*')
+        .eq('clinic_id', clinicId!)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return (data || []) as RenewalTaskRow[];
+    },
+    enabled: !!clinicId,
+  });
+
+  const { data: renewalInteractions = [] } = useQuery({
+    queryKey: ['crm-renewal-interactions', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('renewal_interactions' as unknown)
+        .select('id, renewal_task_id, type, notes, performed_at')
+        .eq('clinic_id', clinicId!)
+        .order('performed_at', { ascending: false });
+      if (error) throw error;
+      return (data || []) as RenewalInteractionRow[];
     },
     enabled: !!clinicId,
   });
@@ -580,6 +640,8 @@ export default function CrmPage() {
       ? Math.round(((baseFilteredLeads.length - withoutOwner.length) / baseFilteredLeads.length) * 100)
       : 0;
 
+    const renewalWithoutAction = renewalTasks.filter((task) => (task.days_since_last_action || 0) >= 3).length;
+
     return {
       stalledLeads,
       withoutOwner,
@@ -589,8 +651,39 @@ export default function CrmPage() {
       overdueFollowUps,
       topSources,
       ownerCoverage,
+      renewalWithoutAction,
     };
-  }, [baseFilteredLeads]);
+  }, [baseFilteredLeads, renewalTasks]);
+
+  const sortedRenewalTasks = useMemo(() => {
+    const score = (task: RenewalTaskRow) => {
+      const level = getRenewalAlertLevel(task.days_since_last_action || 0);
+      if (level === 'critical') return 0;
+      if (level === 'warning') return 1;
+      return 2;
+    };
+
+    return [...renewalTasks].sort((a, b) => {
+      const s = score(a) - score(b);
+      if (s !== 0) return s;
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
+  }, [renewalTasks]);
+
+  const renewalInteractionsByTask = useMemo(() => {
+    const map = new Map<string, RenewalInteractionRow[]>();
+    renewalInteractions.forEach((interaction) => {
+      const list = map.get(interaction.renewal_task_id) || [];
+      list.push(interaction);
+      map.set(interaction.renewal_task_id, list);
+    });
+    return map;
+  }, [renewalInteractions]);
+
+  useEffect(() => {
+    if (renewalTasks.length === 0) return;
+    setRenewalsExpanded(true);
+  }, [renewalTasks.length]);
 
   const insightFilterLabel = useMemo(() => {
     if (insightFilter === 'without_owner') return 'Sem responsável definido';
@@ -653,6 +746,49 @@ export default function CrmPage() {
       toast({ title: 'Lead criado', description: `${lead.full_name} entrou em Novo Lead.` });
     },
     onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+  });
+
+  const updateRenewalMutation = useMutation({
+    mutationFn: async ({
+      task,
+      actionType,
+      notes,
+      patch,
+    }: {
+      task: RenewalTaskRow;
+      actionType: 'whatsapp_sent' | 'call_attempted' | 'revaluation_scheduled' | 'snoozed' | 'converted' | 'discarded' | 'note';
+      notes?: string;
+      patch?: Record<string, unknown>;
+    }) => {
+      const updatePayload = {
+        last_action_at: new Date().toISOString(),
+        last_action_type: actionType,
+        ...patch,
+      };
+
+      const { error: updateError } = await supabase
+        .from('renewal_tasks' as unknown)
+        .update(updatePayload)
+        .eq('id', task.id);
+      if (updateError) throw updateError;
+
+      const { error: interactionError } = await supabase.from('renewal_interactions' as unknown).insert({
+        clinic_id: task.clinic_id,
+        renewal_task_id: task.id,
+        patient_id: task.patient_id,
+        type: actionType,
+        notes: notes || null,
+        performed_by: user?.id || null,
+      });
+      if (interactionError) throw interactionError;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['crm-renewal-tasks'] });
+      toast({ title: 'Renovação atualizada' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    },
   });
 
   async function ensurePatientForLead(lead: LeadRow) {
@@ -1351,7 +1487,178 @@ export default function CrmPage() {
                 <p className="mt-1 text-lg font-semibold tracking-tight text-slate-900">{commercialInsights.withoutOwner.length}</p>
                 <p className="mt-0.5 text-[11px] text-emerald-700">Leads sem dono atribuído</p>
               </button>
+              <button
+                type="button"
+                className="rounded-xl border border-violet-200 bg-violet-50/80 p-2 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[13px] font-semibold text-violet-900">Renovações sem ação</p>
+                  <Clock3 className="h-4 w-4 text-violet-500" />
+                </div>
+                <p className="mt-1 text-lg font-semibold tracking-tight text-slate-900">{commercialInsights.renewalWithoutAction}</p>
+                <p className="mt-0.5 text-[11px] text-violet-700">Tarefas de renovação com SLA de 3+ dias</p>
+              </button>
             </div>
+
+            {sortedRenewalTasks.length > 0 && (
+              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-2.5">
+                <button
+                  type="button"
+                  onClick={() => setRenewalsExpanded((current) => !current)}
+                  className="flex w-full items-center justify-between rounded-lg px-1 py-1 text-left hover:bg-white/70"
+                >
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Renovações pendentes</p>
+                    <p className="text-sm font-semibold text-slate-900">🔄 Renovações pendentes ({sortedRenewalTasks.length})</p>
+                  </div>
+                  <div className="text-slate-500">{renewalsExpanded ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}</div>
+                </button>
+
+                {renewalsExpanded && (
+                  <div className="mt-2 grid gap-2 md:grid-cols-2">
+                    {sortedRenewalTasks.map((task) => {
+                      const alertLevel = getRenewalAlertLevel(task.days_since_last_action || 0);
+                      const alertClasses = alertLevel === 'critical'
+                        ? 'border-rose-300 bg-rose-50/70'
+                        : alertLevel === 'warning'
+                          ? 'border-amber-300 bg-amber-50/70'
+                          : 'border-slate-200 bg-white';
+                      const interactions = renewalInteractionsByTask.get(task.id) || [];
+                      return (
+                        <div key={task.id} className={`rounded-xl border p-2 ${alertClasses}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-900">{task.patient_name}</p>
+                              <p className="truncate text-xs text-slate-600">{task.treatment_name}</p>
+                            </div>
+                            <span className="text-[10px] text-slate-500">há {task.days_since_last_action || 0}d</span>
+                          </div>
+                          <p className="mt-1 text-[11px] text-slate-600">
+                            Sessão {task.sessions_completed || 0} de {task.sessions_total || 0} · LTV R$ {Number(task.patient_ltv || 0).toFixed(0)}
+                          </p>
+                          <p className="mt-1 text-[11px] text-slate-600">
+                            Sugestão: {task.suggested_treatment_name || task.treatment_name}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            <BrandButton
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-[11px]"
+                              onClick={() => {
+                                if (!task.patient_phone) return;
+                                const digits = task.patient_phone.replace(/\D/g, '');
+                                window.open(`https://wa.me/55${digits}`, '_blank', 'noopener,noreferrer');
+                                updateRenewalMutation.mutate({ task, actionType: 'whatsapp_sent' });
+                              }}
+                            >
+                              WhatsApp
+                            </BrandButton>
+                            <BrandButton
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-[11px]"
+                              onClick={() => {
+                                if (task.patient_phone) {
+                                  window.location.href = `tel:${task.patient_phone}`;
+                                }
+                                updateRenewalMutation.mutate({ task, actionType: 'call_attempted' });
+                              }}
+                            >
+                              <Phone className="mr-1 h-3 w-3" /> Ligar
+                            </BrandButton>
+                            <BrandButton
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-[11px]"
+                              onClick={() => {
+                                navigate(`/clinic/appointments?openNew=1&patientId=${task.patient_id}&appointmentType=return&treatmentId=${task.treatment_id}`);
+                                updateRenewalMutation.mutate({ task, actionType: 'revaluation_scheduled', patch: { status: 'revaluation_scheduled' } });
+                              }}
+                            >
+                              Agendar reavaliação
+                            </BrandButton>
+                            <BrandButton
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-[11px]"
+                              onClick={() => {
+                                const snoozeDays = 7;
+                                const until = addDays(startOfDay(new Date()), Math.min(snoozeDays, getSnoozeLimitDays())).toISOString();
+                                updateRenewalMutation.mutate({
+                                  task,
+                                  actionType: 'snoozed',
+                                  patch: {
+                                    status: 'snoozed',
+                                    snoozed_until: until,
+                                    snooze_count: ((task as unknown as { snooze_count?: number }).snooze_count || 0) + 1,
+                                  },
+                                });
+                              }}
+                            >
+                              Snooze 7d
+                            </BrandButton>
+                            <BrandButton
+                              size="sm"
+                              className="h-7 px-2 text-[11px]"
+                              onClick={() => {
+                                navigate(`/clinic/proposals?patientId=${task.patient_id}&openNew=1&treatmentId=${task.suggested_treatment_id || task.treatment_id}&renewalTaskId=${task.id}`);
+                                updateRenewalMutation.mutate({ task, actionType: 'converted', patch: { status: 'converted' } });
+                              }}
+                            >
+                              Converter
+                            </BrandButton>
+                            <BrandButton
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-[11px] text-rose-700"
+                              onClick={() => {
+                                const reason = window.prompt('Motivo do descarte:');
+                                if (!reason) return;
+                                updateRenewalMutation.mutate({
+                                  task,
+                                  actionType: 'discarded',
+                                  notes: reason,
+                                  patch: { status: 'discarded', discarded_reason: reason },
+                                });
+                              }}
+                            >
+                              Descartar
+                            </BrandButton>
+                            <BrandButton
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-[11px]"
+                              onClick={() => setRenewalHistoryTaskId((current) => (current === task.id ? null : task.id))}
+                            >
+                              {renewalHistoryTaskId === task.id ? 'Ocultar histórico' : 'Ver histórico'}
+                            </BrandButton>
+                          </div>
+                          {renewalHistoryTaskId === task.id && (
+                            <div className="mt-2 rounded-lg border border-slate-200 bg-white/80 p-2">
+                              {interactions.length === 0 ? (
+                                <p className="text-[11px] text-slate-500">Sem interações registradas ainda.</p>
+                              ) : (
+                                <div className="space-y-1.5">
+                                  {interactions.slice(0, 5).map((interaction) => (
+                                    <div key={interaction.id} className="rounded-md bg-slate-50 px-2 py-1.5 text-[11px]">
+                                      <p className="font-medium text-slate-700">{interaction.type}</p>
+                                      <p className="text-slate-500">
+                                        {format(new Date(interaction.performed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                                      </p>
+                                      {interaction.notes && <p className="text-slate-600">{interaction.notes}</p>}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 

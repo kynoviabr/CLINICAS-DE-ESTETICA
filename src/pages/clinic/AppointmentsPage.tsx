@@ -189,7 +189,10 @@ export default function AppointmentsPage() {
   const [waitlistNotes, setWaitlistNotes] = useState('');
 
   const prefillLeadId = searchParams.get('leadId');
+  const prefillPatientId = searchParams.get('patientId');
   const prefillProfessionalId = searchParams.get('professionalId');
+  const prefillAppointmentType = searchParams.get('appointmentType');
+  const prefillTreatmentId = searchParams.get('treatmentId');
   const shouldOpenNewFromQuery = searchParams.get('openNew') === '1';
 
   const isProfessional = role === 'professional';
@@ -466,20 +469,34 @@ export default function AppointmentsPage() {
   };
 
   useEffect(() => {
-    if (!shouldOpenNewFromQuery || !prefillLeadId || !leads.some((lead) => lead.id === prefillLeadId)) return;
-
     resetForm();
-    setAppointmentType('evaluation');
-    setSelectedLead(prefillLeadId);
+    if (prefillLeadId && leads.some((lead) => lead.id === prefillLeadId)) {
+      setAppointmentType('evaluation');
+      setSelectedLead(prefillLeadId);
+      setSelectedPatient('');
+    } else if (prefillPatientId && patients.some((patient) => patient.id === prefillPatientId)) {
+      setAppointmentType(prefillAppointmentType === 'return' ? 'session' : 'session');
+      setSelectedPatient(prefillPatientId);
+      setSelectedLead('');
+    } else {
+      return;
+    }
     setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
     setSelectedProfessional(prefillProfessionalId || '');
+    if (prefillTreatmentId && treatments.some((treatment) => treatment.id === prefillTreatmentId)) {
+      setSelectedTreatment(prefillTreatmentId);
+    }
     setDialogOpen(true);
 
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete('openNew');
+    nextParams.delete('leadId');
+    nextParams.delete('patientId');
     nextParams.delete('professionalId');
+    nextParams.delete('appointmentType');
+    nextParams.delete('treatmentId');
     setSearchParams(nextParams, { replace: true });
-  }, [shouldOpenNewFromQuery, prefillLeadId, prefillProfessionalId, leads, searchParams, setSearchParams]);
+  }, [shouldOpenNewFromQuery, prefillLeadId, prefillPatientId, prefillAppointmentType, prefillTreatmentId, prefillProfessionalId, leads, patients, treatments, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (appointmentType !== 'evaluation') return;

@@ -57,6 +57,12 @@ test.describe('Golden Path - Dashboard -> CRM -> Proposta -> Contrato -> CRM', (
 
     await test.step('Voltar ao CRM e reabrir lead', async () => {
       await page.keyboard.press('Escape');
+      await page.waitForTimeout(250);
+      const overlay = page.locator('[data-state="open"][aria-hidden="true"]').first();
+      if (await overlay.isVisible()) {
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(250);
+      }
       const crmSidebarLink = page.getByRole('link', { name: /^CRM$/i });
       if ((await crmSidebarLink.count()) > 0) {
         await crmSidebarLink.click();

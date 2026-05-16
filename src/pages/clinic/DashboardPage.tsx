@@ -46,6 +46,14 @@ type TodaySessionRow = Pick<Database['public']['Tables']['appointments']['Row'],
   patients?: { full_name?: string | null } | null;
   treatments?: { name?: string | null } | null;
 };
+type RenewalTaskMetricRow = {
+  id: string;
+  status: string;
+  created_at: string;
+  converted_proposal_id: string | null;
+  discarded_reason: string | null;
+  sla_red_at: string | null;
+};
 
 function npsScoreColor(nps: number): string {
   if (nps < 0) return 'text-destructive';
@@ -296,6 +304,47 @@ export default function ClinicDashboard() {
       return { proposals: (proposals as SalesProposalRow[]) || [], staff: staffData || [], goals: (goalsData as SalesGoalRow[]) || [] };
     },
     enabled: !!clinicId && showCommercial,
+  });
+
+  const { data: renewalMetrics } = useQuery({
+    queryKey: ['dashboard-renewal-metrics', clinicId, currentMonth],
+    queryFn: async () => {
+      const monthStart = startOfMonth(today).toISOString();
+      const monthEnd = endOfMonth(today).toISOString();
+      const { data: tasks, error } = await supabase
+        .from('renewal_tasks' as unknown)
+        .select('id, status, created_at, converted_proposal_id, discarded_reason, sla_red_at')
+        .eq('clinic_id', clinicId!)
+        .gte('created_at', monthStart)
+        .lte('created_at', monthEnd);
+      if (error) throw error;
+
+      const taskRows = (tasks || []) as RenewalTaskMetricRow[];
+      const generated = taskRows.length;
+      const convertedRows = taskRows.filter((task) => task.status === 'converted' && !!task.converted_proposal_id);
+      const converted = convertedRows.length;
+      const conversionRate = generated > 0 ? Math.round((converted / generated) * 100) : 0;
+      const slaOverdue = taskRows.filter((task) => !!task.sla_red_at && task.status !== 'converted' && task.status !== 'discarded').length;
+
+      const proposalIds = Array.from(new Set(convertedRows.map((task) => task.converted_proposal_id).filter(Boolean))) as string[];
+      let renewalRevenue = 0;
+      if (proposalIds.length > 0) {
+        const { data: proposals } = await supabase
+          .from('proposals')
+          .select('id, final_amount')
+          .in('id', proposalIds);
+        renewalRevenue = (proposals || []).reduce((sum, proposal) => sum + Number(proposal.final_amount || 0), 0);
+      }
+
+      return {
+        generated,
+        converted,
+        conversionRate,
+        renewalRevenue,
+        slaOverdue,
+      };
+    },
+    enabled: !!clinicId && isAdmin,
   });
 
   // ── Charts ──
@@ -593,6 +642,15 @@ export default function ClinicDashboard() {
             <BrandStat icon={DollarSign} label="Ticket Médio" value={formatCurrency(ticketMedio)} />
             <BrandStat icon={Users} label="Pacientes Ativos" value={patientCount} />
           </div>
+          {renewalMetrics && (
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+              <BrandStat icon={Repeat} label="Renovações Geradas" value={renewalMetrics.generated} />
+              <BrandStat icon={ClipboardCheck} label="Renovações Convertidas" value={renewalMetrics.converted} />
+              <BrandStat icon={Target} label="Taxa de Conversão" value={`${renewalMetrics.conversionRate}%`} />
+              <BrandStat icon={DollarSign} label="LTV via Renovação" value={formatCurrency(renewalMetrics.renewalRevenue)} />
+              <BrandStat icon={AlertTriangle} label="SLA > 7d" value={renewalMetrics.slaOverdue} />
+            </div>
+          )}
           {ranking.length > 0 && (
             <Card className="shadow-card animate-fade-in cursor-pointer" onClick={() => navigate('/clinic/reports')}>
               <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Trophy className="w-5 h-5 text-primary" />Ranking de Vendedores</CardTitle></CardHeader>

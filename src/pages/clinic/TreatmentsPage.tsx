@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, Edit, Stethoscope, Trash2, DollarSign } from 'lucide-react';
 import CombosTab from '@/components/treatments/CombosTab';
@@ -27,6 +28,8 @@ interface TreatmentForm {
   min_price: string;
   duration_minutes: string;
   num_sessions: string;
+  renewal_enabled: boolean;
+  renewal_trigger_days: string;
 }
 
 interface CostLineItem {
@@ -38,6 +41,7 @@ interface CostLineItem {
 const emptyForm: TreatmentForm = {
   name: '', category_id: '', description: '', price: '',
   default_price: '', min_price: '', duration_minutes: '60', num_sessions: '1',
+  renewal_enabled: true, renewal_trigger_days: '7',
 };
 
 export default function TreatmentsPage() {
@@ -96,6 +100,8 @@ export default function TreatmentsPage() {
         min_price: data.min_price ? parseFloat(data.min_price) : null,
         duration_minutes: parseInt(data.duration_minutes) || 60,
         num_sessions: parseInt(data.num_sessions) || 1,
+        renewal_enabled: data.renewal_enabled,
+        renewal_trigger_days: Math.max(1, parseInt(data.renewal_trigger_days) || 7),
         clinic_id: clinicId!,
       };
 
@@ -150,6 +156,8 @@ export default function TreatmentsPage() {
       min_price: t.min_price ? String(t.min_price) : '',
       duration_minutes: String(t.duration_minutes),
       num_sessions: String(t.num_sessions),
+      renewal_enabled: t.renewal_enabled ?? true,
+      renewal_trigger_days: String(t.renewal_trigger_days ?? 7),
     });
 
     if (isAdmin) {
@@ -273,6 +281,16 @@ export default function TreatmentsPage() {
                   <span className="text-muted-foreground">Duração / Sessões</span>
                   <span className="text-foreground">{t.duration_minutes}min · {t.num_sessions} sessões</span>
                 </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Renovação</span>
+                  <span className="text-foreground">
+                    {t.renewal_enabled === false
+                      ? 'Desativada'
+                      : Number(t.num_sessions || 1) > 1
+                        ? 'Antepenúltima sessão'
+                        : `D+${t.renewal_trigger_days || 7}`}
+                  </span>
+                </div>
               </div>
               <button onClick={() => openEdit(t)} className="mt-3 text-xs text-primary hover:underline flex items-center gap-1">
                 <Edit className="w-3 h-3" /> Editar
@@ -330,6 +348,44 @@ export default function TreatmentsPage() {
                 <Label>Nº Sessões</Label>
                 <Input type="number" value={form.num_sessions} onChange={e => setForm({ ...form, num_sessions: e.target.value })} />
               </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-3">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="renewal_enabled"
+                  checked={form.renewal_enabled}
+                  onCheckedChange={(value) => setForm({ ...form, renewal_enabled: !!value })}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="renewal_enabled">Habilitar renovação automática</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Cria tarefa comercial no CRM para retenção quando o paciente entra na janela de renovação.
+                  </p>
+                </div>
+              </div>
+
+              {form.renewal_enabled && Number(form.num_sessions || 1) <= 1 && (
+                <div className="space-y-2">
+                  <Label>Acionar após (dias)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={form.renewal_trigger_days}
+                    onChange={(e) => setForm({ ...form, renewal_trigger_days: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Para sessão única, a tarefa de renovação aparece em D+N.
+                  </p>
+                </div>
+              )}
+
+              {form.renewal_enabled && Number(form.num_sessions || 1) > 1 && (
+                <p className="text-xs text-muted-foreground">
+                  Para tratamentos com múltiplas sessões, o gatilho é automático na antepenúltima sessão.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
