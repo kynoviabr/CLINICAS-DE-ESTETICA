@@ -118,6 +118,11 @@ function waitlistPriorityLabel(priority: WaitlistPriority) {
   return 'Normal';
 }
 
+function isMissingRelationError(message?: string | null) {
+  const normalized = String(message || '').toLowerCase();
+  return normalized.includes('could not find the table') || normalized.includes('relation') && normalized.includes('does not exist');
+}
+
 function waitlistStatusLabel(status: Database['public']['Enums']['waitlist_status']) {
   if (status === 'waiting') return 'Aguardando vaga';
   if (status === 'match_found') return 'Vaga encontrada';
@@ -188,6 +193,7 @@ export default function AppointmentsPage() {
   const [waitlistContactPreference, setWaitlistContactPreference] = useState<WaitlistContactPreference>('whatsapp');
   const [waitlistContactPhone, setWaitlistContactPhone] = useState('');
   const [waitlistNotes, setWaitlistNotes] = useState('');
+  const [waitlistSchemaAvailable, setWaitlistSchemaAvailable] = useState(true);
 
   const prefillLeadId = searchParams.get('leadId');
   const prefillPatientId = searchParams.get('patientId');
@@ -307,7 +313,14 @@ export default function AppointmentsPage() {
         .order('priority', { ascending: false })
         .order('created_at', { ascending: true })
         .limit(50);
-      if (error) throw error;
+      if (error) {
+        if (isMissingRelationError(error.message)) {
+          setWaitlistSchemaAvailable(false);
+          return [];
+        }
+        throw error;
+      }
+      setWaitlistSchemaAvailable(true);
       return (data || []) as WaitlistRow[];
     },
     enabled: !!clinicId,
@@ -322,7 +335,13 @@ export default function AppointmentsPage() {
         .eq('action_taken', 'none')
         .order('notification_sent_at', { ascending: false })
         .limit(20);
-      if (error) throw error;
+      if (error) {
+        if (isMissingRelationError(error.message)) {
+          setWaitlistSchemaAvailable(false);
+          return [];
+        }
+        throw error;
+      }
       return (data || []) as WaitlistNotificationRow[];
     },
     enabled: !!clinicId,
@@ -1016,6 +1035,9 @@ export default function AppointmentsPage() {
   });
   const runWaitlistMutation = useMutation({
     mutationFn: async () => {
+      if (!waitlistSchemaAvailable) {
+        throw new Error('Lista de espera indisponível: rode as migrations de Agenda Avançada nesta base.');
+      }
       const { data, error } = await supabase.functions.invoke('check-waitlist', {
         body: { clinicId },
       });
@@ -1030,7 +1052,14 @@ export default function AppointmentsPage() {
         description: `${result?.matchesFound || 0} vaga(s) encontrada(s), ${result?.notificationsSent || 0} notificação(ões).`,
       });
     },
-    onError: (err: Error) => toast({ title: 'Erro ao rodar o matching', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => {
+      if (isMissingRelationError(err.message)) {
+        setWaitlistSchemaAvailable(false);
+        toast({ title: 'Schema da lista de espera não aplicado', description: 'Aplique a migration de Agenda Avançada para habilitar este módulo.', variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Erro ao rodar o matching', description: err.message, variant: 'destructive' });
+    },
   });
 
   const createAppointmentFromNotificationMutation = useMutation({
@@ -1108,6 +1137,9 @@ export default function AppointmentsPage() {
 
   const createWaitlistMutation = useMutation({
     mutationFn: async () => {
+      if (!waitlistSchemaAvailable) {
+        throw new Error('Lista de espera indisponível: rode as migrations de Agenda Avançada nesta base.');
+      }
       if (!clinicId) throw new Error('Clínica não identificada.');
       if (waitlistTargetType === 'lead' && !waitlistLeadId) throw new Error('Selecione um lead.');
       if (waitlistTargetType === 'patient' && !waitlistPatientId) throw new Error('Selecione um paciente.');
@@ -1145,7 +1177,14 @@ export default function AppointmentsPage() {
       toast({ title: 'Lead/paciente adicionado à lista de espera' });
       resetWaitlistForm();
     },
-    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => {
+      if (isMissingRelationError(err.message)) {
+        setWaitlistSchemaAvailable(false);
+        toast({ title: 'Schema da lista de espera não aplicado', description: 'Aplique a migration de Agenda Avançada para habilitar este módulo.', variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    },
   });
 
   const resetForm = () => {
@@ -2273,6 +2312,14 @@ export default function AppointmentsPage() {
             <DialogTitle>Lista de Espera Inteligente</DialogTitle>
           </DialogHeader>
           <div className="space-y-6 mt-4">
+            {!waitlistSchemaAvailable && (
+              <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3">
+                <p className="text-sm font-semibold text-destructive">Schema da lista de espera não está aplicado nesta base</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Rode a migration `20260515231500_agenda_avancada_waitlist.sql` no Supabase e recarregue a tela.
+                </p>
+              </div>
+            )}
             <div className="rounded-xl border border-dashed p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-foreground">Monitorar vagas agora</p>
@@ -2282,7 +2329,7 @@ export default function AppointmentsPage() {
                 type="button"
                 variant="outline"
                 onClick={() => runWaitlistMutation.mutate()}
-                disabled={runWaitlistMutation.isPending}
+                disabled={runWaitlistMutation.isPending || !waitlistSchemaAvailable}
               >
                 {runWaitlistMutation.isPending ? 'Processando...' : 'Buscar vagas'}
               </BrandButton>
@@ -2435,7 +2482,7 @@ export default function AppointmentsPage() {
 
               <div className="flex justify-end gap-2">
                 <BrandButton type="button" variant="outline" onClick={resetWaitlistForm}>Limpar</BrandButton>
-                <BrandButton type="submit" disabled={createWaitlistMutation.isPending}>
+                <BrandButton type="submit" disabled={createWaitlistMutation.isPending || !waitlistSchemaAvailable}>
                   {createWaitlistMutation.isPending ? 'Salvando...' : 'Adicionar à lista'}
                 </BrandButton>
               </div>
