@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
 import { PageHeader } from '@/components/ui/page-header';
@@ -9,34 +9,33 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Plus, Activity, TrendingDown, Ruler } from 'lucide-react';
+import { Plus, Activity } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-
-const METRIC_TYPES = [
-  { value: 'weight', label: 'Peso', unit: 'kg', icon: TrendingDown },
-  { value: 'waist', label: 'Cintura', unit: 'cm', icon: Ruler },
-  { value: 'hip', label: 'Quadril', unit: 'cm', icon: Ruler },
-  { value: 'arm', label: 'Braço', unit: 'cm', icon: Ruler },
-  { value: 'thigh', label: 'Coxa', unit: 'cm', icon: Ruler },
-  { value: 'abdomen', label: 'Abdômen', unit: 'cm', icon: Ruler },
-];
+import { buildMetricNote, extractTreatmentIdFromNotes, getMetricOptionsForCategory } from '@/lib/evolutionMetrics';
+type PatientRow = { id: string; full_name: string };
+type TreatmentContextRow = { id: string; name: string; category: string | null };
+type MetricRow = { id: string; recorded_at: string; value: number; unit: string; notes: string | null; metric_type: string };
 
 export default function EvolutionPage() {
   const { clinicId } = useUserRole();
   const { toast } = useToast();
-  const [metrics, setMetrics] = useState<unknown[]>([]);
-  const [patients, setPatients] = useState<unknown[]>([]);
+  const [metrics, setMetrics] = useState<MetricRow[]>([]);
+  const [patients, setPatients] = useState<PatientRow[]>([]);
+  const [patientTreatments, setPatientTreatments] = useState<TreatmentContextRow[]>([]);
   const [selectedPatient, setSelectedPatient] = useState('');
-  const [selectedMetric, setSelectedMetric] = useState('weight');
+  const [selectedTreatment, setSelectedTreatment] = useState('');
+  const [selectedMetric, setSelectedMetric] = useState('');
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Form state
   const [formPatient, setFormPatient] = useState('');
-  const [formMetric, setFormMetric] = useState('weight');
+  const [formTreatment, setFormTreatment] = useState('');
+  const [formMetric, setFormMetric] = useState('');
   const [formValue, setFormValue] = useState('');
+  const [formNotes, setFormNotes] = useState('');
 
   useEffect(() => {
     if (!clinicId) return;
@@ -51,37 +50,111 @@ export default function EvolutionPage() {
       .select('*')
       .eq('clinic_id', clinicId)
       .eq('patient_id', selectedPatient)
-      .eq('metric_type', selectedMetric)
       .order('recorded_at', { ascending: true })
-      .then(({ data }) => { setMetrics(data || []); setLoading(false); });
-  }, [clinicId, selectedPatient, selectedMetric]);
+      .then(({ data }) => { setMetrics((data || []) as MetricRow[]); setLoading(false); });
+  }, [clinicId, selectedPatient]);
 
-  const chartData = metrics.map(m => ({
+  useEffect(() => {
+    if (!clinicId || !selectedPatient) {
+      setPatientTreatments([]);
+      setSelectedTreatment('');
+      return;
+    }
+    const loadTreatmentContext = async () => {
+      const { data: contracts } = await supabase
+        .from('contracts')
+        .select('proposal_id, status')
+        .eq('clinic_id', clinicId)
+        .eq('patient_id', selectedPatient);
+      const proposalIds = (contracts || [])
+        .filter((contract: { proposal_id: string | null; status?: string | null }) => !!contract.proposal_id)
+        .map((contract: { proposal_id: string | null }) => contract.proposal_id as string);
+      if (proposalIds.length === 0) {
+        setPatientTreatments([]);
+        setSelectedTreatment('');
+        return;
+      }
+
+      const { data: items } = await supabase
+        .from('proposal_items')
+        .select('treatment_id, treatments(id, name, category)')
+        .in('proposal_id', proposalIds);
+      const map = new Map<string, TreatmentContextRow>();
+      ((items || []) as Array<{ treatment_id: string; treatments?: { id?: string; name?: string; category?: string | null } | null }>).forEach((item) => {
+        if (!item.treatment_id) return;
+        if (!map.has(item.treatment_id)) {
+          map.set(item.treatment_id, {
+            id: item.treatment_id,
+            name: item.treatments?.name || 'Tratamento',
+            category: item.treatments?.category || null,
+          });
+        }
+      });
+      const list = Array.from(map.values());
+      setPatientTreatments(list);
+      setSelectedTreatment((current) => (current && map.has(current) ? current : list[0]?.id || ''));
+    };
+    void loadTreatmentContext();
+  }, [clinicId, selectedPatient]);
+
+  const availableMetricTypes = getMetricOptionsForCategory(
+    patientTreatments.find((treatment) => treatment.id === selectedTreatment)?.category,
+  );
+
+  useEffect(() => {
+    if (!availableMetricTypes.length) return;
+    const hasCurrent = availableMetricTypes.some((metric) => metric.value === selectedMetric);
+    if (!hasCurrent) setSelectedMetric(availableMetricTypes[0].value);
+  }, [availableMetricTypes, selectedMetric]);
+
+  useEffect(() => {
+    if (!availableMetricTypes.length) return;
+    const hasCurrent = availableMetricTypes.some((metric) => metric.value === formMetric);
+    if (!hasCurrent) setFormMetric(availableMetricTypes[0].value);
+  }, [availableMetricTypes, formMetric]);
+
+  useEffect(() => {
+    if (!formPatient) return;
+    const treatmentList = formPatient === selectedPatient ? patientTreatments : [];
+    if (!treatmentList.length) return;
+    setFormTreatment((current) => current || treatmentList[0].id);
+  }, [formPatient, selectedPatient, patientTreatments]);
+
+  const filteredMetrics = metrics.filter((metric) => {
+    if (metric.metric_type !== selectedMetric) return false;
+    if (!selectedTreatment) return true;
+    const taggedTreatment = extractTreatmentIdFromNotes(metric.notes);
+    return !taggedTreatment || taggedTreatment === selectedTreatment;
+  });
+
+  const chartData = filteredMetrics.map((m) => ({
     date: format(new Date(m.recorded_at), 'dd/MM', { locale: ptBR }),
     value: Number(m.value),
   }));
 
-  const metricInfo = METRIC_TYPES.find(m => m.value === selectedMetric);
-  const lastValue = metrics.length > 0 ? Number(metrics[metrics.length - 1].value) : null;
-  const firstValue = metrics.length > 1 ? Number(metrics[0].value) : null;
+  const metricInfo = availableMetricTypes.find((metric) => metric.value === selectedMetric) || availableMetricTypes[0];
+  const lastValue = filteredMetrics.length > 0 ? Number(filteredMetrics[filteredMetrics.length - 1].value) : null;
+  const firstValue = filteredMetrics.length > 1 ? Number(filteredMetrics[0].value) : null;
   const diff = lastValue !== null && firstValue !== null ? lastValue - firstValue : null;
 
-  const handleAdd = async (e: React.FormEvent) => {
+  const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
-    const unit = METRIC_TYPES.find(m => m.value === formMetric)?.unit || 'cm';
+    const metricUnit = availableMetricTypes.find((metric) => metric.value === formMetric)?.unit || 'score';
+    const notes = buildMetricNote(formNotes, formTreatment);
     const { error } = await supabase.from('patient_metrics').insert({
       clinic_id: clinicId!, patient_id: formPatient, metric_type: formMetric,
-      value: Number(formValue), unit,
+      value: Number(formValue), unit: metricUnit, notes,
     });
     if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); return; }
     toast({ title: 'Medição registrada!' });
     setOpen(false);
     setFormValue('');
+    setFormNotes('');
     if (formPatient === selectedPatient && formMetric === selectedMetric) {
       supabase.from('patient_metrics').select('*').eq('clinic_id', clinicId!)
-        .eq('patient_id', selectedPatient).eq('metric_type', selectedMetric)
+        .eq('patient_id', selectedPatient)
         .order('recorded_at', { ascending: true })
-        .then(({ data }) => setMetrics(data || []));
+        .then(({ data }) => setMetrics((data || []) as MetricRow[]));
     }
   };
 
@@ -103,15 +176,30 @@ export default function EvolutionPage() {
                 </Select>
               </div>
               <div className="space-y-2">
+                <Label>Tratamento</Label>
+                <Select value={formTreatment} onValueChange={setFormTreatment}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {(formPatient === selectedPatient ? patientTreatments : []).map((treatment) => (
+                      <SelectItem key={treatment.id} value={treatment.id}>{treatment.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label>Tipo</Label>
                 <Select value={formMetric} onValueChange={setFormMetric}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{METRIC_TYPES.map(m => <SelectItem key={m.value} value={m.value}>{m.label} ({m.unit})</SelectItem>)}</SelectContent>
+                  <SelectContent>{availableMetricTypes.map(m => <SelectItem key={m.value} value={m.value}>{m.label} ({m.unit})</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label>Valor</Label>
                 <Input type="number" step="0.1" value={formValue} onChange={e => setFormValue(e.target.value)} required placeholder="Ex: 72.5" />
+              </div>
+              <div className="space-y-2">
+                <Label>Observações</Label>
+                <Input value={formNotes} onChange={e => setFormNotes(e.target.value)} placeholder="Opcional" />
               </div>
               <Button type="submit" className="w-full gradient-primary text-primary-foreground">Salvar</Button>
             </form>
@@ -127,9 +215,19 @@ export default function EvolutionPage() {
           </Select>
         </div>
         <div className="md:col-span-2">
+          <Select value={selectedTreatment} onValueChange={setSelectedTreatment}>
+            <SelectTrigger><SelectValue placeholder="Selecione o tratamento" /></SelectTrigger>
+            <SelectContent>
+              {patientTreatments.map((treatment) => (
+                <SelectItem key={treatment.id} value={treatment.id}>{treatment.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="md:col-span-2">
           <Select value={selectedMetric} onValueChange={setSelectedMetric}>
             <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{METRIC_TYPES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+            <SelectContent>{availableMetricTypes.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
       </div>
@@ -145,7 +243,7 @@ export default function EvolutionPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Card className="shadow-card"><CardContent className="p-4 text-center">
               <p className="text-xs text-muted-foreground uppercase">Medições</p>
-              <p className="text-2xl font-bold text-foreground">{metrics.length}</p>
+              <p className="text-2xl font-bold text-foreground">{filteredMetrics.length}</p>
             </CardContent></Card>
             <Card className="shadow-card"><CardContent className="p-4 text-center">
               <p className="text-xs text-muted-foreground uppercase">Última</p>
@@ -183,9 +281,9 @@ export default function EvolutionPage() {
           <Card className="shadow-card">
             <CardHeader><CardTitle className="text-base">Histórico</CardTitle></CardHeader>
             <CardContent>
-              {metrics.length > 0 ? (
+              {filteredMetrics.length > 0 ? (
                 <div className="divide-y divide-border">
-                  {[...metrics].reverse().map(m => (
+                  {[...filteredMetrics].reverse().map(m => (
                     <div key={m.id} className="flex items-center justify-between py-3">
                       <span className="text-sm text-muted-foreground">{format(new Date(m.recorded_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
                       <span className="font-semibold text-foreground">{Number(m.value)} {m.unit}</span>

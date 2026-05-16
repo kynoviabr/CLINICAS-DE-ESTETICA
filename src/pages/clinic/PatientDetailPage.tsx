@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import {
   ArrowLeft, User, Phone, Mail, Calendar, ClipboardList, Activity, Camera,
-  MessageSquare, Star, ExternalLink, Loader2, AlertTriangle, FileSignature
+  MessageSquare, Star, ExternalLink, Loader2, AlertTriangle, FileSignature, Upload
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -70,6 +70,8 @@ export default function PatientDetailPage() {
   };
   const [viewPhoto, setViewPhoto] = useState<PhotoRow | null>(null);
   const [grantingAccess, setGrantingAccess] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ['patient', id],
@@ -189,6 +191,43 @@ export default function PatientDetailPage() {
     }
   };
 
+  const handleAvatarUpload = async (file?: File) => {
+    if (!file || !clinicId || !id) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Selecione um arquivo de imagem');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const extension = file.name.split('.').pop() || 'jpg';
+      const filePath = `${clinicId}/${id}/avatar-${Date.now()}.${extension}`;
+      const { error: uploadError } = await supabase.storage.from('patient-files').upload(filePath, file, {
+        contentType: file.type,
+        upsert: true,
+      });
+      if (uploadError) throw uploadError;
+
+      const { data: publicData } = supabase.storage.from('patient-files').getPublicUrl(filePath);
+      const avatarUrl = publicData.publicUrl;
+
+      const { error: updateError } = await supabase
+        .from('patients')
+        .update({ avatar_url: avatarUrl })
+        .eq('id', id)
+        .eq('clinic_id', clinicId);
+      if (updateError) throw updateError;
+
+      queryClient.invalidateQueries({ queryKey: ['patient', id] });
+      toast.success('Foto do paciente atualizada');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erro ao enviar foto';
+      toast.error(message);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   // Group metrics by type for evolution chart
   const metricTypes = [...new Set(metrics.map((m: MetricRow) => m.metric_type))];
   const metricLabels: Record<string, string> = {
@@ -286,8 +325,35 @@ export default function PatientDetailPage() {
       <Card className="shadow-card mb-6 animate-fade-in">
         <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row items-start gap-4">
-            <div className="w-16 h-16 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-xl shrink-0">
-              {initials}
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                className="group relative w-16 h-16 rounded-full overflow-hidden border border-border"
+                disabled={uploadingAvatar}
+              >
+                {patient.avatar_url ? (
+                  <img src={patient.avatar_url} alt={patient.full_name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-xl">
+                    {initials}
+                  </div>
+                )}
+                <span className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                  {uploadingAvatar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                </span>
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  void handleAvatarUpload(file);
+                  event.currentTarget.value = '';
+                }}
+              />
             </div>
             <div className="flex-1 space-y-2">
               <div className="flex items-center gap-3 flex-wrap">

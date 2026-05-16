@@ -24,6 +24,9 @@ Base: `Backlog_Melhorias_Tela_a_Tela_Clinova.docx`
 - [x] #07 Combos: margem bruta em tempo real no modal.
 - [x] #08 Combos: alerta visual abaixo do custo mínimo sem bloquear salvar.
 - [x] #09 Tratamentos/Combos: ação "Duplicar" disponível.
+- [x] #15 Ficha do paciente: avatar com upload de foto.
+- [x] #23 Evolução: carregar tratamentos contratados ao selecionar paciente.
+- [x] #24 Evolução: adaptar métricas exibidas conforme tratamento selecionado.
 
 ## Duplicidades detectadas (já existia no sistema)
 
