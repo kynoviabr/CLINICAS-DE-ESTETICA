@@ -21,7 +21,7 @@ function toRunKey(mode: JobMode) {
 
 async function invokeFunction(
   supabaseUrl: string,
-  serviceRole: string,
+  invokeKey: string,
   name: string,
   payload: Record<string, unknown>,
 ) {
@@ -29,8 +29,8 @@ async function invokeFunction(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${serviceRole}`,
-      apikey: serviceRole,
+      Authorization: `Bearer ${invokeKey}`,
+      apikey: invokeKey,
     },
     body: JSON.stringify(payload),
   });
@@ -45,14 +45,68 @@ async function invokeFunction(
   }
 }
 
+async function createExecutionLog(
+  admin: ReturnType<typeof createClient>,
+  payload: { clinic_id: string | null; run_key: string; mode: string },
+) {
+  const base = {
+    clinic_id: payload.clinic_id,
+    job_name: "run-agenda-jobs",
+    run_key: payload.run_key,
+    status: "started",
+  };
+
+  const attemptDetails = await admin.from("agenda_job_executions").insert({
+    ...base,
+    details: { mode: payload.mode, startedAt: new Date().toISOString() },
+  }).select("id").single();
+  if (!attemptDetails.error) return attemptDetails.data;
+
+  const attemptInput = await admin.from("agenda_job_executions").insert({
+    ...base,
+    input: { mode: payload.mode, startedAt: new Date().toISOString() },
+  }).select("id").single();
+  if (attemptInput.error) throw attemptInput.error;
+  return attemptInput.data;
+}
+
+async function finalizeExecutionLog(
+  admin: ReturnType<typeof createClient>,
+  executionId: string,
+  result: Record<string, unknown>,
+) {
+  const base = {
+    status: "completed",
+    finished_at: new Date().toISOString(),
+  };
+
+  const attemptDetails = await admin.from("agenda_job_executions")
+    .update({
+      ...base,
+      details: result,
+    })
+    .eq("id", executionId);
+  if (!attemptDetails.error) return;
+
+  const attemptOutput = await admin.from("agenda_job_executions")
+    .update({
+      ...base,
+      output: result,
+    })
+    .eq("id", executionId);
+  if (attemptOutput.error) throw attemptOutput.error;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const functionInvokeKey = Deno.env.get("AGENDA_FUNCTIONS_INVOKE_KEY") || anonKey || serviceRole;
     const runnerToken = Deno.env.get("AGENDA_JOBS_RUNNER_TOKEN") || "";
-    if (!supabaseUrl || !serviceRole) throw new Error("SUPABASE env vars not configured");
+    if (!supabaseUrl || !serviceRole || !functionInvokeKey) throw new Error("SUPABASE env vars not configured");
 
     const body = await req.json().catch(() => ({}));
     const providedToken = String(
@@ -92,55 +146,46 @@ serve(async (req) => {
       });
     }
 
-    const { data: execution, error: executionError } = await admin.from("agenda_job_executions").insert({
+    const execution = await createExecutionLog(admin, {
       clinic_id: clinicId || null,
-      job_name: "run-agenda-jobs",
       run_key: runKey,
-      status: "started",
-      details: { mode, startedAt: new Date().toISOString() },
-    }).select("id").single();
-    if (executionError) throw executionError;
+      mode,
+    });
 
     const result: Record<string, unknown> = { runKey, mode };
     const payload = clinicId ? { clinicId } : {};
 
     if (mode === "morning") {
-      result["dailySummary"] = await invokeFunction(supabaseUrl, serviceRole, "send-daily-agenda-summary", payload);
-      result["queueReminders"] = await invokeFunction(supabaseUrl, serviceRole, "send-appointment-reminder", {
+      result["dailySummary"] = await invokeFunction(supabaseUrl, functionInvokeKey, "send-daily-agenda-summary", payload);
+      result["queueReminders"] = await invokeFunction(supabaseUrl, functionInvokeKey, "send-appointment-reminder", {
         ...payload,
         lookAheadHours: 24,
         limit: 200,
       });
-      result["dispatchReminders"] = await invokeFunction(supabaseUrl, serviceRole, "dispatch-appointment-reminders", {
+      result["dispatchReminders"] = await invokeFunction(supabaseUrl, functionInvokeKey, "dispatch-appointment-reminders", {
         ...payload,
         limit: 200,
       });
-      result["checkWaitlist"] = await invokeFunction(supabaseUrl, serviceRole, "check-waitlist", payload);
+      result["checkWaitlist"] = await invokeFunction(supabaseUrl, functionInvokeKey, "check-waitlist", payload);
     } else if (mode === "hourly") {
-      result["dispatchReminders"] = await invokeFunction(supabaseUrl, serviceRole, "dispatch-appointment-reminders", {
+      result["dispatchReminders"] = await invokeFunction(supabaseUrl, functionInvokeKey, "dispatch-appointment-reminders", {
         ...payload,
         limit: 100,
       });
-      result["checkWaitlist"] = await invokeFunction(supabaseUrl, serviceRole, "check-waitlist", payload);
+      result["checkWaitlist"] = await invokeFunction(supabaseUrl, functionInvokeKey, "check-waitlist", payload);
     } else {
-      result["queueReminders"] = await invokeFunction(supabaseUrl, serviceRole, "send-appointment-reminder", {
+      result["queueReminders"] = await invokeFunction(supabaseUrl, functionInvokeKey, "send-appointment-reminder", {
         ...payload,
         lookAheadHours: 24,
         limit: 100,
       });
-      result["dispatchReminders"] = await invokeFunction(supabaseUrl, serviceRole, "dispatch-appointment-reminders", {
+      result["dispatchReminders"] = await invokeFunction(supabaseUrl, functionInvokeKey, "dispatch-appointment-reminders", {
         ...payload,
         limit: 100,
       });
     }
 
-    await admin.from("agenda_job_executions")
-      .update({
-        status: "completed",
-        finished_at: new Date().toISOString(),
-        details: result,
-      })
-      .eq("id", execution.id);
+    await finalizeExecutionLog(admin, execution.id, result);
 
     return new Response(JSON.stringify({ ok: true, ...result }), {
       status: 200,
