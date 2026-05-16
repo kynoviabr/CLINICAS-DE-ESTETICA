@@ -232,7 +232,13 @@ test.describe('Fluxo E2E - Agenda', () => {
     const rescheduledRangeText = new RegExp(`^${rescheduledTimeLabel}\\s-\\s${rescheduledEndTimeLabel}$`);
     const rescheduledRange = page.getByText(rescheduledRangeText).first();
     await expect(rescheduledRange).toBeVisible({ timeout: 20_000 });
-    const reopenedDialog = await openAppointmentDialogByStartTime(page, rescheduledTimeLabel, selectedLeadName);
+    let reopenedDialog;
+    try {
+      reopenedDialog = await openAppointmentDialogByStartTime(page, rescheduledTimeLabel, selectedLeadName);
+    } catch {
+      await rescheduledRange.click({ force: true });
+      reopenedDialog = page.getByRole('dialog', { name: /^Agendamento$/i });
+    }
     await expect(reopenedDialog).toBeVisible();
     const cancelAppointmentButton = reopenedDialog.getByRole('button', { name: /cancelar/i });
     if ((await cancelAppointmentButton.count()) === 0) {

@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, Edit, Stethoscope, Trash2, DollarSign } from 'lucide-react';
+import { Plus, Search, Edit, Stethoscope, Trash2, DollarSign, Copy } from 'lucide-react';
 import CombosTab from '@/components/treatments/CombosTab';
 
 interface TreatmentForm {
@@ -172,6 +172,15 @@ export default function TreatmentsPage() {
     setDialogOpen(true);
   };
 
+  const openDuplicate = async (t: unknown) => {
+    await openEdit(t);
+    setEditingId(null);
+    setForm((current) => ({
+      ...current,
+      name: current.name ? `${current.name} (Cópia)` : 'Novo tratamento (Cópia)',
+    }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (form.min_price && form.default_price && parseFloat(form.min_price) > parseFloat(form.default_price)) {
@@ -194,6 +203,16 @@ export default function TreatmentsPage() {
     const item = getCostItemById(l.cost_item_id);
     return sum + (item ? Number(item.unit_cost) * (parseFloat(l.quantity) || 0) : 0);
   }, 0);
+  const grossPrice = parseFloat(form.price) || 0;
+  const grossMarginPercent = grossPrice > 0 ? ((grossPrice - totalCost) / grossPrice) * 100 : null;
+  const marginToneClass =
+    grossMarginPercent === null
+      ? 'text-muted-foreground'
+      : grossMarginPercent >= 30
+        ? 'text-emerald-700'
+        : grossMarginPercent >= 15
+          ? 'text-amber-700'
+          : 'text-destructive';
 
   const [activeTab, setActiveTab] = useState('treatments');
 
@@ -292,9 +311,14 @@ export default function TreatmentsPage() {
                   </span>
                 </div>
               </div>
-              <button onClick={() => openEdit(t)} className="mt-3 text-xs text-primary hover:underline flex items-center gap-1">
-                <Edit className="w-3 h-3" /> Editar
-              </button>
+              <div className="mt-3 flex items-center gap-3 text-xs">
+                <button onClick={() => openEdit(t)} className="text-primary hover:underline flex items-center gap-1">
+                  <Edit className="w-3 h-3" /> Editar
+                </button>
+                <button onClick={() => openDuplicate(t)} className="text-primary hover:underline flex items-center gap-1">
+                  <Copy className="w-3 h-3" /> Duplicar
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -444,6 +468,11 @@ export default function TreatmentsPage() {
                   {form.min_price && costLines.length > 0 && (
                     <p className="text-xs text-muted-foreground">
                       Margem sobre preço mínimo: R$ {(parseFloat(form.min_price) - totalCost).toFixed(2)}
+                    </p>
+                  )}
+                  {costLines.length > 0 && grossMarginPercent !== null && (
+                    <p className={`text-xs font-medium ${marginToneClass}`}>
+                      Margem bruta: {grossMarginPercent.toFixed(1)}%
                     </p>
                   )}
                 </CardContent>

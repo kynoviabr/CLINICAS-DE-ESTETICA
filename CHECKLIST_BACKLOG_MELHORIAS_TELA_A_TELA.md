@@ -17,11 +17,18 @@ Base: `Backlog_Melhorias_Tela_a_Tela_Clinova.docx`
 - [x] #17 Ficha do paciente: e-mail clicável com `mailto:`.
 - [x] #19 Agenda: card "Não atribuído" no topo.
 - [x] #20 Agenda: filtro "Não atribuído" e clique do card aplicando o filtro.
+- [x] #21 Agenda: reatribuição de profissional direto no detalhe do agendamento.
+- [x] #22 Sessões: card "Renovação" no topo com filtro por janela.
+- [x] #05 Tratamentos: margem bruta em tempo real no modal.
+- [x] #06 Combos: soma dos custos diretos no modal.
+- [x] #07 Combos: margem bruta em tempo real no modal.
+- [x] #08 Combos: alerta visual abaixo do custo mínimo sem bloquear salvar.
+- [x] #09 Tratamentos/Combos: ação "Duplicar" disponível.
 
 ## Duplicidades detectadas (já existia no sistema)
 
 - Item #18 (aba Tratamentos na ficha): já existe no hub do paciente no fluxo atual.
-- Parte dos itens de margem/custos de Tratamentos e Combos já estava implementada em versões anteriores.
+- Parte dos itens de margem/custos de Tratamentos e Combos já estava parcialmente implementada; nesta release foi concluída.
 
 ## Banco de dados
 

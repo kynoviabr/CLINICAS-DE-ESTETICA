@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Edit, Trash2, Package } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, Copy, TriangleAlert } from 'lucide-react';
 
 interface ComboItem {
   treatment_id: string;
@@ -61,6 +61,21 @@ export default function CombosTab() {
     enabled: !!clinicId,
   });
 
+  const { data: treatmentCostRows = [] } = useQuery({
+    queryKey: ['treatment-cost-rows', clinicId, treatments.length],
+    queryFn: async () => {
+      const treatmentIds = (treatments as Array<{ id: string }>).map((t) => t.id);
+      if (treatmentIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('treatment_cost_items' as never)
+        .select('treatment_id, quantity, cost_items(unit_cost)')
+        .in('treatment_id', treatmentIds);
+      if (error) throw error;
+      return (data || []) as Array<{ treatment_id: string; quantity: number | null; cost_items?: { unit_cost?: number | null } | null }>;
+    },
+    enabled: !!clinicId && treatments.length > 0,
+  });
+
   const getTreatment = (id: string) => treatments.find((t: unknown) => t.id === id);
 
   const totalDefault = form.items.reduce((s, item) => {
@@ -73,13 +88,26 @@ export default function CombosTab() {
     return s + (t ? Number(t.min_price || 0) * item.quantity : 0);
   }, 0);
 
+  const treatmentDirectCostMap = useMemo(() => {
+    const map = new Map<string, number>();
+    treatmentCostRows.forEach((row) => {
+      const subtotal = Number(row.cost_items?.unit_cost || 0) * Number(row.quantity || 0);
+      map.set(row.treatment_id, (map.get(row.treatment_id) || 0) + subtotal);
+    });
+    return map;
+  }, [treatmentCostRows]);
+
+  const totalDirectCost = form.items.reduce((sum, item) => {
+    return sum + (treatmentDirectCostMap.get(item.treatment_id) || 0) * item.quantity;
+  }, 0);
+
   const promoPrice = parseFloat(form.promotional_price) || 0;
   const belowMinimum = promoPrice > 0 && totalMinPrice > 0 && promoPrice < totalMinPrice;
+  const comboMarginPercent = promoPrice > 0 ? ((promoPrice - totalDirectCost) / promoPrice) * 100 : null;
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!clinicId) throw new Error('Clínica não encontrada');
-      if (belowMinimum) throw new Error('Preço promocional abaixo do custo mínimo');
 
       let comboId = editingId;
       if (editingId) {
@@ -128,6 +156,20 @@ export default function CombosTab() {
       name: combo.name,
       promotional_price: combo.promotional_price ? String(combo.promotional_price) : '',
       active: combo.active,
+      items: (combo.treatment_combo_items || []).map((ci: unknown) => ({
+        treatment_id: ci.treatment_id,
+        quantity: ci.quantity || 1,
+      })),
+    });
+    setDialogOpen(true);
+  };
+
+  const openDuplicate = (combo: unknown) => {
+    setEditingId(null);
+    setForm({
+      name: combo.name ? `${combo.name} (Cópia)` : 'Novo combo (Cópia)',
+      promotional_price: combo.promotional_price ? String(combo.promotional_price) : '',
+      active: true,
       items: (combo.treatment_combo_items || []).map((ci: unknown) => ({
         treatment_id: ci.treatment_id,
         quantity: ci.quantity || 1,
@@ -202,9 +244,14 @@ export default function CombosTab() {
                       </td>
                       {isAdmin && (
                         <td className="px-4 py-3">
-                          <BrandButton variant="ghost" size="sm" onClick={() => openEdit(combo)}>
-                            <Edit className="w-3 h-3" />
-                          </BrandButton>
+                          <div className="flex items-center justify-end gap-1">
+                            <BrandButton variant="ghost" size="sm" onClick={() => openEdit(combo)}>
+                              <Edit className="w-3 h-3" />
+                            </BrandButton>
+                            <BrandButton variant="ghost" size="sm" onClick={() => openDuplicate(combo)}>
+                              <Copy className="w-3 h-3" />
+                            </BrandButton>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -270,6 +317,7 @@ export default function CombosTab() {
                   <div className="text-sm space-y-1 mt-3 p-3 bg-secondary/50 rounded-lg">
                     <div className="flex justify-between"><span className="text-muted-foreground">Soma preços padrão:</span><span className="font-medium">R$ {totalDefault.toFixed(2)}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Soma preços mínimos (piso):</span><span className="font-medium">R$ {totalMinPrice.toFixed(2)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Soma dos custos diretos:</span><span className="font-medium">R$ {totalDirectCost.toFixed(2)}</span></div>
                   </div>
                 )}
               </div>
@@ -278,7 +326,19 @@ export default function CombosTab() {
                 <Label>Preço Promocional (R$)</Label>
                 <Input type="number" step="0.01" value={form.promotional_price} onChange={e => setForm({ ...form, promotional_price: e.target.value })} />
                 {belowMinimum && (
-                  <p className="text-xs text-destructive">Valor abaixo do custo mínimo (R$ {totalMinPrice.toFixed(2)})</p>
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <TriangleAlert className="w-3 h-3" />
+                    Valor abaixo do custo mínimo (R$ {totalMinPrice.toFixed(2)})
+                  </p>
+                )}
+                {comboMarginPercent !== null && (
+                  <p
+                    className={`text-xs font-medium ${
+                      comboMarginPercent >= 30 ? 'text-emerald-700' : comboMarginPercent >= 15 ? 'text-amber-700' : 'text-destructive'
+                    }`}
+                  >
+                    Margem bruta do combo: {comboMarginPercent.toFixed(1)}%
+                  </p>
                 )}
               </div>
 
@@ -292,7 +352,7 @@ export default function CombosTab() {
 
               <div className="flex gap-3 pt-2">
                 <BrandButton type="button" variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">Cancelar</BrandButton>
-                <BrandButton type="submit" className="flex-1" disabled={saveMutation.isPending || belowMinimum}>
+                <BrandButton type="submit" className="flex-1" disabled={saveMutation.isPending}>
                   {saveMutation.isPending ? 'Salvando...' : 'Salvar'}
                 </BrandButton>
               </div>

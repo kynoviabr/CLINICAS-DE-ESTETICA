@@ -172,6 +172,7 @@ export default function AppointmentsPage() {
   const [rescheduleDuration, setRescheduleDuration] = useState('60');
   const [rescheduleProfessional, setRescheduleProfessional] = useState('unassigned');
   const [rescheduleNotes, setRescheduleNotes] = useState('');
+  const [reassignProfessional, setReassignProfessional] = useState('unassigned');
   const [proposalLoadingId, setProposalLoadingId] = useState<string | null>(null);
   const [waitlistTargetType, setWaitlistTargetType] = useState<WaitlistTargetType>('lead');
   const [waitlistLeadId, setWaitlistLeadId] = useState('');
@@ -467,6 +468,14 @@ export default function AppointmentsPage() {
     setRescheduleNotes(appointment.notes || '');
     setExceptionModal({ mode, appointment });
   };
+
+  useEffect(() => {
+    if (!viewAppt) {
+      setReassignProfessional('unassigned');
+      return;
+    }
+    setReassignProfessional(viewAppt.professional_id || 'unassigned');
+  }, [viewAppt]);
 
   useEffect(() => {
     resetForm();
@@ -822,6 +831,43 @@ export default function AppointmentsPage() {
       toast({ title: 'Agenda atualizada' });
     },
     onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+  });
+
+  const reassignProfessionalMutation = useMutation({
+    mutationFn: async () => {
+      if (!clinicId || !viewAppt) return;
+      const nextProfessionalId = reassignProfessional === 'unassigned' ? null : reassignProfessional;
+      if ((viewAppt.professional_id || null) === nextProfessionalId) return;
+
+      const start = getAppointmentStartDate(viewAppt);
+      const end = getAppointmentEndDate(viewAppt);
+
+      if (nextProfessionalId && !hasAvailabilityWindow(nextProfessionalId, start, end)) {
+        throw new Error('O profissional selecionado não possui disponibilidade neste horário.');
+      }
+
+      await assertNoSchedulingConflicts({
+        professionalId: nextProfessionalId,
+        startTime: start,
+        endTime: end,
+        ignoreAppointmentId: viewAppt.id,
+      });
+
+      const { error } = await supabase
+        .from('appointments')
+        .update({ professional_id: nextProfessionalId })
+        .eq('id', viewAppt.id)
+        .eq('clinic_id', clinicId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      if (!viewAppt) return;
+      const nextProfessionalId = reassignProfessional === 'unassigned' ? null : reassignProfessional;
+      setViewAppt({ ...viewAppt, professional_id: nextProfessionalId });
+      qc.invalidateQueries({ queryKey: ['appointments'] });
+      toast({ title: 'Profissional reatribuído!' });
+    },
+    onError: (error) => toast({ title: 'Não foi possível reatribuir', description: error.message, variant: 'destructive' }),
   });
 
   const saveAvailabilityMutation = useMutation({
@@ -1866,6 +1912,38 @@ export default function AppointmentsPage() {
                   <div className="flex justify-between items-center"><span className="text-muted-foreground">Status:</span><BrandBadge status={statusConfig[viewAppt.status]?.badge || 'default'}>{statusConfig[viewAppt.status]?.label || viewAppt.status}</BrandBadge></div>
                   {viewAppt.notes && <div><span className="text-muted-foreground">Notas:</span><p className="mt-1">{viewAppt.notes}</p></div>}
                 </div>
+
+                {!isProfessional && (
+                  <div className="space-y-2 pt-3 border-t">
+                    <Label>Reatribuir profissional</Label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Select value={reassignProfessional} onValueChange={setReassignProfessional}>
+                        <SelectTrigger className="sm:flex-1">
+                          <SelectValue placeholder="Selecionar profissional" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unassigned">Sem profissional</SelectItem>
+                          {professionals.map((professional) => (
+                            <SelectItem key={professional.user_id} value={professional.user_id}>
+                              {professional.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <BrandButton
+                        type="button"
+                        variant="outline"
+                        disabled={reassignProfessionalMutation.isPending || ['completed', 'cancelled', 'no_show'].includes(viewAppt.status)}
+                        onClick={() => reassignProfessionalMutation.mutate()}
+                      >
+                        {reassignProfessionalMutation.isPending ? 'Salvando...' : 'Salvar responsável'}
+                      </BrandButton>
+                    </div>
+                    {['completed', 'cancelled', 'no_show'].includes(viewAppt.status) && (
+                      <p className="text-xs text-muted-foreground">Este status não permite reatribuição de profissional.</p>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-3 pt-4 border-t">
                   <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
