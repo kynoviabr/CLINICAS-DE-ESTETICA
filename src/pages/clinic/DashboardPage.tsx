@@ -26,8 +26,10 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { cn } from '@/lib/utils';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { Database } from '@/integrations/supabase/types';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 
 const CHART_COLORS = ['hsl(var(--primary))', 'hsl(var(--accent))', '#34d399', '#f59e0b', '#8b5cf6', '#ec4899'];
 type ContractStatusRow = Pick<Database['public']['Tables']['contracts']['Row'], 'process_status'>;
@@ -54,6 +56,7 @@ type RenewalTaskMetricRow = {
   discarded_reason: string | null;
   sla_red_at: string | null;
 };
+type ClinicSettingRow = { key: string; value: string };
 
 function npsScoreColor(nps: number): string {
   if (nps < 0) return 'text-destructive';
@@ -86,12 +89,37 @@ export default function ClinicDashboard() {
   const sixMonthsAgo = subMonths(today, 5);
   const months = eachMonthOfInterval({ start: startOfMonth(sixMonthsAgo), end: endOfMonth(today) });
   const currentMonth = format(today, 'yyyy-MM');
-  const prevMonth = format(subMonths(today, 1), 'yyyy-MM');
 
   const isAdmin = role === 'admin';
   const isSales = role === 'sales';
   const isStaff = ['admin', 'receptionist'].includes(role || '');
   const showCommercial = isAdmin || isSales;
+
+  const { data: dashboardAlertSettings } = useQuery({
+    queryKey: ['dashboard-alert-settings', clinicId],
+    queryFn: async () => {
+      const keys = [
+        'dashboard_alert_overdue_payments_threshold',
+        'dashboard_alert_anamnese_expiry_window_days',
+        'dashboard_alert_dissatisfaction_threshold',
+        'dashboard_alert_contract_review_window_days',
+      ];
+      const { data } = await supabase
+        .from('clinic_settings' as never)
+        .select('key, value')
+        .eq('clinic_id', clinicId!)
+        .in('key', keys);
+      const map = new Map<string, string>();
+      ((data ?? []) as unknown as ClinicSettingRow[]).forEach((item) => map.set(item.key, item.value));
+      return {
+        overduePaymentsThreshold: Number(map.get('dashboard_alert_overdue_payments_threshold') ?? 1),
+        anamneseExpiryWindowDays: Number(map.get('dashboard_alert_anamnese_expiry_window_days') ?? 7),
+        dissatisfactionThreshold: Number(map.get('dashboard_alert_dissatisfaction_threshold') ?? 1),
+        contractReviewWindowDays: Number(map.get('dashboard_alert_contract_review_window_days') ?? 7),
+      };
+    },
+    enabled: !!clinicId,
+  });
 
   // ── Common Stats ──
   const { data: patientCount = 0 } = useQuery({
@@ -198,7 +226,7 @@ export default function ClinicDashboard() {
       (anamneses || []).forEach((a: AnamneseRow) => { if (!latestMap[a.patient_id]) latestMap[a.patient_id] = a.uploaded_at; });
       let expired = 0, expiring = 0;
       const now = new Date();
-      const warningDate = addDays(now, 7);
+      const warningDate = addDays(now, dashboardAlertSettings?.anamneseExpiryWindowDays ?? 7);
       patientIds.forEach(pid => {
         const uploadedAt = latestMap[pid];
         if (!uploadedAt) { expired++; return; }
@@ -459,15 +487,108 @@ export default function ClinicDashboard() {
   }, [funnelData]);
 
   const tooltipStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' };
+  const [activeTab, setActiveTab] = useState<'executivo' | 'comercial' | 'financeiro' | 'operacao' | 'pessoas'>('executivo');
+
+  const executiveSemaphores = useMemo(() => {
+    const commercialRevenue = totalSalesMonth;
+    const overdueContracts = contractAlerts?.overdue || 0;
+    const overdueBills = overduePayments;
+    const expiredAnamneses = anamneseAlerts?.expired || 0;
+    const lowSatisfaction = growthMetrics?.dissatisfied || 0;
+    const overduePaymentsThreshold = dashboardAlertSettings?.overduePaymentsThreshold ?? 1;
+    const dissatisfactionThreshold = dashboardAlertSettings?.dissatisfactionThreshold ?? 1;
+
+    const commercialStatus: BadgeStatus = commercialRevenue > 0 ? 'confirmed' : approvedCount > 0 ? 'scheduled' : 'pending';
+    const financialStatus: BadgeStatus = overdueBills >= overduePaymentsThreshold ? 'overdue' : overdueContracts > 0 ? 'pending' : 'confirmed';
+    const operationStatus: BadgeStatus = expiredAnamneses > 0 ? 'pending' : (todaySessions.length > 0 ? 'confirmed' : 'scheduled');
+    const peopleStatus: BadgeStatus = lowSatisfaction >= dissatisfactionThreshold ? 'pending' : (avgRating ? 'confirmed' : 'scheduled');
+
+    return [
+      {
+        id: 'comercial' as const,
+        title: 'Comercial',
+        status: commercialStatus,
+        metric: `${approvedCount} propostas aprovadas`,
+        alert: commercialRevenue > 0 ? `${formatCurrency(commercialRevenue)} no mês` : 'Nenhuma venda concluída no mês',
+      },
+      {
+        id: 'financeiro' as const,
+        title: 'Financeiro',
+        status: financialStatus,
+        metric: `${overdueBills} parcelas vencidas`,
+        alert: overdueContracts > 0 ? `${overdueContracts} contratos com revisão pendente` : 'Sem alertas críticos',
+      },
+      {
+        id: 'operacao' as const,
+        title: 'Operação',
+        status: operationStatus,
+        metric: `${todaySessions.length} atendimentos hoje`,
+        alert: expiredAnamneses > 0 ? `${expiredAnamneses} anamneses vencidas` : 'Agenda sob controle',
+      },
+      {
+        id: 'pessoas' as const,
+        title: 'Pessoas',
+        status: peopleStatus,
+        metric: avgRating ? `Satisfação ${avgRating.avg}/5` : 'Sem avaliações recentes',
+        alert: lowSatisfaction >= dissatisfactionThreshold ? `${lowSatisfaction} pacientes com alerta de insatisfação` : 'Sem alertas de relacionamento',
+      },
+    ];
+  }, [
+    totalSalesMonth,
+    contractAlerts?.overdue,
+    overduePayments,
+    anamneseAlerts?.expired,
+    growthMetrics?.dissatisfied,
+    approvedCount,
+    todaySessions.length,
+    avgRating,
+    dashboardAlertSettings?.overduePaymentsThreshold,
+    dashboardAlertSettings?.dissatisfactionThreshold,
+  ]);
+
+  const showTab = (tab: typeof activeTab) => activeTab === 'executivo' || activeTab === tab;
 
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader title="Dashboard" description="Visão geral da sua clínica" />
 
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)} className="mb-4">
+        <TabsList className="grid grid-cols-2 lg:grid-cols-5 w-full h-auto gap-1 bg-muted/50 p-1">
+          <TabsTrigger value="executivo">Visão Executiva</TabsTrigger>
+          <TabsTrigger value="comercial">Comercial</TabsTrigger>
+          <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
+          <TabsTrigger value="operacao">Operação</TabsTrigger>
+          <TabsTrigger value="pessoas">Pessoas</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {activeTab === 'executivo' && (
+        <Card className="shadow-card mb-4 animate-fade-in">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Saúde Executiva</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2.5">
+            {executiveSemaphores.map((item) => (
+              <div key={item.id} className="rounded-lg border p-2.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">{item.title}</p>
+                  <BrandBadge status={item.status} />
+                </div>
+                <p className="text-sm text-foreground">{item.metric}</p>
+                <p className="text-xs text-muted-foreground">{item.alert}</p>
+                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setActiveTab(item.id)}>
+                  Abrir área <ArrowRight className="w-3 h-3 ml-1" />
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── SALES DASHBOARD (sales role) ── */}
-      {isSales && (
-        <div className="space-y-6 mb-6">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {isSales && showTab('comercial') && (
+        <div className="space-y-4 mb-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <BrandStat icon={Target} label="Minha Meta" value={myGoalAmount > 0 ? formatCurrency(myGoalAmount) : '—'} />
             <BrandStat icon={DollarSign} label="Meu Realizado" value={formatCurrency(totalSalesMonth)} />
             <Card className="shadow-card animate-fade-in">
@@ -526,8 +647,8 @@ export default function ClinicDashboard() {
       )}
 
       {/* ── STAFF STATS WITH MoM TRENDS ── */}
-      {!isSales && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {!isSales && (showTab('operacao') || showTab('pessoas')) && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
           <BrandStat icon={Users} label="Pacientes Ativos" value={patientCount}
             trend={growthMetrics ? { value: growthMetrics.newPatients.previous > 0 ? Math.round(((growthMetrics.newPatients.current - growthMetrics.newPatients.previous) / growthMetrics.newPatients.previous) * 100) : 0, label: 'vs mês anterior' } : undefined}
           />
@@ -542,8 +663,8 @@ export default function ClinicDashboard() {
       )}
 
       {/* ── ADMIN INSIGHTS ROW ── */}
-      {isAdmin && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+      {isAdmin && (showTab('financeiro') || showTab('comercial') || showTab('pessoas')) && (
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 mb-4">
           {/* Revenue MoM */}
           <Card className="shadow-card animate-fade-in">
             <CardContent className="p-4">
@@ -599,8 +720,8 @@ export default function ClinicDashboard() {
       )}
 
       {/* ── CONVERSION FUNNEL (admin) ── */}
-      {isAdmin && funnelData && funnelData.totalProposals > 0 && (
-        <Card className="shadow-card mb-6 animate-fade-in">
+      {isAdmin && showTab('comercial') && funnelData && funnelData.totalProposals > 0 && (
+        <Card className="shadow-card mb-4 animate-fade-in">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Repeat className="w-5 h-5 text-primary" /> Funil de Conversão (mês atual)
@@ -631,19 +752,19 @@ export default function ClinicDashboard() {
       )}
 
       {/* ── ADMIN COMMERCIAL SECTION ── */}
-      {isAdmin && salesData && (
-        <div className="space-y-6 mb-6">
+      {isAdmin && showTab('comercial') && salesData && (
+        <div className="space-y-4 mb-4">
           <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-primary" />Performance Comercial
           </h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <BrandStat icon={DollarSign} label="Vendas do Mês" value={formatCurrency(totalSalesMonth)} />
             <BrandStat icon={Target} label="Propostas Aprovadas" value={approvedCount} />
             <BrandStat icon={DollarSign} label="Ticket Médio" value={formatCurrency(ticketMedio)} />
             <BrandStat icon={Users} label="Pacientes Ativos" value={patientCount} />
           </div>
           {renewalMetrics && (
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
               <BrandStat icon={Repeat} label="Renovações Geradas" value={renewalMetrics.generated} />
               <BrandStat icon={ClipboardCheck} label="Renovações Convertidas" value={renewalMetrics.converted} />
               <BrandStat icon={Target} label="Taxa de Conversão" value={`${renewalMetrics.conversionRate}%`} />
@@ -677,8 +798,8 @@ export default function ClinicDashboard() {
       )}
 
       {/* ── Alerts ── */}
-      {!isSales && (
-        <div className="space-y-3 mb-6">
+      {!isSales && (showTab('financeiro') || showTab('operacao')) && (
+        <div className="space-y-2.5 mb-4">
           {contractAlerts && contractAlerts.pendingUpload > 0 && (
             <div
               className="p-4 rounded-xl bg-warning/10 border border-warning/20 flex items-center gap-3 animate-fade-in cursor-pointer"
@@ -752,10 +873,10 @@ export default function ClinicDashboard() {
       )}
 
       {/* ── Charts ── */}
-      {!isSales && (
+      {!isSales && (showTab('financeiro') || showTab('operacao') || showTab('pessoas')) && (
         <>
           {/* Composed: Revenue + Sessions */}
-          <div className="grid lg:grid-cols-2 gap-6 mb-6">
+          <div className="grid lg:grid-cols-2 gap-4 mb-4">
             <Card className="shadow-card animate-fade-in">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
@@ -804,7 +925,7 @@ export default function ClinicDashboard() {
             </Card>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-6 mb-6">
+          <div className="grid lg:grid-cols-2 gap-4 mb-4">
             {/* Occupancy by day of week */}
             <Card className="shadow-card animate-fade-in">
               <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><CalendarDays className="w-5 h-5 text-primary" />Ocupação por Dia da Semana</CardTitle></CardHeader>
@@ -855,7 +976,7 @@ export default function ClinicDashboard() {
       )}
 
       {/* Today's schedule */}
-      {!isSales && (
+      {!isSales && showTab('operacao') && (
         <Card className="shadow-card animate-fade-in">
           <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Clock className="w-5 h-5 text-primary" />Agenda de Hoje</CardTitle></CardHeader>
           <CardContent>

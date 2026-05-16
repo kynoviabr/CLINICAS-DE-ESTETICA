@@ -20,6 +20,7 @@ import SalesGoalsTab from '@/components/settings/SalesGoalsTab';
 import ProfessionalsTab from '@/components/settings/ProfessionalsTab';
 import RolesTab from '@/components/settings/RolesTab';
 import ClassEntitiesTab from '@/components/settings/ClassEntitiesTab';
+import DashboardAlertsTab from '@/components/settings/DashboardAlertsTab';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -196,6 +197,7 @@ export default function SettingsPage() {
           <TabsTrigger value="costs"><DollarSign className="w-4 h-4 mr-1" />Custos</TabsTrigger>
           <TabsTrigger value="parameters"><SlidersHorizontal className="w-4 h-4 mr-1" />Parâmetros</TabsTrigger>
           <TabsTrigger value="goals"><Target className="w-4 h-4 mr-1" />Metas</TabsTrigger>
+          <TabsTrigger value="dashboard-alerts"><AlertTriangle className="w-4 h-4 mr-1" />Alertas Dashboard</TabsTrigger>
           <TabsTrigger value="professionals"><UserCog className="w-4 h-4 mr-1" />Profissionais</TabsTrigger>
           <TabsTrigger value="roles"><Briefcase className="w-4 h-4 mr-1" />Cargos</TabsTrigger>
           <TabsTrigger value="entities"><Building2 className="w-4 h-4 mr-1" />Conselhos</TabsTrigger>
@@ -480,6 +482,10 @@ export default function SettingsPage() {
         {/* ===== SALES GOALS ===== */}
         <TabsContent value="goals">
           <SalesGoalsTab />
+        </TabsContent>
+
+        <TabsContent value="dashboard-alerts">
+          <DashboardAlertsTab />
         </TabsContent>
 
         <TabsContent value="professionals">
