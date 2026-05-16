@@ -150,7 +150,9 @@ test.describe('Fluxo E2E - Agenda', () => {
       await dateInput.fill(toDateInput(attemptStart));
       await timeInput.fill(toTimeInput(attemptStart));
       await durationInput.fill('60');
-      await submitButton.click();
+      await submitButton.scrollIntoViewIfNeeded();
+      await expect(submitButton).toBeEnabled();
+      await submitButton.click({ timeout: 5_000, force: true });
       await page.waitForTimeout(1200);
 
       if (!(await createDialog.isVisible())) {

@@ -68,6 +68,12 @@ type ContractRow = Pick<Database['public']['Tables']['contracts']['Row'], 'id' |
 type ProposalItemRow = Pick<Database['public']['Tables']['proposal_items']['Row'], 'proposal_id' | 'quantity' | 'treatment_id'> & {
   treatments?: { name?: string | null; num_sessions?: number | null } | null;
 };
+type RenewalTaskRow = {
+  id: string;
+  patient_id: string;
+  treatment_id: string;
+  status: 'pending' | 'contacted' | 'revaluation_scheduled' | 'snoozed' | 'converted' | 'discarded';
+};
 
 const emptyForm: SessionForm = {
   appointment_id: 'manual',
@@ -105,6 +111,7 @@ export default function SessionsPage() {
   const [plannerCount, setPlannerCount] = useState('1');
   const [plannerProfessional, setPlannerProfessional] = useState('unassigned');
   const [plannerNotes, setPlannerNotes] = useState('');
+  const [renewalOnly, setRenewalOnly] = useState(false);
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['sessions', clinicId],
@@ -229,6 +236,19 @@ export default function SessionsPage() {
     enabled: !!clinicId,
   });
 
+  const { data: renewalTasks = [] } = useQuery({
+    queryKey: ['sessions-renewal-tasks', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('v_renewal_tasks_active' as never)
+        .select('id, patient_id, treatment_id, status')
+        .eq('clinic_id', clinicId!);
+      if (error) throw error;
+      return ((data || []) as unknown) as RenewalTaskRow[];
+    },
+    enabled: !!clinicId,
+  });
+
   const sessionByAppointmentId = useMemo(() => {
     const map = new Map<string, SessionRecordRow>();
     sessions.forEach((session: SessionRecordRow) => {
@@ -318,6 +338,16 @@ export default function SessionsPage() {
       });
   }, [contracts, patients, proposalItems, sessions, treatments]);
 
+  const renewalTaskKeys = useMemo(() => {
+    const keys = new Set<string>();
+    renewalTasks.forEach((task) => {
+      const treatmentKey = task.treatment_id || 'none';
+      keys.add(`${task.patient_id}:${treatmentKey}`);
+      keys.add(`${task.patient_id}:none`);
+    });
+    return keys;
+  }, [renewalTasks]);
+
   const filteredSummaryRows = useMemo(() => {
     return summaryRows.filter((row) => {
       const normalizedSearch = search.trim().toLowerCase();
@@ -331,9 +361,14 @@ export default function SessionsPage() {
       if (balanceFilter === 'with_balance') return row.balance > 0;
       if (balanceFilter === 'completed') return row.contracted > 0 && row.balance === 0;
       if (balanceFilter === 'no_contract') return row.contracted === 0;
+      if (balanceFilter === 'renewal_window') return renewalTaskKeys.has(row.key);
       return true;
     });
-  }, [balanceFilter, search, summaryRows]);
+  }, [balanceFilter, search, summaryRows, renewalTaskKeys]);
+
+  useEffect(() => {
+    setRenewalOnly(balanceFilter === 'renewal_window');
+  }, [balanceFilter]);
 
   const selectedAppointment =
     form.appointment_id !== 'manual'
@@ -551,7 +586,7 @@ export default function SessionsPage() {
         </BrandButton>
       </PageHeader>
 
-      <div className="grid gap-3 md:grid-cols-4 mb-6">
+      <div className="grid gap-3 md:grid-cols-5 mb-6">
         <Card className="shadow-card animate-fade-in">
           <CardContent className="p-4">
             <CalendarCheck2 className="w-5 h-5 text-primary mb-2" />
@@ -582,6 +617,19 @@ export default function SessionsPage() {
             <p className="text-xs text-muted-foreground">Saldo pendente de execução</p>
           </CardContent>
         </Card>
+        <Card
+          className={cn(
+            'shadow-card animate-fade-in cursor-pointer',
+            renewalOnly ? 'border-primary bg-primary/5' : 'border-border/60'
+          )}
+          onClick={() => setBalanceFilter((current) => (current === 'renewal_window' ? 'all' : 'renewal_window'))}
+        >
+          <CardContent className="p-4">
+            <AlertTriangle className="w-5 h-5 text-warning mb-2" />
+            <p className="text-2xl font-bold text-foreground">{renewalTasks.length}</p>
+            <p className="text-xs text-muted-foreground">Renovação</p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="shadow-card mb-6 animate-fade-in">
@@ -609,6 +657,7 @@ export default function SessionsPage() {
                 <SelectItem value="with_balance">Com saldo pendente</SelectItem>
                 <SelectItem value="completed">Pacotes concluídos</SelectItem>
                 <SelectItem value="no_contract">Sem contrato associado</SelectItem>
+                <SelectItem value="renewal_window">Janela de renovação</SelectItem>
               </SelectContent>
             </Select>
           </div>
