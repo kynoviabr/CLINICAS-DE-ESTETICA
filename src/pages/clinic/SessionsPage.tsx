@@ -366,6 +366,25 @@ export default function SessionsPage() {
     });
   }, [balanceFilter, search, summaryRows, renewalTaskKeys]);
 
+  const contractedTreatmentsByPatient = useMemo(() => {
+    const map = new Map<string, Array<{ id: string; name: string }>>();
+    summaryRows.forEach((row) => {
+      if (!row.patientId || !row.treatmentId || row.contracted <= 0) return;
+      const current = map.get(row.patientId) || [];
+      if (!current.some((item) => item.id === row.treatmentId)) {
+        current.push({ id: row.treatmentId, name: row.treatmentName });
+      }
+      map.set(row.patientId, current);
+    });
+    map.forEach((items, patientId) => {
+      map.set(
+        patientId,
+        items.sort((a, b) => a.name.localeCompare(b.name))
+      );
+    });
+    return map;
+  }, [summaryRows]);
+
   useEffect(() => {
     setRenewalOnly(balanceFilter === 'renewal_window');
   }, [balanceFilter]);
@@ -394,6 +413,20 @@ export default function SessionsPage() {
   const selectedPatientId = selectedAppointment?.patient_id || form.patient_id;
   const selectedTreatmentId = selectedAppointment?.treatment_id || form.treatment_id || null;
   const selectedPatient = patients.find((patient: PatientRow) => patient.id === selectedPatientId);
+  const manualTreatmentOptions = useMemo(
+    () => (form.patient_id ? contractedTreatmentsByPatient.get(form.patient_id) || [] : []),
+    [contractedTreatmentsByPatient, form.patient_id]
+  );
+
+  useEffect(() => {
+    if (form.appointment_id !== 'manual') return;
+    if (!form.patient_id) return;
+    if (!form.treatment_id) return;
+    const allowed = (contractedTreatmentsByPatient.get(form.patient_id) || []).some((item) => item.id === form.treatment_id);
+    if (!allowed) {
+      setForm((current) => ({ ...current, treatment_id: '' }));
+    }
+  }, [contractedTreatmentsByPatient, form.appointment_id, form.patient_id, form.treatment_id]);
 
   const currentFlowSummary = useMemo(() => {
     if (!selectedPatientId) return null;
@@ -437,9 +470,13 @@ export default function SessionsPage() {
       const treatmentId = appointment?.treatment_id || form.treatment_id || null;
 
       if (!patientId) throw new Error('Selecione um paciente');
+      if (!treatmentId) throw new Error('Selecione um tratamento');
 
       const summaryKey = `${patientId}:${treatmentId || 'none'}`;
       const summary = summaryRows.find((row) => row.key === summaryKey);
+      if (!summary || summary.contracted <= 0) {
+        throw new Error('Este tratamento não está contratado para o paciente selecionado.');
+      }
       const nextSessionNumber = summary ? summary.performed + 1 : 1;
       const totalSessions = summary?.contracted || Math.max(summary?.performed || 0, nextSessionNumber);
 
@@ -838,7 +875,10 @@ export default function SessionsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label>Paciente *</Label>
-                  <Select value={form.patient_id} onValueChange={(value) => setForm((current) => ({ ...current, patient_id: value }))}>
+                  <Select
+                    value={form.patient_id}
+                    onValueChange={(value) => setForm((current) => ({ ...current, patient_id: value, treatment_id: '' }))}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecionar paciente" />
                     </SelectTrigger>
@@ -852,13 +892,17 @@ export default function SessionsPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Tratamento</Label>
-                  <Select value={form.treatment_id} onValueChange={(value) => setForm((current) => ({ ...current, treatment_id: value }))}>
+                  <Label>Tratamento *</Label>
+                  <Select
+                    value={form.treatment_id}
+                    onValueChange={(value) => setForm((current) => ({ ...current, treatment_id: value }))}
+                    disabled={!form.patient_id || manualTreatmentOptions.length === 0}
+                  >
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecionar tratamento" />
+                      <SelectValue placeholder={!form.patient_id ? 'Selecione um paciente' : manualTreatmentOptions.length === 0 ? 'Paciente sem tratamento contratado' : 'Selecionar tratamento'} />
                     </SelectTrigger>
                     <SelectContent>
-                      {treatments.map((treatment: TreatmentRow) => (
+                      {manualTreatmentOptions.map((treatment) => (
                         <SelectItem key={treatment.id} value={treatment.id}>
                           {treatment.name}
                         </SelectItem>

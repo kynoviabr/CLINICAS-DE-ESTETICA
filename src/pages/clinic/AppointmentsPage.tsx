@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { BrandButton } from '@/components/ui/brand-button';
 import { BrandBadge, type BadgeStatus } from '@/components/ui/brand-badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -75,6 +76,9 @@ type WaitlistNotificationRow = Database['public']['Tables']['waitlist_notificati
 type ReminderRow = Database['public']['Tables']['appointment_reminders']['Row'];
 type WhatsAppCommandLogRow = Database['public']['Tables']['whatsapp_command_logs']['Row'];
 type AgendaJobExecutionRow = Database['public']['Tables']['agenda_job_executions']['Row'];
+type ContractLite = Pick<Database['public']['Tables']['contracts']['Row'], 'id' | 'patient_id' | 'proposal_id' | 'status'>;
+type ProposalItemLite = Pick<Database['public']['Tables']['proposal_items']['Row'], 'proposal_id' | 'treatment_id'>;
+type SessionRecordLite = Pick<Database['public']['Tables']['session_records']['Row'], 'patient_id' | 'treatment_id'>;
 const weekDays = [
   { value: 0, label: 'Domingo' },
   { value: 1, label: 'Segunda-feira' },
@@ -155,6 +159,7 @@ export default function AppointmentsPage() {
   const [filterProfessional, setFilterProfessional] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [queueExpanded, setQueueExpanded] = useState(true);
+  const [createFormError, setCreateFormError] = useState('');
   const [duration, setDuration] = useState('60');
   const [notes, setNotes] = useState('');
   const [quickPatientOpen, setQuickPatientOpen] = useState(false);
@@ -265,6 +270,42 @@ export default function AppointmentsPage() {
     queryFn: async () => {
       const { data } = await supabase.from('treatments').select('id, name, duration_minutes').eq('clinic_id', clinicId!).eq('is_active', true).order('name');
       return data || [];
+    },
+    enabled: !!clinicId,
+  });
+  const { data: contracts = [] } = useQuery({
+    queryKey: ['appointments-contracts', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('id, patient_id, proposal_id, status')
+        .eq('clinic_id', clinicId!)
+        .neq('status', 'cancelled');
+      if (error) throw error;
+      return (data || []) as ContractLite[];
+    },
+    enabled: !!clinicId,
+  });
+  const { data: proposalItems = [] } = useQuery({
+    queryKey: ['appointments-proposal-items', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('proposal_items')
+        .select('proposal_id, treatment_id');
+      if (error) throw error;
+      return (data || []) as ProposalItemLite[];
+    },
+    enabled: !!clinicId,
+  });
+  const { data: sessionRecords = [] } = useQuery({
+    queryKey: ['appointments-session-records', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('session_records')
+        .select('patient_id, treatment_id')
+        .eq('clinic_id', clinicId!);
+      if (error) throw error;
+      return (data || []) as SessionRecordLite[];
     },
     enabled: !!clinicId,
   });
@@ -581,6 +622,75 @@ export default function AppointmentsPage() {
     return professionalColors[(index >= 0 ? index : 0) % professionalColors.length];
   };
 
+  const sessionTreatmentSummaryMap = useMemo(() => {
+    const contractedByKey = new Map<string, number>();
+    const performedByKey = new Map<string, number>();
+    const treatmentMap = new Map(
+      treatments.map((t) => [t.id, { id: t.id, name: t.name, duration: Number(t.duration_minutes || 60), sessionsPerContractItem: 1 }])
+    );
+    const proposalIdsByPatient = new Map<string, Set<string>>();
+    contracts.forEach((contract) => {
+      if (!contract.patient_id || !contract.proposal_id) return;
+      if (!proposalIdsByPatient.has(contract.patient_id)) {
+        proposalIdsByPatient.set(contract.patient_id, new Set<string>());
+      }
+      proposalIdsByPatient.get(contract.patient_id)!.add(contract.proposal_id);
+    });
+    const patientByProposal = new Map<string, string>();
+    proposalIdsByPatient.forEach((proposalIds, patientId) => {
+      proposalIds.forEach((proposalId) => patientByProposal.set(proposalId, patientId));
+    });
+    proposalItems.forEach((item) => {
+      if (!item.treatment_id || !item.proposal_id) return;
+      const patientId = patientByProposal.get(item.proposal_id);
+      if (!patientId) return;
+      const key = `${patientId}:${item.treatment_id}`;
+      contractedByKey.set(key, (contractedByKey.get(key) || 0) + 1);
+    });
+    sessionRecords.forEach((session) => {
+      if (!session.patient_id || !session.treatment_id) return;
+      const key = `${session.patient_id}:${session.treatment_id}`;
+      performedByKey.set(key, (performedByKey.get(key) || 0) + 1);
+    });
+    return { contractedByKey, performedByKey, treatmentMap };
+  }, [contracts, proposalItems, sessionRecords, treatments]);
+
+  const sessionTreatmentOptions = useMemo(() => {
+    if (appointmentType !== 'session' || !selectedPatient) return [] as Array<{ id: string; name: string; duration: number; contracted: number; performed: number; balance: number }>;
+    const { contractedByKey, performedByKey, treatmentMap } = sessionTreatmentSummaryMap;
+    const rows = new Map<string, { id: string; name: string; duration: number; contracted: number; performed: number; balance: number }>();
+    contractedByKey.forEach((contracted, key) => {
+      const [patientId, treatmentId] = key.split(':');
+      if (patientId !== selectedPatient) return;
+      const treatment = treatmentMap.get(treatmentId);
+      if (!treatment) return;
+      const performed = performedByKey.get(key) || 0;
+      rows.set(treatmentId, {
+        id: treatmentId,
+        name: treatment.name,
+        duration: treatment.duration,
+        contracted,
+        performed,
+        balance: Math.max(contracted - performed, 0),
+      });
+    });
+    return Array.from(rows.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [appointmentType, selectedPatient, sessionTreatmentSummaryMap]);
+
+  const selectedSessionTreatmentSummary = useMemo(() => {
+    if (appointmentType !== 'session' || !selectedTreatment) return null;
+    return sessionTreatmentOptions.find((item) => item.id === selectedTreatment) || null;
+  }, [appointmentType, selectedTreatment, sessionTreatmentOptions]);
+
+  const hasSessionBalance = selectedSessionTreatmentSummary ? selectedSessionTreatmentSummary.balance > 0 : false;
+
+  useEffect(() => {
+    if (appointmentType !== 'session') return;
+    if (!selectedTreatment) return;
+    const valid = sessionTreatmentOptions.some((item) => item.id === selectedTreatment);
+    if (!valid) setSelectedTreatment('');
+  }, [appointmentType, selectedTreatment, sessionTreatmentOptions]);
+
   const filteredAppointments = useMemo(() => {
     let filtered = appointments;
     if (filterProfessional === 'unassigned') {
@@ -655,6 +765,7 @@ export default function AppointmentsPage() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      setCreateFormError('');
       const startTime = new Date(`${selectedDate}T${selectedTime}:00`);
       const endTime = new Date(startTime.getTime() + parseInt(duration) * 60000);
       const profId = selectedProfessional || (isProfessional ? user?.id || null : null);
@@ -666,6 +777,17 @@ export default function AppointmentsPage() {
       }
       await assertNoSchedulingConflicts({ professionalId: profId, startTime, endTime });
       const lead = appointmentType === 'evaluation' ? getSelectedLeadData(selectedLead) : null;
+      if (appointmentType === 'session') {
+        if (!selectedTreatment) throw new Error('Selecione um tratamento.');
+        const isAllowed = sessionTreatmentOptions.some((item) => item.id === selectedTreatment);
+        if (!isAllowed) {
+          throw new Error('Selecione um tratamento contratado para o paciente.');
+        }
+        const chosen = sessionTreatmentOptions.find((item) => item.id === selectedTreatment);
+        if (!chosen || chosen.balance <= 0) {
+          throw new Error('Este tratamento já foi finalizado (saldo 0).');
+        }
+      }
       const payload: Record<string, unknown> = {
         clinic_id: clinicId!,
         patient_id: appointmentType === 'session' ? selectedPatient : null,
@@ -713,9 +835,21 @@ export default function AppointmentsPage() {
       setViewMode('day');
       setDialogOpen(false);
       resetForm();
+      setCreateFormError('');
       toast({ title: 'Agendamento criado!' });
     },
-    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => {
+      const msg = err.message || 'Erro ao criar agendamento.';
+      if (
+        msg.includes('Já existe outro agendamento para esse horário.') ||
+        msg.includes('Existe um bloqueio para esse horário.') ||
+        msg.includes('fora da disponibilidade semanal do profissional')
+      ) {
+        setCreateFormError(msg);
+        return;
+      }
+      toast({ title: 'Erro', description: msg, variant: 'destructive' });
+    },
   });
 
   const updateStatusMutation = useMutation({
@@ -1195,6 +1329,7 @@ export default function AppointmentsPage() {
     setSelectedProfessional('');
     setDuration('60');
     setNotes('');
+    setCreateFormError('');
   };
 
   const resetWaitlistForm = () => {
@@ -1801,6 +1936,12 @@ export default function AppointmentsPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Novo Agendamento</DialogTitle></DialogHeader>
           <form onSubmit={e => { e.preventDefault(); createMutation.mutate(); }} className="space-y-4 mt-4">
+            {createFormError && (
+              <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>{createFormError}</AlertDescription>
+              </Alert>
+            )}
             <div className="space-y-2">
               <Label>Tipo de agendamento</Label>
               <Select value={appointmentType} onValueChange={value => setAppointmentType(value as 'session' | 'evaluation')}>
@@ -1818,7 +1959,10 @@ export default function AppointmentsPage() {
                   <Label>Paciente *</Label>
                   <div className="flex gap-2">
                     <div className="flex-1">
-                      <Select value={selectedPatient} onValueChange={setSelectedPatient}>
+                      <Select value={selectedPatient} onValueChange={(value) => {
+                        setSelectedPatient(value);
+                        setSelectedTreatment('');
+                      }}>
                         <SelectTrigger><SelectValue placeholder="Selecionar paciente" /></SelectTrigger>
                         <SelectContent>{patients.map((p) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}</SelectContent>
                       </Select>
@@ -1862,18 +2006,49 @@ export default function AppointmentsPage() {
 
             <div className="space-y-2">
               <Label>{appointmentType === 'evaluation' ? 'Tratamento de interesse' : 'Tratamento'}</Label>
-              <Select value={selectedTreatment} onValueChange={v => {
+                <Select value={selectedTreatment} onValueChange={v => {
                 setSelectedTreatment(v);
-                const t = treatments.find((tr) => tr.id === v);
-                if (t) setDuration(String(t.duration_minutes));
-              }}>
-                <SelectTrigger><SelectValue placeholder="Selecionar tratamento" /></SelectTrigger>
-                <SelectContent>{treatments.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                const source = appointmentType === 'session' ? sessionTreatmentOptions : treatments.map((t) => ({ id: t.id, name: t.name, duration: Number(t.duration_minutes || 60) }));
+                const t = source.find((tr) => tr.id === v);
+                if (t) setDuration(String(t.duration));
+              }} disabled={appointmentType === 'session' && (!selectedPatient || sessionTreatmentOptions.length === 0)}>
+                <SelectTrigger><SelectValue placeholder={appointmentType === 'session' && !selectedPatient ? 'Selecione um paciente' : appointmentType === 'session' && sessionTreatmentOptions.length === 0 ? 'Paciente sem tratamento contratado' : 'Selecionar tratamento'} /></SelectTrigger>
+                <SelectContent>
+                  {(appointmentType === 'session' ? sessionTreatmentOptions : treatments.map((t) => ({ id: t.id, name: t.name, duration_minutes: t.duration_minutes }))).map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
+              {appointmentType === 'session' && selectedSessionTreatmentSummary && (
+                <div className="rounded-xl border bg-secondary/30 p-4 mt-2">
+                  <p className="text-sm font-medium text-foreground mb-2">Resumo operacional do tratamento</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Contratadas</p>
+                      <p className="text-lg font-semibold">{selectedSessionTreatmentSummary.contracted}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Realizadas</p>
+                      <p className="text-lg font-semibold">{selectedSessionTreatmentSummary.performed}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Saldo</p>
+                      <p className={`text-lg font-semibold ${selectedSessionTreatmentSummary.balance > 0 ? 'text-warning' : 'text-success'}`}>
+                        {selectedSessionTreatmentSummary.balance}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {appointmentType === 'session' && selectedTreatment && selectedSessionTreatmentSummary?.balance === 0 && (
+                <p className="text-xs text-destructive mt-1">
+                  Este tratamento está finalizado (saldo 0). Escolha outro tratamento com saldo para agendar.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label>Profissional da avaliação</Label>
+              <Label>Profissional</Label>
               <Select value={selectedProfessional} onValueChange={setSelectedProfessional}>
                 <SelectTrigger><SelectValue placeholder="Selecionar profissional" /></SelectTrigger>
                 <SelectContent>
@@ -1908,7 +2083,7 @@ export default function AppointmentsPage() {
               <BrandButton
                 type="submit"
                 className="flex-1"
-                disabled={createMutation.isPending || (appointmentType === 'session' ? !selectedPatient : !selectedLead) || !selectedProfessional}
+                disabled={createMutation.isPending || (appointmentType === 'session' ? (!selectedPatient || !selectedTreatment || !hasSessionBalance) : !selectedLead) || !selectedProfessional}
               >
                 {createMutation.isPending ? 'Criando...' : appointmentType === 'evaluation' ? 'Agendar avaliação' : 'Agendar'}
               </BrandButton>

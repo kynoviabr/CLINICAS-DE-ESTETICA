@@ -19,6 +19,17 @@ import { generateContractPDF } from '@/lib/contractPDF';
 import { Card, CardContent } from '@/components/ui/card';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { Database } from '@/integrations/supabase/types';
+import PayerSection, { type PayerData } from '@/components/patient/PayerSection';
+import {
+  ContractPaymentConfigurator,
+  cardBrandOptions,
+  paymentConditionLabels,
+  paymentMethodOptions,
+  type CardBrand,
+  type PaymentCondition,
+  type PaymentConfig,
+  type PaymentMethod,
+} from '@/components/contracts/ContractPaymentConfigurator';
 
 type ContractRow = Database['public']['Tables']['contracts']['Row'];
 type ContractStatus = Database['public']['Enums']['contract_status'];
@@ -45,6 +56,11 @@ type ApprovedProposal = {
   } | null;
 };
 type ProposalItemLite = { quantity: number; treatments?: { name?: string | null; num_sessions?: number | null } | null };
+type ProposalItemFilterRow = {
+  proposal_id: string | null;
+  treatment_id: string | null;
+  treatments?: { name?: string | null } | null;
+};
 
 export default function ContractsPage() {
   const { clinicId, clinicName } = useBranding();
@@ -67,6 +83,11 @@ export default function ContractsPage() {
   const [viewContract, setViewContract] = useState<ContractWithRelations | null>(null);
   const [createDialog, setCreateDialog] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState('');
+  const [payerData, setPayerData] = useState<PayerData>({ is_self_payer: true, payer_id: null });
+  const [paymentCondition, setPaymentCondition] = useState<PaymentCondition>('cash');
+  const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [paymentDetails, setPaymentDetails] = useState<Partial<Record<PaymentMethod, string>>>({});
+  const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>({});
   const [selectedContractIds, setSelectedContractIds] = useState<string[]>([]);
   const [bulkStatus, setBulkStatus] = useState('pending_confirmation');
   const [quickFilter, setQuickFilter] = useState<'all' | 'mine_today' | 'pending_signature' | 'overdue'>(() =>
@@ -97,15 +118,15 @@ export default function ContractsPage() {
     enabled: !!clinicId,
   });
 
-  const { data: contractItems = [] } = useQuery({
-    queryKey: ['contract-items-filter-map', clinicId],
+  const { data: proposalItemsFilterMap = [] } = useQuery({
+    queryKey: ['proposal-items-filter-map', clinicId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('contract_items' as unknown)
-        .select('contract_id, treatment_id, treatments(name), contracts!inner(clinic_id)')
-        .eq('contracts.clinic_id', clinicId!);
+        .from('proposal_items')
+        .select('proposal_id, treatment_id, treatments(name), proposals!inner(clinic_id)')
+        .eq('proposals.clinic_id', clinicId!);
       if (error) throw error;
-      return (data as unknown[]) || [];
+      return ((data || []) as ProposalItemFilterRow[]);
     },
     enabled: !!clinicId,
   });
@@ -136,6 +157,24 @@ export default function ContractsPage() {
     enabled: !!clinicId && createDialog,
   });
 
+  const selectedProposalData = approvedProposals.find((proposal) => proposal.id === selectedProposal) || null;
+  const linkedPayerId = selectedProposalData?.patients?.payer_id || null;
+  const { data: linkedPayerOption } = useQuery({
+    queryKey: ['contract-linked-payer', clinicId, linkedPayerId],
+    queryFn: async () => {
+      if (!linkedPayerId) return null;
+      const { data, error } = await supabase
+        .from('payers' as unknown)
+        .select('id, name, cpf')
+        .eq('clinic_id', clinicId!)
+        .eq('id', linkedPayerId)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as { id: string; name: string; cpf?: string | null } | null) || null;
+    },
+    enabled: !!clinicId && !!linkedPayerId && createDialog,
+  });
+
   const summary = useMemo(() => {
     return {
       generated: contracts.filter((contract) => contract.process_status === 'pending_upload').length,
@@ -150,10 +189,10 @@ export default function ContractsPage() {
     const normalizeDigits = (value?: string | null) => (value || '').replace(/\D/g, '');
     const normalizedSearch = search.trim().toLowerCase();
     const normalizedSearchDigits = normalizeDigits(search);
-    const treatmentByContract = contractItems.reduce<Record<string, Set<string>>>((acc, item: unknown) => {
-      if (!item?.contract_id || !item?.treatment_id) return acc;
-      if (!acc[item.contract_id]) acc[item.contract_id] = new Set<string>();
-      acc[item.contract_id].add(item.treatment_id);
+    const treatmentByProposal = proposalItemsFilterMap.reduce<Record<string, Set<string>>>((acc, item) => {
+      if (!item.proposal_id || !item.treatment_id) return acc;
+      if (!acc[item.proposal_id]) acc[item.proposal_id] = new Set<string>();
+      acc[item.proposal_id].add(item.treatment_id);
       return acc;
     }, {});
 
@@ -173,7 +212,8 @@ export default function ContractsPage() {
       if (dateStart && contract.created_at < `${dateStart}T00:00:00`) return false;
       if (dateEnd && contract.created_at > `${dateEnd}T23:59:59`) return false;
       if (treatmentFilter !== 'all') {
-        const treatmentSet = treatmentByContract[contract.id];
+        if (!contract.proposal_id) return false;
+        const treatmentSet = treatmentByProposal[contract.proposal_id];
         if (!treatmentSet || !treatmentSet.has(treatmentFilter)) return false;
       }
 
@@ -185,10 +225,10 @@ export default function ContractsPage() {
       }
       return true;
     });
-  }, [contracts, quickFilter, user?.id, search, dateStart, dateEnd, treatmentFilter, contractItems]);
+  }, [contracts, quickFilter, user?.id, search, dateStart, dateEnd, treatmentFilter, proposalItemsFilterMap]);
 
-  const treatmentOptions = contractItems.reduce<Array<{ id: string; name: string }>>((acc, item: unknown) => {
-    if (!item?.treatment_id || !item?.treatments?.name) return acc;
+  const treatmentOptions = proposalItemsFilterMap.reduce<Array<{ id: string; name: string }>>((acc, item) => {
+    if (!item.treatment_id || !item.treatments?.name) return acc;
     if (acc.some((row) => row.id === item.treatment_id)) return acc;
     acc.push({ id: item.treatment_id, name: item.treatments.name });
     return acc;
@@ -198,8 +238,76 @@ export default function ContractsPage() {
     mutationFn: async () => {
       const proposal = approvedProposals.find((item) => item.id === selectedProposal);
       if (!proposal) throw new Error('Selecione uma proposta');
+      if (selectedPaymentMethods.length === 0) throw new Error('Selecione ao menos uma forma de pagamento.');
+      const proposalAmount = Number(proposal.final_amount || 0);
+
+      const amounts = selectedPaymentMethods.map((method) => Number(paymentConfig[method]?.amount || 0));
+      const hasInvalidAmount = amounts.some((value) => !Number.isFinite(value) || value <= 0);
+      if (hasInvalidAmount) throw new Error('Informe um valor válido para cada forma selecionada.');
+
+      const requiresInstallments = selectedPaymentMethods.filter((method) => method === 'card' || method === 'boleto');
+      const hasInvalidInstallments = requiresInstallments.some((method) => Number(paymentConfig[method]?.installments || 0) <= 0);
+      if (hasInvalidInstallments) throw new Error('Cartão e boleto exigem quantidade de parcelas maior que zero.');
+      const hasInvalidInstallmentAmount = requiresInstallments.some((method) => Number(paymentConfig[method]?.installmentAmount || 0) <= 0);
+      if (hasInvalidInstallmentAmount) throw new Error('Cartão e boleto exigem valor da parcela maior que zero.');
+      if (selectedPaymentMethods.includes('card')) {
+        const brand = paymentConfig.card?.brand;
+        const last4 = (paymentConfig.card?.last4 || '').replace(/\D/g, '');
+        if (!brand) throw new Error('Selecione a bandeira do cartão.');
+        if (last4.length !== 4) throw new Error('Informe os 4 últimos dígitos do cartão.');
+      }
+
+      const totalInformed = amounts.reduce((sum, value) => sum + value, 0);
+      if (totalInformed + 0.0001 < proposalAmount) {
+        throw new Error(
+          `A soma das formas de pagamento (R$ ${totalInformed.toFixed(2)}) deve ser igual ou maior ao valor da proposta (R$ ${proposalAmount.toFixed(2)}).`
+        );
+      }
+
+      const paymentTermsDescription = selectedPaymentMethods
+        .map((method) => {
+          const label = paymentMethodOptions.find((item) => item.value === method)?.label || method;
+          const amount = Number(paymentConfig[method]?.amount || 0);
+          const installments = Number(paymentConfig[method]?.installments || 0);
+          const installmentAmount = Number(paymentConfig[method]?.installmentAmount || 0);
+          const details = paymentDetails[method]?.trim();
+          if (method === 'card' || method === 'boleto') {
+            const brandLabel = method === 'card'
+              ? cardBrandOptions.find((option) => option.value === paymentConfig.card?.brand)?.label
+              : '';
+            const last4 = method === 'card' ? (paymentConfig.card?.last4 || '').replace(/\D/g, '') : '';
+            const trace = method === 'card' ? ` · ${brandLabel || 'Bandeira'} · finais ${last4}` : '';
+            const base = `${label}: valor R$ ${amount.toFixed(2)} | ${installments}x de R$ ${installmentAmount.toFixed(2)}${trace}`;
+            return details ? `${base} (${details})` : base;
+          }
+          const base = `${label}: R$ ${amount.toFixed(2)}`;
+          return details ? `${base} (${details})` : base;
+        })
+        .join(' | ');
+      const paymentTermsText = `Condição: ${paymentConditionLabels[paymentCondition]}. Formas: ${paymentTermsDescription}.`;
 
       const patient = proposal.patients;
+      let resolvedPayerId: string | null = null;
+      if (!payerData.is_self_payer) {
+        if (payerData.payer_id) {
+          resolvedPayerId = payerData.payer_id;
+        } else if (payerData.new_payer) {
+          if (!payerData.new_payer.name.trim()) throw new Error('Nome do pagador é obrigatório.');
+          if (!payerData.new_payer.cpf.trim()) throw new Error('CPF do pagador é obrigatório.');
+          const { data: newPayer, error: payerError } = await supabase
+            .from('payers' as unknown)
+            .insert({
+              clinic_id: clinicId!,
+              name: payerData.new_payer.name.trim(),
+              cpf: payerData.new_payer.cpf.trim(),
+              birth_date: payerData.new_payer.birth_date || null,
+            })
+            .select('id')
+            .single();
+          if (payerError) throw payerError;
+          resolvedPayerId = (newPayer as { id: string }).id;
+        }
+      }
       const { data: items, error: itemsError } = await supabase
         .from('proposal_items')
         .select('quantity, treatments(name, num_sessions)')
@@ -218,11 +326,12 @@ export default function ContractsPage() {
       let payerName: string | null = null;
       let payerCpf: string | null = null;
       let payerBirthDate: string | null = null;
-      if (!patient?.is_self_payer && patient?.payer_id) {
+      const payerIdForContract = payerData.is_self_payer ? null : (resolvedPayerId || patient?.payer_id || null);
+      if (!payerData.is_self_payer && payerIdForContract) {
         const { data: payer, error: payerError } = await supabase
           .from('payers')
           .select('name, cpf, birth_date')
-          .eq('id', patient.payer_id)
+          .eq('id', payerIdForContract)
           .maybeSingle();
         if (payerError) throw payerError;
         if (payer) {
@@ -264,13 +373,13 @@ export default function ContractsPage() {
         payerName,
         payerCpf,
         payerBirthDate,
-        isSelfPayer: patient?.is_self_payer ?? true,
+        isSelfPayer: payerData.is_self_payer,
         treatmentName: treatmentNames || 'Tratamento estético',
         sessions: totalSessions,
         proposalNumber: proposal.proposal_number,
         anamnesisId: anamnesis?.id ? anamnesis.id.substring(0, 8).toUpperCase() : null,
         totalValue: Number(proposal.final_amount),
-        paymentTerms: 'Conforme condições acordadas entre as partes.',
+        paymentTerms: paymentTermsText,
         contractNumber,
         date: now.toISOString(),
       };
@@ -291,22 +400,39 @@ export default function ContractsPage() {
         clinic_id: clinicId!,
         patient_id: proposal.patient_id,
         proposal_id: proposal.id,
-        payer_id: patient?.payer_id || null,
+        payer_id: payerIdForContract,
         contract_number: contractNumber,
         status: 'draft',
         process_status: 'pending_upload',
         template_html: templateHtml,
         signed_pdf_url: urlData.publicUrl,
+        notes: paymentTermsText,
         created_by: user?.id || null,
         start_date: format(now, 'yyyy-MM-dd'),
       });
 
       if (error) throw error;
+
+      const { error: patientUpdateError } = await supabase
+        .from('patients')
+        .update({
+          is_self_payer: payerData.is_self_payer,
+          payer_id: payerIdForContract,
+        })
+        .eq('id', proposal.patient_id)
+        .eq('clinic_id', clinicId!);
+      if (patientUpdateError) throw patientUpdateError;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['contracts'] });
+      qc.invalidateQueries({ queryKey: ['patients'] });
       setCreateDialog(false);
       setSelectedProposal('');
+      setPaymentCondition('cash');
+      setSelectedPaymentMethods([]);
+      setPaymentDetails({});
+      setPaymentConfig({});
+      setPayerData({ is_self_payer: true, payer_id: null });
       toast({ title: 'Contrato gerado!' });
     },
     onError: (err: Error) => {
@@ -346,6 +472,65 @@ export default function ContractsPage() {
     nextParams.delete('view');
     setSearchParams(nextParams, { replace: true });
   }, [shouldOpenViewFromQuery, prefillContractId, contracts, viewContract, searchParams, setSearchParams]);
+
+  const togglePaymentMethod = (method: PaymentMethod, checked: boolean) => {
+    if (checked) {
+      if (selectedPaymentMethods.includes(method)) return;
+      if (selectedPaymentMethods.length >= 2) {
+        toast({
+          title: 'Limite de formas de pagamento',
+          description: 'Você pode selecionar no máximo 2 formas de pagamento.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setSelectedPaymentMethods((current) => [...current, method]);
+      return;
+    }
+
+      setSelectedPaymentMethods((current) => current.filter((item) => item !== method));
+      setPaymentDetails((current) => {
+        const next = { ...current };
+        delete next[method];
+        return next;
+      });
+      setPaymentConfig((current) => {
+        const next = { ...current };
+        delete next[method];
+        return next;
+      });
+    };
+
+  const selectedProposalAmount = Number(selectedProposalData?.final_amount || 0);
+  const selectedAmountSum = selectedPaymentMethods.reduce(
+    (sum, method) => sum + Number(paymentConfig[method]?.amount || 0),
+    0
+  );
+  const canGenerateContract =
+    !!selectedProposal &&
+    !createMutation.isPending &&
+    selectedPaymentMethods.length > 0 &&
+    selectedPaymentMethods.every((method) => Number(paymentConfig[method]?.amount || 0) > 0) &&
+    selectedPaymentMethods
+      .filter((method) => method === 'card' || method === 'boleto')
+      .every((method) => Number(paymentConfig[method]?.installments || 0) > 0 && Number(paymentConfig[method]?.installmentAmount || 0) > 0) &&
+    (!selectedPaymentMethods.includes('card') ||
+      (!!paymentConfig.card?.brand && (paymentConfig.card?.last4 || '').replace(/\D/g, '').length === 4)) &&
+    selectedAmountSum + 0.0001 >= selectedProposalAmount;
+
+  useEffect(() => {
+    if (!selectedProposalData) {
+      setPayerData({ is_self_payer: true, payer_id: null });
+      return;
+    }
+    setPayerData({
+      is_self_payer: selectedProposalData.patients?.is_self_payer ?? true,
+      payer_id: selectedProposalData.patients?.payer_id || null,
+      new_payer: selectedProposalData.patients?.is_self_payer
+        ? undefined
+        : { name: '', cpf: '', birth_date: '' },
+    });
+  }, [selectedProposalData?.id]);
 
   return (
     <div>
@@ -571,34 +756,89 @@ export default function ContractsPage() {
         </div>
       )}
 
-      <Dialog open={createDialog} onOpenChange={setCreateDialog}>
-        <DialogContent className="max-w-md">
+      <Dialog
+        open={createDialog}
+        onOpenChange={(open) => {
+          setCreateDialog(open);
+          if (!open) {
+            setSelectedProposal('');
+            setPaymentCondition('cash');
+            setSelectedPaymentMethods([]);
+            setPaymentDetails({});
+            setPaymentConfig({});
+            setPayerData({ is_self_payer: true, payer_id: null });
+          }
+        }}
+      >
+        <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Gerar contrato</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-4">
-            <p className="text-sm text-muted-foreground">Selecione uma proposta aprovada para gerar a minuta:</p>
-            {approvedProposals.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma proposta aprovada disponível</p>
-            ) : (
-              <Select value={selectedProposal} onValueChange={setSelectedProposal}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecionar proposta" />
-                </SelectTrigger>
-                <SelectContent>
-                  {approvedProposals.map((proposal) => (
-                    <SelectItem key={proposal.id} value={proposal.id}>
-                      {proposal.proposal_number} - {proposal.patients?.full_name} (R$ {Number(proposal.final_amount).toFixed(2)})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Selecione uma proposta aprovada para gerar a minuta:</p>
+              {approvedProposals.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma proposta aprovada disponível</p>
+              ) : (
+                <Select value={selectedProposal} onValueChange={setSelectedProposal}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar proposta" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {approvedProposals.map((proposal) => (
+                      <SelectItem key={proposal.id} value={proposal.id}>
+                        {proposal.proposal_number} - {proposal.patients?.full_name} (R$ {Number(proposal.final_amount).toFixed(2)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+              <ContractPaymentConfigurator
+                paymentCondition={paymentCondition}
+                setPaymentCondition={setPaymentCondition}
+                selectedPaymentMethods={selectedPaymentMethods}
+                togglePaymentMethod={togglePaymentMethod}
+                paymentConfig={paymentConfig}
+                setPaymentConfig={(updater) => setPaymentConfig((current) => updater(current))}
+                paymentDetails={paymentDetails}
+                setPaymentDetails={(updater) => setPaymentDetails((current) => updater(current))}
+              />
+
+              <div className="space-y-4 rounded-lg border p-4 bg-card">
+                {selectedProposalData && (
+                  <PayerSection
+                    value={payerData}
+                    onChange={setPayerData}
+                    patientName={selectedProposalData.patients?.full_name || undefined}
+                    payerOptionsOverride={linkedPayerOption ? [linkedPayerOption] : []}
+                  />
+                )}
+                {selectedProposal && (
+                  <div className="rounded-md border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
+                    Valor da proposta: <span className="font-semibold text-foreground">R$ {selectedProposalAmount.toFixed(2)}</span> ·
+                    Soma informada: <span className="font-semibold text-foreground">R$ {selectedAmountSum.toFixed(2)}</span>
+                    {selectedAmountSum + 0.0001 < selectedProposalAmount && (
+                      <span className="block text-destructive mt-1">
+                        A soma deve ser igual ou maior ao valor da proposta para liberar o contrato.
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="flex gap-3">
               <BrandButton variant="outline" onClick={() => setCreateDialog(false)} className="flex-1">
                 Cancelar
               </BrandButton>
-              <BrandButton onClick={() => createMutation.mutate()} className="flex-1" disabled={!selectedProposal || createMutation.isPending}>
+              <BrandButton
+                onClick={() => createMutation.mutate()}
+                className="flex-1"
+                disabled={!canGenerateContract}
+              >
                 {createMutation.isPending ? 'Gerando...' : 'Gerar'}
               </BrandButton>
             </div>

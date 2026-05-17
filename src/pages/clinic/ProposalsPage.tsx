@@ -19,6 +19,16 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { Database } from '@/integrations/supabase/types';
+import {
+  ContractPaymentConfigurator,
+  cardBrandOptions,
+  paymentConditionLabels,
+  paymentMethodOptions,
+  type CardBrand,
+  type PaymentCondition,
+  type PaymentConfig,
+  type PaymentMethod,
+} from '@/components/contracts/ContractPaymentConfigurator';
 
 const statusMap: Record<string, { label: string; badge: BadgeStatus }> = {
   draft: { label: 'Rascunho', badge: 'draft' },
@@ -48,6 +58,88 @@ type ProposalWithPatient = ProposalRow & { patients?: { full_name?: string | nul
 type ProposalItemWithTreatment = ProposalItemRow & { treatments?: { name?: string | null } | null };
 type ComboItem = { treatment_id: string | null; quantity: number | null; treatments?: { id?: string | null; name?: string | null; price?: number | null } | null };
 type ComboLite = { id: string; name: string; promotional_price: number | null; treatment_combo_items?: ComboItem[] | null };
+type PaymentPresetSnapshot = {
+  condition: PaymentCondition;
+  methods: PaymentMethod[];
+  config: PaymentConfig;
+  details: Partial<Record<PaymentMethod, string>>;
+};
+
+const PAYMENT_PRESET_MARKER = '[PAGAMENTO_PRESET]';
+
+const sanitizePaymentSnapshot = (snapshot?: PaymentPresetSnapshot | null): PaymentPresetSnapshot | null => {
+  if (!snapshot) return null;
+  const methods = (snapshot.methods || []).filter((method): method is PaymentMethod =>
+    paymentMethodOptions.some((option) => option.value === method)
+  ).slice(0, 2);
+  if (methods.length === 0) return null;
+  const condition: PaymentCondition = snapshot.condition === 'installments' ? 'installments' : 'cash';
+  const details: Partial<Record<PaymentMethod, string>> = {};
+  const config: PaymentConfig = {};
+
+  methods.forEach((method) => {
+    details[method] = snapshot.details?.[method] || '';
+    config[method] = {
+      amount: snapshot.config?.[method]?.amount || '',
+      installments: snapshot.config?.[method]?.installments || '',
+      installmentAmount: snapshot.config?.[method]?.installmentAmount || '',
+      brand: method === 'card' ? snapshot.config?.card?.brand : undefined,
+      last4: method === 'card' ? snapshot.config?.card?.last4 : undefined,
+    };
+  });
+
+  return { condition, methods, details, config };
+};
+
+const parseProposalNotesPayload = (rawNotes?: string | null): { plainNotes: string; paymentPreset: PaymentPresetSnapshot | null } => {
+  const noteText = rawNotes || '';
+  const regex = new RegExp(`\\n?${PAYMENT_PRESET_MARKER}([A-Za-z0-9+/=]+)\\s*$`);
+  const match = noteText.match(regex);
+  if (!match) return { plainNotes: noteText, paymentPreset: null };
+
+  let paymentPreset: PaymentPresetSnapshot | null = null;
+  try {
+    const decoded = decodeURIComponent(escape(atob(match[1])));
+    paymentPreset = sanitizePaymentSnapshot(JSON.parse(decoded) as PaymentPresetSnapshot);
+  } catch {
+    paymentPreset = null;
+  }
+
+  const plainNotes = noteText.replace(regex, '').trim();
+  return { plainNotes, paymentPreset };
+};
+
+const composeProposalNotesPayload = (plainNotes: string, paymentPreset?: PaymentPresetSnapshot | null) => {
+  const cleanNotes = plainNotes.trim();
+  const sanitizedPreset = sanitizePaymentSnapshot(paymentPreset);
+  if (!sanitizedPreset) return cleanNotes || null;
+
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(sanitizedPreset))));
+  const markerLine = `${PAYMENT_PRESET_MARKER}${encoded}`;
+  return cleanNotes ? `${cleanNotes}\n\n${markerLine}` : markerLine;
+};
+
+const buildPaymentPresetSummary = (preset?: PaymentPresetSnapshot | null) => {
+  if (!preset || preset.methods.length === 0) return '';
+  const methodsText = preset.methods
+    .map((method) => {
+      const option = paymentMethodOptions.find((item) => item.value === method)?.label || method;
+      const amount = Number(preset.config?.[method]?.amount || 0);
+      const installments = Number(preset.config?.[method]?.installments || 0);
+      const installmentAmount = Number(preset.config?.[method]?.installmentAmount || 0);
+      if (method === 'card') {
+        const brand = cardBrandOptions.find((item) => item.value === preset.config.card?.brand)?.label;
+        const last4 = (preset.config.card?.last4 || '').replace(/\D/g, '');
+        return `${option}: R$ ${amount.toFixed(2)} · ${installments || 1}x de R$ ${(installmentAmount || amount).toFixed(2)}${brand ? ` · ${brand}` : ''}${last4 ? ` · finais ${last4}` : ''}`;
+      }
+      if (method === 'boleto') {
+        return `${option}: R$ ${amount.toFixed(2)} · ${installments || 1}x de R$ ${(installmentAmount || amount).toFixed(2)}`;
+      }
+      return `${option}: R$ ${amount.toFixed(2)}`;
+    })
+    .join(' | ');
+  return `Condição: ${paymentConditionLabels[preset.condition]} | ${methodsText}`;
+};
 
 export default function ProposalsPage() {
   const { clinicId, clinicName } = useBranding();
@@ -71,6 +163,17 @@ export default function ProposalsPage() {
   const [items, setItems] = useState<ProposalItem[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [itemTab, setItemTab] = useState('treatment');
+  const [contractDialogOpen, setContractDialogOpen] = useState(false);
+  const [proposalToContract, setProposalToContract] = useState<ProposalWithPatient | null>(null);
+  const [paymentCondition, setPaymentCondition] = useState<PaymentCondition>('cash');
+  const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [paymentDetails, setPaymentDetails] = useState<Partial<Record<PaymentMethod, string>>>({});
+  const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>({});
+  const [proposalPaymentEnabled, setProposalPaymentEnabled] = useState(false);
+  const [proposalPaymentCondition, setProposalPaymentCondition] = useState<PaymentCondition>('cash');
+  const [proposalSelectedPaymentMethods, setProposalSelectedPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [proposalPaymentDetails, setProposalPaymentDetails] = useState<Partial<Record<PaymentMethod, string>>>({});
+  const [proposalPaymentConfig, setProposalPaymentConfig] = useState<PaymentConfig>({});
   const prefillPatientId = searchParams.get('patientId');
   const prefillLeadId = searchParams.get('leadId');
   const shouldOpenNewFromQuery = searchParams.get('openNew') === '1';
@@ -191,16 +294,83 @@ export default function ProposalsPage() {
     return `PROP-${yymm}-${seq}`;
   };
 
+  const validatePaymentPreset = (targetTotal: number) => {
+    if (!proposalPaymentEnabled) return { ok: true as const };
+    if (proposalSelectedPaymentMethods.length === 0) {
+      return { ok: false as const, message: 'Selecione pelo menos uma forma de pagamento na proposta ou desative a seção opcional.' };
+    }
+
+    const totalInformed = proposalSelectedPaymentMethods.reduce(
+      (sum, method) => sum + Number(proposalPaymentConfig[method]?.amount || 0),
+      0
+    );
+
+    const hasInvalidAmount = proposalSelectedPaymentMethods.some(
+      (method) => Number(proposalPaymentConfig[method]?.amount || 0) <= 0
+    );
+    if (hasInvalidAmount) {
+      return { ok: false as const, message: 'Informe um valor maior que zero para cada forma de pagamento selecionada.' };
+    }
+
+    const installmentMethods = proposalSelectedPaymentMethods.filter((method) => method === 'card' || method === 'boleto');
+    const invalidInstallments = installmentMethods.some((method) => Number(proposalPaymentConfig[method]?.installments || 0) <= 0);
+    if (invalidInstallments) {
+      return { ok: false as const, message: 'Informe número de parcelas válido para cartão/boleto.' };
+    }
+
+    const invalidInstallmentAmount = installmentMethods.some(
+      (method) => Number(proposalPaymentConfig[method]?.installmentAmount || 0) <= 0
+    );
+    if (invalidInstallmentAmount) {
+      return { ok: false as const, message: 'Informe valor da parcela maior que zero para cartão/boleto.' };
+    }
+
+    if (proposalSelectedPaymentMethods.includes('card')) {
+      const brand = proposalPaymentConfig.card?.brand;
+      const last4 = (proposalPaymentConfig.card?.last4 || '').replace(/\D/g, '');
+      if (!brand) {
+        return { ok: false as const, message: 'Selecione a bandeira do cartão.' };
+      }
+      if (last4.length !== 4) {
+        return { ok: false as const, message: 'Informe os 4 últimos dígitos do cartão.' };
+      }
+    }
+
+    if (totalInformed < targetTotal) {
+      return {
+        ok: false as const,
+        message: `A soma das formas de pagamento (R$ ${totalInformed.toFixed(2)}) deve ser igual ou maior ao valor da proposta (R$ ${targetTotal.toFixed(2)}).`,
+      };
+    }
+
+    return { ok: true as const };
+  };
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const num = editingId ? undefined : generateProposalNumber();
+      const presetValidation = validatePaymentPreset(total);
+      if (!presetValidation.ok) {
+        throw new Error(presetValidation.message);
+      }
+      const notesPayload = composeProposalNotesPayload(
+        notes,
+        proposalPaymentEnabled
+          ? {
+              condition: proposalPaymentCondition,
+              methods: proposalSelectedPaymentMethods,
+              config: proposalPaymentConfig,
+              details: proposalPaymentDetails,
+            }
+          : null
+      );
       
       if (editingId) {
         const { error } = await supabase.from('proposals').update({
           patient_id: selectedPatient,
           total_amount: total,
           final_amount: total,
-          notes: notes || null,
+          notes: notesPayload,
           valid_until: validUntil || null,
         }).eq('id', editingId);
         if (error) throw error;
@@ -225,7 +395,7 @@ export default function ProposalsPage() {
           proposal_number: num!,
           total_amount: total,
           final_amount: total,
-          notes: notes || null,
+          notes: notesPayload,
           valid_until: validUntil || null,
           created_by: user?.id || null,
         };
@@ -312,6 +482,11 @@ export default function ProposalsPage() {
     setValidUntil('');
     setItems([]);
     setEditingId(null);
+    setProposalPaymentEnabled(false);
+    setProposalPaymentCondition('cash');
+    setProposalSelectedPaymentMethods([]);
+    setProposalPaymentDetails({});
+    setProposalPaymentConfig({});
   };
 
   const addTreatmentItem = () => {
@@ -344,10 +519,24 @@ export default function ProposalsPage() {
   };
 
   const openEdit = async (proposal: ProposalWithPatient) => {
+    const parsed = parseProposalNotesPayload(proposal.notes);
     setEditingId(proposal.id);
     setSelectedPatient(proposal.patient_id);
-    setNotes(proposal.notes || '');
+    setNotes(parsed.plainNotes);
     setValidUntil(proposal.valid_until || '');
+    if (parsed.paymentPreset) {
+      setProposalPaymentEnabled(true);
+      setProposalPaymentCondition(parsed.paymentPreset.condition);
+      setProposalSelectedPaymentMethods(parsed.paymentPreset.methods);
+      setProposalPaymentDetails(parsed.paymentPreset.details);
+      setProposalPaymentConfig(parsed.paymentPreset.config);
+    } else {
+      setProposalPaymentEnabled(false);
+      setProposalPaymentCondition('cash');
+      setProposalSelectedPaymentMethods([]);
+      setProposalPaymentDetails({});
+      setProposalPaymentConfig({});
+    }
 
     const { data: pItems } = await supabase.from('proposal_items').select('*').eq('proposal_id', proposal.id);
     setItems(((pItems || []) as ProposalItemRow[]).map((pi) => ({
@@ -366,6 +555,8 @@ export default function ProposalsPage() {
   const handlePrint = (proposal: ProposalWithPatient & { items?: ProposalItemWithTreatment[] }) => {
     const patient = patients.find((p) => p.id === proposal.patient_id);
     const printItems = proposal.items || [];
+    const parsed = parseProposalNotesPayload(proposal.notes);
+    const paymentSummary = buildPaymentPresetSummary(parsed.paymentPreset);
     const w = window.open('', '_blank');
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head><title>Proposta ${proposal.proposal_number}</title>
@@ -385,14 +576,153 @@ export default function ProposalsPage() {
       ${printItems.map((i) => `<tr><td>${i.treatments?.name || '—'}</td><td>${i.quantity}</td><td>R$ ${Number(i.unit_price).toFixed(2)}</td><td>R$ ${Number(i.subtotal).toFixed(2)}</td></tr>`).join('')}
       </tbody></table>
       <p class="total">Total: R$ ${Number(proposal.final_amount).toFixed(2)}</p>
-      ${proposal.notes ? `<p style="margin-top:20px"><strong>Observações:</strong> ${proposal.notes}</p>` : ''}
+      ${parsed.plainNotes ? `<p style="margin-top:20px"><strong>Observações:</strong> ${parsed.plainNotes}</p>` : ''}
+      ${paymentSummary ? `<p style="margin-top:8px"><strong>Condições comerciais sugeridas:</strong> ${paymentSummary}</p>` : ''}
       <div class="signature">Assinatura do paciente</div>
       </body></html>`);
     w.document.close();
     w.print();
   };
 
+  const openGenerateContractDialog = (proposal: ProposalWithPatient) => {
+    const parsed = parseProposalNotesPayload(proposal.notes);
+    setProposalToContract(proposal);
+    if (parsed.paymentPreset) {
+      setPaymentCondition(parsed.paymentPreset.condition);
+      setSelectedPaymentMethods(parsed.paymentPreset.methods);
+      setPaymentDetails(parsed.paymentPreset.details);
+      setPaymentConfig(parsed.paymentPreset.config);
+    } else {
+      setPaymentCondition('cash');
+      setSelectedPaymentMethods([]);
+      setPaymentDetails({});
+      setPaymentConfig({});
+    }
+    setContractDialogOpen(true);
+  };
+
+  const togglePaymentMethod = (method: PaymentMethod, checked: boolean) => {
+    if (checked) {
+      if (selectedPaymentMethods.includes(method)) return;
+      if (selectedPaymentMethods.length >= 2) {
+        toast({
+          title: 'Limite de formas de pagamento',
+          description: 'Você pode selecionar no máximo 2 formas de pagamento.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setSelectedPaymentMethods((current) => [...current, method]);
+      return;
+    }
+    setSelectedPaymentMethods((current) => current.filter((item) => item !== method));
+    setPaymentDetails((current) => {
+      const next = { ...current };
+      delete next[method];
+      return next;
+    });
+    setPaymentConfig((current) => {
+      const next = { ...current };
+      delete next[method];
+      return next;
+    });
+  };
+
+  const toggleProposalPaymentMethod = (method: PaymentMethod, checked: boolean) => {
+    if (checked) {
+      if (proposalSelectedPaymentMethods.includes(method)) return;
+      if (proposalSelectedPaymentMethods.length >= 2) {
+        toast({
+          title: 'Limite de formas de pagamento',
+          description: 'Você pode selecionar no máximo 2 formas de pagamento.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setProposalSelectedPaymentMethods((current) => [...current, method]);
+      return;
+    }
+    setProposalSelectedPaymentMethods((current) => current.filter((item) => item !== method));
+    setProposalPaymentDetails((current) => {
+      const next = { ...current };
+      delete next[method];
+      return next;
+    });
+    setProposalPaymentConfig((current) => {
+      const next = { ...current };
+      delete next[method];
+      return next;
+    });
+  };
+
+  const buildContractPaymentNotes = () => {
+    const methodsDescription = selectedPaymentMethods
+      .map((method) => {
+        const option = paymentMethodOptions.find((item) => item.value === method);
+        const amount = Number(paymentConfig[method]?.amount || 0);
+        const installments = Number(paymentConfig[method]?.installments || 0);
+        const installmentAmount = Number(paymentConfig[method]?.installmentAmount || 0);
+        const details = paymentDetails[method]?.trim();
+        if (method === 'card' || method === 'boleto') {
+          const brandLabel = method === 'card'
+            ? cardBrandOptions.find((item) => item.value === paymentConfig.card?.brand)?.label
+            : '';
+          const last4 = method === 'card' ? (paymentConfig.card?.last4 || '').replace(/\D/g, '') : '';
+          const trace = method === 'card' ? ` · ${brandLabel || 'Bandeira'} · finais ${last4}` : '';
+          const base = `${option?.label || method}: valor R$ ${amount.toFixed(2)} | ${installments}x de R$ ${installmentAmount.toFixed(2)}${trace}`;
+          return details ? `${base} (${details})` : base;
+        }
+        const base = `${option?.label || method}: R$ ${amount.toFixed(2)}`;
+        return details ? `${base} (${details})` : base;
+      })
+      .join(' | ');
+
+    return `Condição: ${paymentConditionLabels[paymentCondition]}\nFormas: ${methodsDescription}`;
+  };
+
+  const proposalPaymentSum = proposalSelectedPaymentMethods.reduce(
+    (sum, method) => sum + Number(proposalPaymentConfig[method]?.amount || 0),
+    0
+  );
+  const proposalPaymentValidation = validatePaymentPreset(total);
+  const canSaveProposal = !proposalPaymentEnabled || proposalPaymentValidation.ok;
+
   const generateContract = async (proposal: ProposalWithPatient) => {
+    const proposalAmount = Number(proposal.final_amount || 0);
+    const totalInformed = selectedPaymentMethods.reduce((sum, method) => sum + Number(paymentConfig[method]?.amount || 0), 0);
+    const hasInvalidAmount = selectedPaymentMethods.some((method) => Number(paymentConfig[method]?.amount || 0) <= 0);
+    if (hasInvalidAmount) {
+      toast({ title: 'Erro', description: 'Informe valor válido para cada forma selecionada.', variant: 'destructive' });
+      return;
+    }
+    const installmentMethods = selectedPaymentMethods.filter((method) => method === 'card' || method === 'boleto');
+    const invalidInstallments = installmentMethods.some((method) => Number(paymentConfig[method]?.installments || 0) <= 0);
+    if (invalidInstallments) {
+      toast({ title: 'Erro', description: 'Cartão e boleto exigem número de parcelas.', variant: 'destructive' });
+      return;
+    }
+    const invalidInstallmentAmount = installmentMethods.some((method) => Number(paymentConfig[method]?.installmentAmount || 0) <= 0);
+    if (invalidInstallmentAmount) {
+      toast({ title: 'Erro', description: 'Cartão e boleto exigem valor da parcela.', variant: 'destructive' });
+      return;
+    }
+    if (selectedPaymentMethods.includes('card')) {
+      const brand = paymentConfig.card?.brand;
+      const last4 = (paymentConfig.card?.last4 || '').replace(/\D/g, '');
+      if (!brand || last4.length !== 4) {
+        toast({ title: 'Erro', description: 'Cartão exige bandeira e 4 últimos dígitos.', variant: 'destructive' });
+        return;
+      }
+    }
+    if (totalInformed + 0.0001 < proposalAmount) {
+      toast({
+        title: 'Erro',
+        description: `A soma das formas de pagamento (R$ ${totalInformed.toFixed(2)}) deve ser igual ou maior ao valor da proposta (R$ ${proposalAmount.toFixed(2)}).`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const now = new Date();
     const num = `CONT-${format(now, 'yyyyMM')}-${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}`;
     const { error } = await supabase.from('contracts').insert({
@@ -403,6 +733,7 @@ export default function ProposalsPage() {
       status: 'draft' as ContractStatus,
       created_by: user?.id || null,
       start_date: format(now, 'yyyy-MM-dd'),
+      notes: buildContractPaymentNotes(),
     });
     if (error) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
@@ -411,6 +742,8 @@ export default function ProposalsPage() {
       qc.invalidateQueries({ queryKey: ['crm-leads'] });
       toast({ title: 'Contrato gerado!', description: `Nº ${num}` });
       setViewDialog(null);
+      setContractDialogOpen(false);
+      setProposalToContract(null);
       if (crmReturnUrl) {
         navigate(crmReturnUrl);
       }
@@ -557,7 +890,7 @@ export default function ProposalsPage() {
                             <BrandButton
                               variant="ghost"
                               size="sm"
-                              onClick={() => generateContract(p)}
+                              onClick={() => openGenerateContractDialog(p)}
                               title="Gerar contrato"
                             >
                               <FileText className="w-3.5 h-3.5" />
@@ -576,7 +909,7 @@ export default function ProposalsPage() {
 
       {/* Create/Edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingId ? 'Editar Proposta' : 'Nova Proposta'}</DialogTitle></DialogHeader>
           <form onSubmit={e => { e.preventDefault(); createMutation.mutate(); }} className="space-y-4 mt-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -595,93 +928,144 @@ export default function ProposalsPage() {
               </div>
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label>Itens da proposta</Label>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+              <div className="space-y-4 rounded-lg border p-4 bg-card">
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Itens da proposta</Label>
+                </div>
+
+                <Tabs value={itemTab} onValueChange={setItemTab} className="mb-3">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="treatment">Tratamento Individual</TabsTrigger>
+                    <TabsTrigger value="combo">Combo</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="treatment" className="pt-2">
+                    <BrandButton type="button" size="sm" variant="outline" onClick={addTreatmentItem}>
+                      <Plus className="w-3 h-3" /> Adicionar Tratamento
+                    </BrandButton>
+                  </TabsContent>
+                  <TabsContent value="combo" className="pt-2">
+                    {combos.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Nenhum combo disponível</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {combos.map((c) => (
+                          <div key={c.id} className="flex items-center justify-between p-2 border rounded-lg">
+                            <div>
+                              <p className="text-sm font-medium">{c.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {(c.treatment_combo_items || []).map((ci) => ci.treatments?.name).filter(Boolean).join(', ')}
+                              </p>
+                              {c.promotional_price && <p className="text-xs font-semibold text-primary">R$ {Number(c.promotional_price).toFixed(2)}</p>}
+                            </div>
+                            <BrandButton type="button" size="sm" variant="outline" onClick={() => addComboItem(c)}>
+                              <Plus className="w-3 h-3" /> Adicionar
+                            </BrandButton>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
+
+                {items.map((item, idx) => {
+                  const warning = getMinPriceWarning(item);
+                  return (
+                    <div key={idx} className="mb-2">
+                      <div className="flex gap-2 items-end">
+                        <div className="flex-1">
+                          <Select value={item.treatment_id} onValueChange={v => {
+                            const t = treatments.find((tr) => tr.id === v);
+                            const newItems = [...items];
+                            newItems[idx] = { ...item, treatment_id: v, unit_price: t ? Number(t.default_price || t.price) : item.unit_price };
+                            setItems(newItems);
+                          }}>
+                            <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {treatments.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Input type="number" min={1} value={item.quantity} className="w-16" onChange={e => {
+                          const newItems = [...items];
+                          newItems[idx] = { ...item, quantity: parseInt(e.target.value) || 1 };
+                          setItems(newItems);
+                        }} />
+                        <Input type="number" step="0.01" value={item.unit_price} className="w-28" onChange={e => {
+                          const newItems = [...items];
+                          newItems[idx] = { ...item, unit_price: parseFloat(e.target.value) || 0 };
+                          setItems(newItems);
+                        }} />
+                        <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))} className="text-destructive p-2">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {warning && <p className="text-xs text-destructive mt-1">{warning}</p>}
+                    </div>
+                  );
+                })}
+                {items.length > 0 && (
+                  <p className="text-right font-bold text-foreground mt-2">Total: R$ {total.toFixed(2)}</p>
+                )}
+
+                <div className="space-y-2 pt-2 border-t">
+                  <Label>Observações</Label>
+                  <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} />
+                </div>
               </div>
 
-              <Tabs value={itemTab} onValueChange={setItemTab} className="mb-3">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="treatment">Tratamento Individual</TabsTrigger>
-                  <TabsTrigger value="combo">Combo</TabsTrigger>
-                </TabsList>
-                <TabsContent value="treatment" className="pt-2">
-                  <BrandButton type="button" size="sm" variant="outline" onClick={addTreatmentItem}>
-                    <Plus className="w-3 h-3" /> Adicionar Tratamento
-                  </BrandButton>
-                </TabsContent>
-                <TabsContent value="combo" className="pt-2">
-                  {combos.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Nenhum combo disponível</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {combos.map((c) => (
-                        <div key={c.id} className="flex items-center justify-between p-2 border rounded-lg">
-                          <div>
-                            <p className="text-sm font-medium">{c.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {(c.treatment_combo_items || []).map((ci) => ci.treatments?.name).filter(Boolean).join(', ')}
-                            </p>
-                            {c.promotional_price && <p className="text-xs font-semibold text-primary">R$ {Number(c.promotional_price).toFixed(2)}</p>}
-                          </div>
-                          <BrandButton type="button" size="sm" variant="outline" onClick={() => addComboItem(c)}>
-                            <Plus className="w-3 h-3" /> Adicionar
-                          </BrandButton>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-
-              {items.map((item, idx) => {
-                const warning = getMinPriceWarning(item);
-                return (
-                  <div key={idx} className="mb-2">
-                    <div className="flex gap-2 items-end">
-                      <div className="flex-1">
-                        <Select value={item.treatment_id} onValueChange={v => {
-                          const t = treatments.find((tr) => tr.id === v);
-                          const newItems = [...items];
-                          newItems[idx] = { ...item, treatment_id: v, unit_price: t ? Number(t.default_price || t.price) : item.unit_price };
-                          setItems(newItems);
-                        }}>
-                          <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {treatments.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Input type="number" min={1} value={item.quantity} className="w-16" onChange={e => {
-                        const newItems = [...items];
-                        newItems[idx] = { ...item, quantity: parseInt(e.target.value) || 1 };
-                        setItems(newItems);
-                      }} />
-                      <Input type="number" step="0.01" value={item.unit_price} className="w-28" onChange={e => {
-                        const newItems = [...items];
-                        newItems[idx] = { ...item, unit_price: parseFloat(e.target.value) || 0 };
-                        setItems(newItems);
-                      }} />
-                      <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))} className="text-destructive p-2">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                    {warning && <p className="text-xs text-destructive mt-1">{warning}</p>}
+              <div className="space-y-3 rounded-lg border p-4 bg-card">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <Label className="text-sm">Condições de pagamento na proposta (opcional)</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Se preencher aqui, o contrato já abre pré-carregado para confirmar/editar.
+                    </p>
                   </div>
-                );
-              })}
-              {items.length > 0 && (
-                <p className="text-right font-bold text-foreground mt-2">Total: R$ {total.toFixed(2)}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>Observações</Label>
-              <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} />
+                  <button
+                    type="button"
+                    className={`inline-flex h-6 w-11 items-center rounded-full transition ${proposalPaymentEnabled ? 'bg-primary' : 'bg-muted'}`}
+                    onClick={() => setProposalPaymentEnabled((current) => !current)}
+                    aria-pressed={proposalPaymentEnabled}
+                    aria-label="Habilitar condições de pagamento na proposta"
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 rounded-full bg-white transition ${proposalPaymentEnabled ? 'translate-x-5' : 'translate-x-0.5'}`}
+                    />
+                  </button>
+                </div>
+                {proposalPaymentEnabled ? (
+                  <div className="space-y-3">
+                    <ContractPaymentConfigurator
+                      paymentCondition={proposalPaymentCondition}
+                      setPaymentCondition={setProposalPaymentCondition}
+                      selectedPaymentMethods={proposalSelectedPaymentMethods}
+                      togglePaymentMethod={toggleProposalPaymentMethod}
+                      paymentConfig={proposalPaymentConfig}
+                      setPaymentConfig={setProposalPaymentConfig}
+                      paymentDetails={proposalPaymentDetails}
+                      setPaymentDetails={setProposalPaymentDetails}
+                    />
+                    <div className="rounded-md border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
+                      Valor da proposta: <span className="font-semibold text-foreground">R$ {total.toFixed(2)}</span> ·
+                      Soma informada: <span className="font-semibold text-foreground">R$ {proposalPaymentSum.toFixed(2)}</span>
+                      {!proposalPaymentValidation.ok && (
+                        <span className="block text-destructive mt-1">
+                          {proposalPaymentValidation.message}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-dashed p-4 text-xs text-muted-foreground">
+                    Ative para informar as condições comerciais já na proposta.
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex gap-3 pt-2">
               <BrandButton type="button" variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">Cancelar</BrandButton>
-              <BrandButton type="submit" className="flex-1" disabled={createMutation.isPending || !selectedPatient}>
+              <BrandButton type="submit" className="flex-1" disabled={createMutation.isPending || !selectedPatient || !canSaveProposal}>
                 {createMutation.isPending ? 'Salvando...' : editingId ? 'Atualizar' : 'Criar Proposta'}
               </BrandButton>
             </div>
@@ -736,7 +1120,17 @@ export default function ProposalsPage() {
                   </div>
                 )}
 
-                {viewDialog.notes && <p className="text-sm text-muted-foreground"><strong>Obs:</strong> {viewDialog.notes}</p>}
+                {parseProposalNotesPayload(viewDialog.notes).plainNotes && (
+                  <p className="text-sm text-muted-foreground">
+                    <strong>Obs:</strong> {parseProposalNotesPayload(viewDialog.notes).plainNotes}
+                  </p>
+                )}
+                {buildPaymentPresetSummary(parseProposalNotesPayload(viewDialog.notes).paymentPreset) && (
+                  <p className="text-sm text-muted-foreground">
+                    <strong>Condições comerciais sugeridas:</strong>{' '}
+                    {buildPaymentPresetSummary(parseProposalNotesPayload(viewDialog.notes).paymentPreset)}
+                  </p>
+                )}
 
                 <div className="flex flex-wrap gap-2 pt-4 border-t">
                   <BrandButton variant="outline" size="sm" onClick={() => handlePrint(viewDialog)}>
@@ -761,7 +1155,7 @@ export default function ProposalsPage() {
                   )}
 
                   {viewDialog.status === 'accepted' && (
-                    <BrandButton size="sm" onClick={() => generateContract(viewDialog)}>
+                    <BrandButton size="sm" onClick={() => openGenerateContractDialog(viewDialog)}>
                       <FileText className="w-4 h-4" /> Gerar Contrato
                     </BrandButton>
                   )}
@@ -769,6 +1163,76 @@ export default function ProposalsPage() {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={contractDialogOpen}
+        onOpenChange={(open) => {
+          setContractDialogOpen(open);
+          if (!open) {
+            setProposalToContract(null);
+            setPaymentCondition('cash');
+            setSelectedPaymentMethods([]);
+            setPaymentDetails({});
+            setPaymentConfig({});
+          }
+        }}
+      >
+        <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Gerar contrato</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+              <ContractPaymentConfigurator
+                paymentCondition={paymentCondition}
+                setPaymentCondition={setPaymentCondition}
+                selectedPaymentMethods={selectedPaymentMethods}
+                togglePaymentMethod={togglePaymentMethod}
+                paymentConfig={paymentConfig}
+                setPaymentConfig={setPaymentConfig}
+                paymentDetails={paymentDetails}
+                setPaymentDetails={setPaymentDetails}
+              />
+
+              <div className="space-y-4 rounded-lg border p-4 bg-card">
+                {proposalToContract && (
+                  <div className="rounded-md border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
+                    Valor da proposta: <span className="font-semibold text-foreground">R$ {Number(proposalToContract.final_amount || 0).toFixed(2)}</span> ·
+                    Soma informada: <span className="font-semibold text-foreground">R$ {selectedPaymentMethods.reduce((sum, method) => sum + Number(paymentConfig[method]?.amount || 0), 0).toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <BrandButton type="button" variant="outline" className="flex-1" onClick={() => setContractDialogOpen(false)}>
+                Cancelar
+              </BrandButton>
+              <BrandButton
+                type="button"
+                className="flex-1"
+                disabled={
+                  !proposalToContract ||
+                  selectedPaymentMethods.length === 0 ||
+                  selectedPaymentMethods.some((method) => Number(paymentConfig[method]?.amount || 0) <= 0) ||
+                  selectedPaymentMethods
+                    .filter((method) => method === 'card' || method === 'boleto')
+                    .some(
+                      (method) =>
+                        Number(paymentConfig[method]?.installments || 0) <= 0 ||
+                        Number(paymentConfig[method]?.installmentAmount || 0) <= 0
+                    ) ||
+                  (selectedPaymentMethods.includes('card') &&
+                    (!paymentConfig.card?.brand || (paymentConfig.card?.last4 || '').replace(/\D/g, '').length !== 4))
+                }
+                onClick={() => proposalToContract && generateContract(proposalToContract)}
+              >
+                Confirmar e gerar contrato
+              </BrandButton>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

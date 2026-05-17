@@ -22,9 +22,10 @@ interface PayerSectionProps {
   value: PayerData;
   onChange: (data: PayerData) => void;
   patientName?: string;
+  payerOptionsOverride?: Array<{ id: string; name: string; cpf?: string | null }>;
 }
 
-export default function PayerSection({ value, onChange, patientName }: PayerSectionProps) {
+export default function PayerSection({ value, onChange, patientName, payerOptionsOverride }: PayerSectionProps) {
   const { clinicId } = useBranding();
   const [mode, setMode] = useState<'existing' | 'new'>('new');
 
@@ -39,8 +40,20 @@ export default function PayerSection({ value, onChange, patientName }: PayerSect
         .order('name');
       return (data as unknown[]) || [];
     },
-    enabled: !!clinicId && !value.is_self_payer,
+    enabled: !!clinicId && !value.is_self_payer && !payerOptionsOverride,
   });
+
+  const payerOptions = payerOptionsOverride || (payers as Array<{ id: string; name: string; cpf?: string | null }>);
+
+  useEffect(() => {
+    if (!value.is_self_payer && payerOptions.length > 0 && value.payer_id) {
+      setMode('existing');
+      return;
+    }
+    if (!value.is_self_payer && payerOptions.length === 0) {
+      setMode('new');
+    }
+  }, [value.is_self_payer, value.payer_id, payerOptions.length]);
 
   return (
     <div className="space-y-4 p-4 rounded-lg border bg-secondary/30">
@@ -66,7 +79,7 @@ export default function PayerSection({ value, onChange, patientName }: PayerSect
 
       {!value.is_self_payer && (
         <div className="space-y-3 animate-fade-in">
-          {payers.length > 0 && (
+          {payerOptions.length > 0 && (
             <div className="flex gap-2">
               <button
                 type="button"
@@ -85,7 +98,7 @@ export default function PayerSection({ value, onChange, patientName }: PayerSect
             </div>
           )}
 
-          {mode === 'existing' && payers.length > 0 ? (
+          {mode === 'existing' && payerOptions.length > 0 ? (
             <div className="space-y-2">
               <Label>Selecionar pagador</Label>
               <Select
@@ -94,7 +107,7 @@ export default function PayerSection({ value, onChange, patientName }: PayerSect
               >
                 <SelectTrigger><SelectValue placeholder="Selecionar pagador existente" /></SelectTrigger>
                 <SelectContent>
-                  {payers.map((p: unknown) => (
+                  {payerOptions.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name} {p.cpf ? `(${p.cpf})` : ''}
                     </SelectItem>
