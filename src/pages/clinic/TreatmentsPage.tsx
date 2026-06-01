@@ -44,7 +44,12 @@ const emptyForm: TreatmentForm = {
   renewal_enabled: true, renewal_trigger_days: '7',
 };
 
-export default function TreatmentsPage() {
+interface TreatmentsPageProps {
+  embedded?: boolean;
+  readOnly?: boolean;
+}
+
+export default function TreatmentsPage({ embedded = false, readOnly = false }: TreatmentsPageProps = {}) {
   const { clinicId } = useBranding();
   const { role } = useUserRole();
   const { toast } = useToast();
@@ -56,6 +61,7 @@ export default function TreatmentsPage() {
   const [costLines, setCostLines] = useState<CostLineItem[]>([]);
 
   const isAdmin = role === 'admin';
+  const canManage = isAdmin && !readOnly;
 
   const { data: treatments = [], isLoading } = useQuery({
     queryKey: ['treatments', clinicId, search],
@@ -82,11 +88,11 @@ export default function TreatmentsPage() {
   const { data: costItems = [] } = useQuery({
     queryKey: ['cost-items-active', clinicId],
     queryFn: async () => {
-      if (!clinicId || !isAdmin) return [];
+      if (!clinicId || !canManage) return [];
       const { data } = await supabase.from('cost_items' as unknown).select('*').eq('clinic_id', clinicId).eq('status', 'active').order('name');
       return (data as unknown[]) || [];
     },
-    enabled: !!clinicId && isAdmin,
+    enabled: !!clinicId && canManage,
   });
 
   const saveMutation = useMutation({
@@ -117,7 +123,7 @@ export default function TreatmentsPage() {
       }
 
       // Save cost composition (admin only)
-      if (isAdmin && treatmentId) {
+      if (canManage && treatmentId) {
         // Delete existing
         await supabase.from('treatment_cost_items' as unknown).delete().eq('treatment_id', treatmentId);
         // Insert new
@@ -160,7 +166,7 @@ export default function TreatmentsPage() {
       renewal_trigger_days: String(t.renewal_trigger_days ?? 7),
     });
 
-    if (isAdmin) {
+    if (canManage) {
       const { data } = await supabase.from('treatment_cost_items' as unknown).select('*').eq('treatment_id', t.id);
       setCostLines((data as unknown[] || []).map((d: unknown) => ({
         id: d.id,
@@ -218,13 +224,32 @@ export default function TreatmentsPage() {
 
   return (
     <div>
-      <PageHeader title="Tratamentos" description="Cadastre os tratamentos e combos da clínica">
-        {activeTab === 'treatments' && (
-          <BrandButton onClick={() => { setEditingId(null); setForm(emptyForm); setCostLines([]); setDialogOpen(true); }}>
-            <Plus className="w-4 h-4" /> Novo Tratamento
-          </BrandButton>
-        )}
-      </PageHeader>
+      {!embedded && (
+        <PageHeader
+          title="Tratamentos"
+          description={readOnly ? 'Visualização dos tratamentos e combos da clínica' : 'Cadastre os tratamentos e combos da clínica'}
+        >
+          {activeTab === 'treatments' && canManage && (
+            <BrandButton onClick={() => { setEditingId(null); setForm(emptyForm); setCostLines([]); setDialogOpen(true); }}>
+              <Plus className="w-4 h-4" /> Novo Tratamento
+            </BrandButton>
+          )}
+        </PageHeader>
+      )}
+
+      {embedded && (
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">Tratamentos e Combos</h3>
+            <p className="text-sm text-muted-foreground">Cadastro e configuração dos tratamentos da clínica.</p>
+          </div>
+          {activeTab === 'treatments' && canManage && (
+            <BrandButton onClick={() => { setEditingId(null); setForm(emptyForm); setCostLines([]); setDialogOpen(true); }}>
+              <Plus className="w-4 h-4" /> Novo Tratamento
+            </BrandButton>
+          )}
+        </div>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
         <TabsList>
@@ -233,7 +258,7 @@ export default function TreatmentsPage() {
         </TabsList>
 
         <TabsContent value="combos">
-          <CombosTab />
+          <CombosTab readOnly={readOnly} />
         </TabsContent>
 
         <TabsContent value="treatments">
@@ -254,9 +279,11 @@ export default function TreatmentsPage() {
           <Stethoscope className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
           <h3 className="text-lg font-semibold">Nenhum tratamento cadastrado</h3>
           <p className="text-sm text-muted-foreground mb-4">Cadastre os tratamentos oferecidos pela clínica</p>
-          <BrandButton onClick={() => { setEditingId(null); setForm(emptyForm); setCostLines([]); setDialogOpen(true); }}>
-            <Plus className="w-4 h-4" /> Novo Tratamento
-          </BrandButton>
+          {canManage && (
+            <BrandButton onClick={() => { setEditingId(null); setForm(emptyForm); setCostLines([]); setDialogOpen(true); }}>
+              <Plus className="w-4 h-4" /> Novo Tratamento
+            </BrandButton>
+          )}
         </div>
       )}
 
@@ -311,19 +338,22 @@ export default function TreatmentsPage() {
                   </span>
                 </div>
               </div>
-              <div className="mt-3 flex items-center gap-3 text-xs">
-                <button onClick={() => openEdit(t)} className="text-primary hover:underline flex items-center gap-1">
-                  <Edit className="w-3 h-3" /> Editar
-                </button>
-                <button onClick={() => openDuplicate(t)} className="text-primary hover:underline flex items-center gap-1">
-                  <Copy className="w-3 h-3" /> Duplicar
-                </button>
-              </div>
+              {canManage && (
+                <div className="mt-3 flex items-center gap-3 text-xs">
+                  <button onClick={() => openEdit(t)} className="text-primary hover:underline flex items-center gap-1">
+                    <Edit className="w-3 h-3" /> Editar
+                  </button>
+                  <button onClick={() => openDuplicate(t)} className="text-primary hover:underline flex items-center gap-1">
+                    <Copy className="w-3 h-3" /> Duplicar
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
 
+      {canManage && (
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -488,6 +518,7 @@ export default function TreatmentsPage() {
           </form>
         </DialogContent>
       </Dialog>
+      )}
       </TabsContent>
       </Tabs>
     </div>

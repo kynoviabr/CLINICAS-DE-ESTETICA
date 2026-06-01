@@ -20,12 +20,12 @@ export default function PortalHomePage() {
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      // Get patient record via portal access
+      // Get patient record via patient app access
       const { data: portal } = await supabase
-        .from('patient_portal_access')
+        .from('patient_users' as unknown)
         .select('patient_id, clinic_id')
         .eq('auth_user_id', user.id)
-        .eq('access_status', 'active')
+        .eq('status', 'active')
         .limit(1)
         .maybeSingle();
       if (!portal) return;

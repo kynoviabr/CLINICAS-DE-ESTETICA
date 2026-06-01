@@ -20,6 +20,7 @@ import TreatmentsPage from "./pages/clinic/TreatmentsPage";
 import ProposalsPage from "./pages/clinic/ProposalsPage";
 import ContractsPage from "./pages/clinic/ContractsPage";
 import PaymentsPage from "./pages/clinic/PaymentsPage";
+import FinanceContractsPage from "./pages/clinic/FinanceContractsPage";
 import AppointmentsPage from "./pages/clinic/AppointmentsPage";
 import SessionsPage from "./pages/clinic/SessionsPage";
 import FeedbackPage from "./pages/clinic/FeedbackPage";
@@ -27,6 +28,7 @@ import EvolutionPage from "./pages/clinic/EvolutionPage";
 import PhotosPage from "./pages/clinic/PhotosPage";
 import ReportsPage from "./pages/clinic/ReportsPage";
 import SettingsPage from "./pages/clinic/SettingsPage";
+import GoalsTrackingPage from "./pages/clinic/GoalsTrackingPage";
 import NpsPage from "./pages/clinic/NpsPage";
 import SatisfactionPage from "./pages/clinic/SatisfactionPage";
 import PortalHomePage from "./pages/portal/PortalHomePage";
@@ -64,10 +66,11 @@ const App = () => (
                 <Route path="crm" element={<CrmPage />} />
                 <Route path="patients" element={<PatientsPage />} />
                 <Route path="patients/:id" element={<PatientDetailPage />} />
-                <Route path="treatments" element={<TreatmentsPage />} />
+                <Route path="treatments" element={<TreatmentsPage readOnly />} />
                 <Route path="proposals" element={<ProposalsPage />} />
                 <Route path="contracts" element={<ContractsPage />} />
                 <Route path="payments" element={<PaymentsPage />} />
+                <Route path="finance/contracts" element={<FinanceContractsPage />} />
                 <Route path="appointments" element={<AppointmentsPage />} />
                 <Route path="sessions" element={<SessionsPage />} />
                 <Route path="evolution" element={<EvolutionPage />} />
@@ -77,6 +80,9 @@ const App = () => (
                 <Route path="satisfaction" element={<SatisfactionPage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="metas/acompanhamento" element={<GoalsTrackingPage />} />
+                <Route path="metas/minha-meta" element={<GoalsTrackingPage />} />
+                <Route path="metas/equipe" element={<GoalsTrackingPage />} />
               </Route>
 
               {/* Patient portal */}

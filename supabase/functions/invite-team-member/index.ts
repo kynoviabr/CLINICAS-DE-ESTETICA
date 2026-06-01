@@ -34,7 +34,7 @@ serve(async (req) => {
       });
     }
 
-    const { email, role, clinicId } = await req.json();
+    const { email, role, clinicId, cargoName } = await req.json();
 
     // Validate input
     if (!email || !role || !clinicId) {
@@ -43,7 +43,7 @@ serve(async (req) => {
       });
     }
 
-    const validRoles = ["receptionist", "professional"];
+    const validRoles = ["receptionist", "professional", "sales"];
     if (!validRoles.includes(role)) {
       return new Response(JSON.stringify({ error: "Papel inválido. Use: recepcionista ou profissional" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -110,13 +110,26 @@ serve(async (req) => {
     }
 
     // User doesn't exist — create a pending invitation
-    const { error: invError } = await adminClient.from("team_invitations").upsert({
+    let { error: invError } = await adminClient.from("team_invitations").upsert({
       clinic_id: clinicId,
       email: email.toLowerCase().trim(),
       role,
+      cargo_name: cargoName ?? null,
       invited_by: user.id,
       status: "pending",
     }, { onConflict: "clinic_id,email" });
+
+    if (invError && (invError.code === "42703" || invError.message?.includes("cargo_name"))) {
+      // Backward compatibility for environments where migration wasn't applied yet.
+      const fallback = await adminClient.from("team_invitations").upsert({
+        clinic_id: clinicId,
+        email: email.toLowerCase().trim(),
+        role,
+        invited_by: user.id,
+        status: "pending",
+      }, { onConflict: "clinic_id,email" });
+      invError = fallback.error;
+    }
 
     if (invError) {
       return new Response(JSON.stringify({ error: invError.message }), {

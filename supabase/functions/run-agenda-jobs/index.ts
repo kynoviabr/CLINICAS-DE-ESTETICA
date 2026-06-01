@@ -6,6 +6,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function extractToken(req: Request, body: Record<string, unknown>) {
+  return String(
+    req.headers.get("x-runner-token")
+      || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "")
+      || body?.token
+      || "",
+  ).trim();
+}
+
 type JobMode = "morning" | "hourly" | "manual";
 
 function utcDateKey() {
@@ -110,12 +119,15 @@ serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const providedToken = String(
-      req.headers.get("x-runner-token")
-      || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "")
-      || body?.token
-      || "",
+      extractToken(req, body)
     ).trim();
-    if (runnerToken && providedToken !== runnerToken) {
+    if (!runnerToken) {
+      return new Response(JSON.stringify({ ok: false, reason: "runner_token_not_configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (providedToken !== runnerToken) {
       return new Response(JSON.stringify({ ok: false, reason: "unauthorized_runner" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

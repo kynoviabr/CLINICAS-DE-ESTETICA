@@ -5,12 +5,37 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
 import { Plus, Loader2, Search, Building2, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+
+const classEntityTemplates = [
+  { abbreviation: 'CRM', name: 'Conselho Regional de Medicina', linked_professionals: 'Médicos, dermatologistas, nutrólogos, endocrinologistas, cirurgiões plásticos e responsáveis técnicos médicos', description: 'Conselho profissional regional da medicina.' },
+  { abbreviation: 'CFM', name: 'Conselho Federal de Medicina', linked_professionals: 'Órgão federal que regulamenta a medicina no Brasil', description: 'Órgão federal regulador da medicina.' },
+  { abbreviation: 'CRBM', name: 'Conselho Regional de Biomedicina', linked_professionals: 'Biomédicos estetas, biomédicos habilitados em procedimentos estéticos', description: 'Conselho profissional regional da biomedicina.' },
+  { abbreviation: 'CFBM', name: 'Conselho Federal de Biomedicina', linked_professionals: 'Órgão federal da biomedicina', description: 'Órgão federal regulador da biomedicina.' },
+  { abbreviation: 'CREFITO', name: 'Conselho Regional de Fisioterapia e Terapia Ocupacional', linked_professionals: 'Fisioterapeutas dermato-funcionais, fisioterapeutas atuantes em estética corporal e reabilitação', description: 'Conselho regional de fisioterapia e terapia ocupacional.' },
+  { abbreviation: 'COFFITO', name: 'Conselho Federal de Fisioterapia e Terapia Ocupacional', linked_professionals: 'Órgão federal da fisioterapia e terapia ocupacional', description: 'Órgão federal regulador da fisioterapia e terapia ocupacional.' },
+  { abbreviation: 'COREN', name: 'Conselho Regional de Enfermagem', linked_professionals: 'Enfermeiros, técnicos e auxiliares de enfermagem', description: 'Conselho regional da enfermagem.' },
+  { abbreviation: 'COFEN', name: 'Conselho Federal de Enfermagem', linked_professionals: 'Órgão federal da enfermagem', description: 'Órgão federal regulador da enfermagem.' },
+  { abbreviation: 'CRO', name: 'Conselho Regional de Odontologia', linked_professionals: 'Cirurgiões-dentistas, harmonização orofacial, estética facial odontológica', description: 'Conselho regional da odontologia.' },
+  { abbreviation: 'CFO', name: 'Conselho Federal de Odontologia', linked_professionals: 'Órgão federal da odontologia', description: 'Órgão federal regulador da odontologia.' },
+  { abbreviation: 'CRN', name: 'Conselho Regional de Nutricionistas', linked_professionals: 'Nutricionistas, profissionais de emagrecimento, reeducação alimentar e acompanhamento nutricional', description: 'Conselho regional da nutrição.' },
+  { abbreviation: 'CFN', name: 'Conselho Federal de Nutricionistas', linked_professionals: 'Órgão federal da nutrição', description: 'Órgão federal regulador da nutrição.' },
+  { abbreviation: 'CRF', name: 'Conselho Regional de Farmácia', linked_professionals: 'Farmacêuticos estetas, farmacêuticos responsáveis por manipulação, cosméticos ou procedimentos permitidos', description: 'Conselho regional da farmácia.' },
+  { abbreviation: 'CFF', name: 'Conselho Federal de Farmácia', linked_professionals: 'Órgão federal da farmácia', description: 'Órgão federal regulador da farmácia.' },
+  { abbreviation: 'CREF', name: 'Conselho Regional de Educação Física', linked_professionals: 'Profissionais de educação física, personal trainers, acompanhamento físico e programas de emagrecimento', description: 'Conselho regional da educação física.' },
+  { abbreviation: 'CONFEF', name: 'Conselho Federal de Educação Física', linked_professionals: 'Órgão federal da educação física', description: 'Órgão federal regulador da educação física.' },
+  { abbreviation: 'CRP', name: 'Conselho Regional de Psicologia', linked_professionals: 'Psicólogos, apoio comportamental, compulsão alimentar, autoestima e acompanhamento emocional', description: 'Conselho regional da psicologia.' },
+  { abbreviation: 'CFP', name: 'Conselho Federal de Psicologia', linked_professionals: 'Órgão federal da psicologia', description: 'Órgão federal regulador da psicologia.' },
+  { abbreviation: 'CRA', name: 'Conselho Regional de Administração', linked_professionals: 'Administradores, gestores administrativos, consultores de gestão, quando registrados', description: 'Conselho regional da administração.' },
+  { abbreviation: 'CFA', name: 'Conselho Federal de Administração', linked_professionals: 'Órgão federal da administração', description: 'Órgão federal regulador da administração.' },
+] as const;
 
 export default function ClassEntitiesTab() {
   const { items, loading, create, toggleStatus } = useClassEntities();
@@ -18,6 +43,9 @@ export default function ClassEntitiesTab() {
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState('');
   const [abbreviation, setAbbreviation] = useState('');
+  const [description, setDescription] = useState('');
+  const [linkedProfessionals, setLinkedProfessionals] = useState('');
+  const [templateAbbreviation, setTemplateAbbreviation] = useState('');
   const [search, setSearch] = useState('');
   const [confirmToggle, setConfirmToggle] = useState<{ id: string; name: string; current: string } | null>(null);
   const [toggling, setToggling] = useState(false);
@@ -26,9 +54,22 @@ export default function ClassEntitiesTab() {
     e.preventDefault();
     if (!name.trim() || !abbreviation.trim()) { toast.error('Preencha todos os campos obrigatórios'); return; }
     setSaving(true);
-    const result = await create({ name: name.trim(), abbreviation: abbreviation.trim().toUpperCase(), status: 'active' });
+    const result = await create({
+      name: name.trim(),
+      abbreviation: abbreviation.trim().toUpperCase(),
+      description: description.trim() || null,
+      linked_professionals: linkedProfessionals.trim() || null,
+      status: 'active',
+    });
     setSaving(false);
-    if (result) { setOpen(false); setName(''); setAbbreviation(''); }
+    if (result) {
+      setOpen(false);
+      setName('');
+      setAbbreviation('');
+      setDescription('');
+      setLinkedProfessionals('');
+      setTemplateAbbreviation('');
+    }
   };
 
   const handleConfirmToggle = async () => {
@@ -100,6 +141,32 @@ export default function ClassEntitiesTab() {
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-1.5">
+                    <Label>Modelo de conselho (opcional)</Label>
+                    <Select
+                      value={templateAbbreviation}
+                      onValueChange={(value) => {
+                        setTemplateAbbreviation(value);
+                        const selected = classEntityTemplates.find((item) => item.abbreviation === value);
+                        if (!selected) return;
+                        setAbbreviation(selected.abbreviation);
+                        setName(selected.name);
+                        setDescription(selected.description);
+                        setLinkedProfessionals(selected.linked_professionals);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um conselho para autopreencher" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {classEntityTemplates.map((template) => (
+                          <SelectItem key={template.abbreviation} value={template.abbreviation}>
+                            {template.abbreviation} — {template.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
                     <Label>Nome completo <span className="text-destructive">*</span></Label>
                     <Input value={name} onChange={e => setName(e.target.value)} required placeholder="Ex: Conselho Regional de Medicina" />
                   </div>
@@ -107,6 +174,24 @@ export default function ClassEntitiesTab() {
                     <Label>Sigla <span className="text-destructive">*</span></Label>
                     <Input value={abbreviation} onChange={e => setAbbreviation(e.target.value)} required placeholder="Ex: CRM, COREN, CRO" className="uppercase" />
                     <p className="text-xs text-muted-foreground">A sigla será salva em maiúsculas automaticamente.</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Descrição</Label>
+                    <Textarea
+                      value={description}
+                      onChange={e => setDescription(e.target.value)}
+                      placeholder="Descrição da entidade/conselho"
+                      rows={2}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Profissionais geralmente vinculados</Label>
+                    <Textarea
+                      value={linkedProfessionals}
+                      onChange={e => setLinkedProfessionals(e.target.value)}
+                      placeholder="Ex: Biomédicos estetas, fisioterapeutas dermato-funcionais..."
+                      rows={3}
+                    />
                   </div>
                   <Separator />
                   <Button type="submit" disabled={saving} className="w-full gradient-primary text-primary-foreground shadow-glow">
@@ -148,6 +233,9 @@ export default function ClassEntitiesTab() {
                           <Badge variant={isInactive ? 'secondary' : 'default'} className="text-[10px] px-1.5 py-0">{isInactive ? 'Inativa' : 'Ativa'}</Badge>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5 truncate">{e.name}</p>
+                        {e.linked_professionals && (
+                          <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">{e.linked_professionals}</p>
+                        )}
                       </div>
                     </div>
                     <Button

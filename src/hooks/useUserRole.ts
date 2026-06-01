@@ -8,19 +8,21 @@ interface UserRoleData {
   role: AppRole | null;
   clinicId: string | null;
   loading: boolean;
+  resolved: boolean;
 }
 
 export function useUserRole(): UserRoleData {
   const { user } = useAuth();
-  const [data, setData] = useState<UserRoleData>({ role: null, clinicId: null, loading: true });
+  const [data, setData] = useState<UserRoleData>({ role: null, clinicId: null, loading: true, resolved: false });
 
   useEffect(() => {
     if (!user) {
-      setData({ role: null, clinicId: null, loading: false });
+      setData({ role: null, clinicId: null, loading: false, resolved: true });
       return;
     }
 
     const fetch = async () => {
+      setData((current) => ({ ...current, loading: true, resolved: false }));
       // Check staff roles first
       const { data: roleData } = await supabase
         .from('user_roles')
@@ -31,23 +33,23 @@ export function useUserRole(): UserRoleData {
         .maybeSingle();
 
       if (roleData) {
-        setData({ role: roleData.role as AppRole, clinicId: roleData.clinic_id, loading: false });
+        setData({ role: roleData.role as AppRole, clinicId: roleData.clinic_id, loading: false, resolved: true });
         return;
       }
 
-      // Check patient portal access
+      // Check patient app access
       const { data: portalData } = await supabase
-        .from('patient_portal_access' as unknown)
+        .from('patient_users' as unknown)
         .select('clinic_id')
         .eq('auth_user_id', user.id)
-        .eq('access_status', 'active')
+        .eq('status', 'active')
         .limit(1)
         .maybeSingle();
 
       if (portalData) {
-        setData({ role: 'patient', clinicId: (portalData as unknown).clinic_id, loading: false });
+        setData({ role: 'patient', clinicId: (portalData as unknown).clinic_id, loading: false, resolved: true });
       } else {
-        setData({ role: null, clinicId: null, loading: false });
+        setData({ role: null, clinicId: null, loading: false, resolved: true });
       }
     };
 

@@ -24,12 +24,12 @@ import {
   ContractPaymentConfigurator,
   cardBrandOptions,
   paymentConditionLabels,
-  paymentMethodOptions,
   type CardBrand,
   type PaymentCondition,
   type PaymentConfig,
   type PaymentMethod,
 } from '@/components/contracts/ContractPaymentConfigurator';
+import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
 
 type ContractRow = Database['public']['Tables']['contracts']['Row'];
 type ContractStatus = Database['public']['Enums']['contract_status'];
@@ -264,27 +264,13 @@ export default function ContractsPage() {
         );
       }
 
-      const paymentTermsDescription = selectedPaymentMethods
-        .map((method) => {
-          const label = paymentMethodOptions.find((item) => item.value === method)?.label || method;
-          const amount = Number(paymentConfig[method]?.amount || 0);
-          const installments = Number(paymentConfig[method]?.installments || 0);
-          const installmentAmount = Number(paymentConfig[method]?.installmentAmount || 0);
-          const details = paymentDetails[method]?.trim();
-          if (method === 'card' || method === 'boleto') {
-            const brandLabel = method === 'card'
-              ? cardBrandOptions.find((option) => option.value === paymentConfig.card?.brand)?.label
-              : '';
-            const last4 = method === 'card' ? (paymentConfig.card?.last4 || '').replace(/\D/g, '') : '';
-            const trace = method === 'card' ? ` · ${brandLabel || 'Bandeira'} · finais ${last4}` : '';
-            const base = `${label}: valor R$ ${amount.toFixed(2)} | ${installments}x de R$ ${installmentAmount.toFixed(2)}${trace}`;
-            return details ? `${base} (${details})` : base;
-          }
-          const base = `${label}: R$ ${amount.toFixed(2)}`;
-          return details ? `${base} (${details})` : base;
-        })
-        .join(' | ');
-      const paymentTermsText = `Condição: ${paymentConditionLabels[paymentCondition]}. Formas: ${paymentTermsDescription}.`;
+      const paymentTermsText = buildContractPaymentNotes(
+        selectedPaymentMethods,
+        paymentConfig,
+        paymentDetails,
+        paymentConditionLabels[paymentCondition],
+        (brand) => cardBrandOptions.find((option) => option.value === brand)?.label
+      );
 
       const patient = proposal.patients;
       let resolvedPayerId: string | null = null;
@@ -396,7 +382,7 @@ export default function ContractsPage() {
 
       const { data: urlData } = supabase.storage.from('contracts').getPublicUrl(pdfPath);
 
-      const { error } = await supabase.from('contracts').insert({
+      const { data: insertedContract, error } = await supabase.from('contracts').insert({
         clinic_id: clinicId!,
         patient_id: proposal.patient_id,
         proposal_id: proposal.id,
@@ -409,9 +395,12 @@ export default function ContractsPage() {
         notes: paymentTermsText,
         created_by: user?.id || null,
         start_date: format(now, 'yyyy-MM-dd'),
-      });
+      }).select('id').single();
 
       if (error) throw error;
+      if (insertedContract?.id) {
+        await upsertContractFinancialForecast(insertedContract.id);
+      }
 
       const { error: patientUpdateError } = await supabase
         .from('patients')

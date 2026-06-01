@@ -6,6 +6,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function extractToken(req: Request, body: Record<string, unknown>) {
+  return String(
+    req.headers.get("x-runner-token")
+      || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "")
+      || body?.token
+      || "",
+  ).trim();
+}
+
 type Summary = {
   total: number;
   scheduled: number;
@@ -57,6 +66,21 @@ serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceRole);
 
     const body = await req.json().catch(() => ({}));
+    const runnerToken = Deno.env.get("AGENDA_JOBS_RUNNER_TOKEN") || "";
+    if (!runnerToken) {
+      return new Response(JSON.stringify({ ok: false, reason: "runner_token_not_configured" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      });
+    }
+    const providedToken = extractToken(req, body);
+    if (providedToken !== runnerToken) {
+      return new Response(JSON.stringify({ ok: false, reason: "unauthorized_runner" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
     const clinicId: string | undefined = body?.clinicId;
 
     let clinicsQuery = admin.from("clinics").select("id, name");

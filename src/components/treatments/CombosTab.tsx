@@ -28,7 +28,11 @@ interface ComboForm {
 
 const emptyForm: ComboForm = { name: '', promotional_price: '', active: true, items: [] };
 
-export default function CombosTab() {
+interface CombosTabProps {
+  readOnly?: boolean;
+}
+
+export default function CombosTab({ readOnly = false }: CombosTabProps = {}) {
   const { clinicId } = useBranding();
   const { role } = useUserRole();
   const { toast } = useToast();
@@ -38,6 +42,7 @@ export default function CombosTab() {
   const [form, setForm] = useState<ComboForm>(emptyForm);
 
   const isAdmin = role === 'admin';
+  const canManage = isAdmin && !readOnly;
 
   const { data: combos = [], isLoading } = useQuery({
     queryKey: ['treatment-combos', clinicId],
@@ -183,7 +188,7 @@ export default function CombosTab() {
 
   return (
     <div className="space-y-4">
-      {isAdmin && (
+      {canManage && (
         <div className="flex justify-end">
           <BrandButton onClick={() => { setEditingId(null); setForm(emptyForm); setDialogOpen(true); }}>
             <Plus className="w-4 h-4" /> Novo Combo
@@ -198,7 +203,7 @@ export default function CombosTab() {
           <Package className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
           <h3 className="text-lg font-semibold">Nenhum combo cadastrado</h3>
           <p className="text-sm text-muted-foreground mb-4">Crie combos para oferecer pacotes promocionais</p>
-          {isAdmin && (
+          {canManage && (
             <BrandButton onClick={() => { setEditingId(null); setForm(emptyForm); setDialogOpen(true); }}>
               <Plus className="w-4 h-4" /> Novo Combo
             </BrandButton>
@@ -218,7 +223,7 @@ export default function CombosTab() {
                   <th className="text-right text-xs font-semibold text-muted-foreground px-4 py-3">Preço Mínimo</th>
                   <th className="text-right text-xs font-semibold text-muted-foreground px-4 py-3">Promocional</th>
                   <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Status</th>
-                  {isAdmin && <th className="px-4 py-3" />}
+                  {canManage && <th className="px-4 py-3" />}
                 </tr>
               </thead>
               <tbody>
@@ -242,7 +247,7 @@ export default function CombosTab() {
                           {combo.active ? 'Ativo' : 'Inativo'}
                         </BrandBadge>
                       </td>
-                      {isAdmin && (
+                      {canManage && (
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
                             <BrandButton variant="ghost" size="sm" onClick={() => openEdit(combo)}>
@@ -263,7 +268,7 @@ export default function CombosTab() {
         </div>
       )}
 
-      {isAdmin && (
+      {canManage && (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editingId ? 'Editar Combo' : 'Novo Combo'}</DialogTitle></DialogHeader>

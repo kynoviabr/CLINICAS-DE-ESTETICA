@@ -11,13 +11,43 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, Edit, Tags } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 
 interface CategoryForm {
   name: string;
+  description: string;
   status: string;
 }
 
-const emptyForm: CategoryForm = { name: '', status: 'active' };
+interface CategoryPreset {
+  name: string;
+  description: string;
+}
+
+const CATEGORY_PRESETS: CategoryPreset[] = [
+  { name: 'Emagrecimento', description: 'Tratamentos voltados à redução de peso, controle de medidas, mudança de hábitos e acompanhamento corporal. Pode envolver protocolos combinados com nutrição, tecnologias, avaliação física e acompanhamento profissional.' },
+  { name: 'Estética Corporal', description: 'Procedimentos para melhora do contorno corporal, firmeza da pele, celulite, gordura localizada e retenção de líquidos. Inclui técnicas manuais, aparelhos e protocolos personalizados.' },
+  { name: 'Estética Facial', description: 'Tratamentos voltados à melhora da pele do rosto, textura, luminosidade, acne, manchas, linhas finas e rejuvenescimento. Pode incluir limpeza de pele, peelings, hidratação, tecnologias e protocolos faciais.' },
+  { name: 'Harmonização Facial', description: 'Procedimentos estéticos voltados ao equilíbrio, proporção e rejuvenescimento facial. Pode incluir bioestimuladores, preenchimentos, toxina botulínica e outros procedimentos autorizados conforme o profissional habilitado.' },
+  { name: 'Procedimentos Injetáveis', description: 'Categoria para procedimentos que envolvem aplicação de substâncias por via injetável, realizados por profissionais habilitados. Inclui tratamentos estéticos, protocolos corporais ou faciais, conforme regras técnicas e regulatórias.' },
+  { name: 'Pós-operatório', description: 'Cuidados estéticos e terapêuticos após cirurgias plásticas ou procedimentos corporais. Pode incluir drenagem linfática, controle de edema, fibrose, dor e recuperação tecidual.' },
+  { name: 'Drenagem Linfática', description: 'Técnicas manuais ou associadas a equipamentos para auxiliar na redução de retenção de líquidos, inchaço e melhora da circulação linfática. Muito utilizada em estética corporal, gestantes e pós-operatório.' },
+  { name: 'Gordura Localizada', description: 'Tratamentos focados na redução de acúmulos de gordura em regiões específicas do corpo. Pode envolver tecnologias, massagens modeladoras, protocolos combinados e acompanhamento de medidas.' },
+  { name: 'Celulite e Flacidez', description: 'Protocolos voltados à melhora da textura da pele, firmeza, elasticidade e aspecto da celulite. Pode envolver radiofrequência, bioestimulação, massagens, tecnologias e cuidados complementares.' },
+  { name: 'Rejuvenescimento', description: 'Tratamentos voltados à melhora dos sinais do envelhecimento, tanto facial quanto corporal. Inclui estímulo de colágeno, melhora da firmeza, qualidade da pele, linhas e rugas.' },
+  { name: 'Limpeza de Pele', description: 'Procedimento facial para higienização profunda, remoção de impurezas, cravos e controle de oleosidade. Pode ser indicado como tratamento isolado ou preparo para outros protocolos estéticos.' },
+  { name: 'Peelings', description: 'Tratamentos para renovação da pele, melhora de manchas, textura, acne, poros e luminosidade. Podem ser químicos, físicos ou enzimáticos, conforme avaliação profissional.' },
+  { name: 'Depilação', description: 'Procedimentos para remoção ou redução progressiva dos pelos. Pode incluir cera, laser, luz pulsada ou outras tecnologias disponíveis na clínica.' },
+  { name: 'Laser e Tecnologias', description: 'Categoria para tratamentos realizados com equipamentos estéticos, como laser, radiofrequência, ultrassom, criofrequência, endermologia, luz pulsada e similares.' },
+  { name: 'Capilar / Tricologia Estética', description: 'Tratamentos voltados à saúde do couro cabeludo, queda capilar, fortalecimento dos fios e estímulo de crescimento. Pode envolver tecnologias, protocolos tópicos e procedimentos realizados por profissional habilitado.' },
+  { name: 'Nutrição e Reeducação Alimentar', description: 'Acompanhamento nutricional para emagrecimento, saúde, estética corporal, performance e melhora de hábitos alimentares. Pode ser integrado aos protocolos de emagrecimento da clínica.' },
+  { name: 'Avaliação Corporal', description: 'Consulta inicial ou periódica para análise de medidas, composição corporal, histórico, objetivos e evolução do paciente. Serve como base para indicação e acompanhamento dos tratamentos.' },
+  { name: 'Massagens e Terapias Manuais', description: 'Técnicas manuais com foco estético, relaxante, modelador ou terapêutico. Inclui massagem modeladora, relaxante, drenagem, bambuterapia e outros protocolos corporais.' },
+  { name: 'Bem-estar e Saúde Integrativa', description: 'Tratamentos voltados à qualidade de vida, equilíbrio, relaxamento, autoestima e cuidado global do paciente. Pode integrar estética, saúde, hábitos e acompanhamento multidisciplinar.' },
+  { name: 'Protocolos Combinados', description: 'Pacotes que unem diferentes técnicas, profissionais e tecnologias para um objetivo específico. Muito usado em emagrecimento, gordura localizada, rejuvenescimento e remodelação corporal.' },
+];
+
+const emptyForm: CategoryForm = { name: '', description: '', status: 'active' };
 
 export default function CategoriesTab() {
   const { clinicId } = useBranding();
@@ -48,7 +78,7 @@ export default function CategoriesTab() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: CategoryForm) => {
-      const payload = { name: data.name, status: data.status, clinic_id: clinicId! };
+      const payload = { name: data.name, description: data.description || null, status: data.status, clinic_id: clinicId! };
       if (editingId) {
         const { error } = await supabase.from('treatment_categories' as unknown).update(payload as unknown).eq('id', editingId);
         if (error) throw error;
@@ -69,8 +99,14 @@ export default function CategoriesTab() {
 
   const openEdit = (cat: unknown) => {
     setEditingId(cat.id);
-    setForm({ name: cat.name, status: cat.status });
+    setForm({ name: cat.name, description: cat.description || '', status: cat.status });
     setDialogOpen(true);
+  };
+
+  const applyCategoryPreset = (categoryName: string) => {
+    const preset = CATEGORY_PRESETS.find((item) => item.name === categoryName);
+    if (!preset) return;
+    setForm((prev) => ({ ...prev, name: preset.name, description: preset.description }));
   };
 
   return (
@@ -107,6 +143,9 @@ export default function CategoriesTab() {
                 <div key={cat.id} className="flex items-center justify-between py-3">
                   <div>
                     <p className="text-sm font-medium text-foreground">{cat.name}</p>
+                    {cat.description ? (
+                      <p className="text-xs text-muted-foreground mt-1 max-w-2xl line-clamp-2">{cat.description}</p>
+                    ) : null}
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant={cat.status === 'active' ? 'default' : 'secondary'}
@@ -131,8 +170,30 @@ export default function CategoriesTab() {
           </DialogHeader>
           <form onSubmit={e => { e.preventDefault(); saveMutation.mutate(form); }} className="space-y-4 mt-4">
             <div className="space-y-2">
+              <Label>Modelo de categoria (opcional)</Label>
+              <select
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                defaultValue=""
+                onChange={(e) => applyCategoryPreset(e.target.value)}
+              >
+                <option value="">Selecionar modelo</option>
+                {CATEGORY_PRESETS.map((preset) => (
+                  <option key={preset.name} value={preset.name}>{preset.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
               <Label>Nome *</Label>
               <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+            </div>
+            <div className="space-y-2">
+              <Label>Descrição</Label>
+              <Textarea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="Descreva o objetivo e uso da categoria"
+                rows={4}
+              />
             </div>
             <div className="flex items-center justify-between">
               <Label>Status</Label>

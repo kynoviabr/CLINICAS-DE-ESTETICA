@@ -27,6 +27,83 @@ const typeColors: Record<string, string> = {
   supply: 'bg-orange-100 text-orange-700',
 };
 
+interface CostPreset {
+  name: string;
+  type: 'supply' | 'medication' | 'labor';
+  unit: string;
+}
+
+const UNIT_OPTIONS = [
+  'unidade',
+  'caixa',
+  'pacote',
+  'frasco',
+  'ampola',
+  'seringa',
+  'dose',
+  'mg',
+  'ml',
+  'g',
+  'kg',
+  'litro',
+  'rolo',
+  'par',
+  'sessão',
+];
+
+const COST_ITEM_PRESETS: CostPreset[] = [
+  { name: 'Algodão', type: 'supply', unit: 'pacote' },
+  { name: 'Gaze estéril', type: 'supply', unit: 'pacote' },
+  { name: 'Luva descartável', type: 'supply', unit: 'par' },
+  { name: 'Máscara descartável', type: 'supply', unit: 'unidade' },
+  { name: 'Touca descartável', type: 'supply', unit: 'unidade' },
+  { name: 'Lençol descartável', type: 'supply', unit: 'unidade' },
+  { name: 'Papel toalha', type: 'supply', unit: 'rolo' },
+  { name: 'Álcool 70%', type: 'supply', unit: 'ml' },
+  { name: 'Álcool gel', type: 'supply', unit: 'ml' },
+  { name: 'Clorexidina', type: 'supply', unit: 'ml' },
+  { name: 'Soro fisiológico', type: 'supply', unit: 'frasco' },
+  { name: 'Agulha descartável', type: 'supply', unit: 'unidade' },
+  { name: 'Seringa descartável', type: 'supply', unit: 'unidade' },
+  { name: 'Microcânula', type: 'supply', unit: 'unidade' },
+  { name: 'Lâmina de bisturi', type: 'supply', unit: 'unidade' },
+  { name: 'Anestésico tópico', type: 'medication', unit: 'g' },
+  { name: 'Gel condutor', type: 'supply', unit: 'ml' },
+  { name: 'Creme de massagem', type: 'supply', unit: 'g' },
+  { name: 'Óleo de massagem', type: 'supply', unit: 'ml' },
+  { name: 'Creme redutor', type: 'supply', unit: 'g' },
+  { name: 'Creme firmador', type: 'supply', unit: 'g' },
+  { name: 'Máscara facial', type: 'supply', unit: 'unidade' },
+  { name: 'Ácido para peeling', type: 'medication', unit: 'ml' },
+  { name: 'Neutralizante de peeling', type: 'supply', unit: 'ml' },
+  { name: 'Esfoliante facial', type: 'supply', unit: 'g' },
+  { name: 'Esfoliante corporal', type: 'supply', unit: 'g' },
+  { name: 'Protetor solar profissional', type: 'supply', unit: 'g' },
+  { name: 'Enzima lipolítica', type: 'medication', unit: 'ml' },
+  { name: 'Enzima facial', type: 'medication', unit: 'ml' },
+  { name: 'Bioestimulador de colágeno', type: 'medication', unit: 'frasco' },
+  { name: 'Toxina botulínica', type: 'medication', unit: 'unidade' },
+  { name: 'Preenchedor ácido hialurônico', type: 'medication', unit: 'seringa' },
+  { name: 'Skinbooster', type: 'medication', unit: 'seringa' },
+  { name: 'Fios de PDO', type: 'supply', unit: 'unidade' },
+  { name: 'Tirzepatida', type: 'medication', unit: 'mg' },
+  { name: 'Semaglutida', type: 'medication', unit: 'mg' },
+  { name: 'Liraglutida', type: 'medication', unit: 'mg' },
+  { name: 'Complexo vitamínico', type: 'medication', unit: 'ampola' },
+  { name: 'Fita métrica descartável', type: 'supply', unit: 'unidade' },
+  { name: 'Eletrodo adesivo', type: 'supply', unit: 'unidade' },
+  { name: 'Ponteira descartável', type: 'supply', unit: 'unidade' },
+  { name: 'Ponteira de criolipólise / manta anticongelante', type: 'supply', unit: 'unidade' },
+  { name: 'Manta térmica descartável', type: 'supply', unit: 'unidade' },
+  { name: 'Filme osmótico', type: 'supply', unit: 'rolo' },
+  { name: 'Espátula descartável', type: 'supply', unit: 'unidade' },
+  { name: 'Cubeta descartável', type: 'supply', unit: 'unidade' },
+  { name: 'Saco infectante', type: 'supply', unit: 'unidade' },
+  { name: 'Coletor perfurocortante', type: 'supply', unit: 'unidade' },
+  { name: 'Material de assepsia da sala', type: 'supply', unit: 'ml' },
+  { name: 'Sachê ou dose de produto cosmético', type: 'supply', unit: 'unidade' },
+];
+
 interface CostItemForm {
   name: string;
   type: string;
@@ -100,6 +177,12 @@ export default function CostItemsTab() {
       status: item.status,
     });
     setDialogOpen(true);
+  };
+
+  const applyCostPreset = (presetName: string) => {
+    const preset = COST_ITEM_PRESETS.find((item) => item.name === presetName);
+    if (!preset) return;
+    setForm((prev) => ({ ...prev, name: preset.name, type: preset.type, unit: preset.unit }));
   };
 
   return (
@@ -186,6 +269,19 @@ export default function CostItemsTab() {
             </DialogHeader>
             <form onSubmit={e => { e.preventDefault(); saveMutation.mutate(form); }} className="space-y-4 mt-4">
               <div className="space-y-2">
+                <Label>Modelo de item (opcional)</Label>
+                <Select onValueChange={applyCostPreset}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar modelo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COST_ITEM_PRESETS.map((preset) => (
+                      <SelectItem key={preset.name} value={preset.name}>{preset.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label>Nome *</Label>
                 <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
               </div>
@@ -207,7 +303,16 @@ export default function CostItemsTab() {
                 </div>
                 <div className="space-y-2">
                   <Label>Unidade</Label>
-                  <Input value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} placeholder="hora, ml, unidade..." />
+                  <Select value={form.unit || undefined} onValueChange={(value) => setForm({ ...form, unit: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecionar unidade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {UNIT_OPTIONS.map((unit) => (
+                        <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="flex items-center justify-between">

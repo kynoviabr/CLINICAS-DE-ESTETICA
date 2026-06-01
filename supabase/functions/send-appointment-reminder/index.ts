@@ -6,6 +6,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function extractToken(req: Request, body: Record<string, unknown>) {
+  return String(
+    req.headers.get("x-runner-token")
+      || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "")
+      || body?.token
+      || "",
+  ).trim();
+}
+
 function generateToken(appointmentId: string) {
   const nonce = crypto.randomUUID().split("-")[0];
   return `${appointmentId.slice(0, 8)}-${nonce}`;
@@ -38,6 +47,21 @@ serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceRole);
 
     const body = await req.json().catch(() => ({}));
+    const runnerToken = Deno.env.get("AGENDA_JOBS_RUNNER_TOKEN") || "";
+    if (!runnerToken) {
+      return new Response(JSON.stringify({ ok: false, reason: "runner_token_not_configured" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      });
+    }
+    const providedToken = extractToken(req, body);
+    if (providedToken !== runnerToken) {
+      return new Response(JSON.stringify({ ok: false, reason: "unauthorized_runner" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
     const clinicId: string | undefined = body?.clinicId;
     const nowIso = new Date().toISOString();
     const lookAheadHours = Number(body?.lookAheadHours || 24);

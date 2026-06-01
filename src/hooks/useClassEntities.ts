@@ -8,6 +8,8 @@ export interface ClassEntity {
   clinic_id: string;
   name: string;
   abbreviation: string;
+  description: string | null;
+  linked_professionals: string | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -26,6 +28,9 @@ export function useClassEntities() {
   const [items, setItems] = useState<ClassEntity[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const isMissingColumnError = (error: { code?: string; message?: string } | null) =>
+    error?.code === '42703' || error?.message?.includes('Could not find the') || error?.message?.includes('column');
+
   const list = useCallback(async (filters?: Filters) => {
     if (!clinicId) return;
     setLoading(true);
@@ -41,7 +46,22 @@ export function useClassEntities() {
 
   const create = async (input: ClassEntityInsert) => {
     if (!clinicId) return null;
-    const { data, error } = await supabase.from('class_entities').insert({ ...input, clinic_id: clinicId }).select().single();
+    let { data, error } = await supabase.from('class_entities').insert({ ...input, clinic_id: clinicId }).select().single();
+    if (isMissingColumnError(error)) {
+      // Backward compatibility for environments where migrations weren't applied yet.
+      const fallback = await supabase
+        .from('class_entities')
+        .insert({
+          name: input.name,
+          abbreviation: input.abbreviation,
+          status: input.status,
+          clinic_id: clinicId,
+        })
+        .select()
+        .single();
+      data = fallback.data;
+      error = fallback.error;
+    }
     if (error) {
       if (error.message?.includes('duplicate') || error.code === '23505') {
         toast.error('Já existe uma entidade com este nome ou sigla');
@@ -50,13 +70,32 @@ export function useClassEntities() {
       }
       return null;
     }
+    if (!input.description && !input.linked_professionals) {
+      // no-op
+    }
+    if (input.description || input.linked_professionals) {
+      // Inform user if fallback path was used and new fields were ignored.
+      const createdWithoutExtendedFields = !(data as { description?: string | null })?.description && !(data as { linked_professionals?: string | null })?.linked_professionals;
+      if (createdWithoutExtendedFields) {
+        toast.warning('Entidade criada sem descrição/profissionais. Aplique a migration de class_entities para habilitar esses campos.');
+      }
+    }
     toast.success('Entidade de classe cadastrada com sucesso');
     await list();
     return data;
   };
 
   const update = async (id: string, input: ClassEntityUpdate) => {
-    const { data, error } = await supabase.from('class_entities').update(input).eq('id', id).select().single();
+    let { data, error } = await supabase.from('class_entities').update(input).eq('id', id).select().single();
+    if (isMissingColumnError(error)) {
+      const { description: _description, linked_professionals: _linkedProfessionals, ...fallbackInput } = input;
+      const fallback = await supabase.from('class_entities').update(fallbackInput).eq('id', id).select().single();
+      data = fallback.data;
+      error = fallback.error;
+      if (!error && (_description || _linkedProfessionals)) {
+        toast.warning('Atualizado sem descrição/profissionais. Aplique a migration de class_entities para habilitar esses campos.');
+      }
+    }
     if (error) { toast.error(error.message); return null; }
     await list();
     return data;

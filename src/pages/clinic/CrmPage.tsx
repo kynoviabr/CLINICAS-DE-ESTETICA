@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, formatDistanceToNow, startOfDay, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, ArrowDown, ArrowUp, CalendarDays, Clock3, GripVertical, Lock, MessageSquare, Phone, Plus, Search, Settings2, TrendingUp, Trash2, UserCheck2, UserRound } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, CalendarDays, Clock3, GripVertical, MessageSquare, Phone, Plus, Search, TrendingUp, UserCheck2, UserRound } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -105,15 +105,6 @@ const defaultStages: StageDefinition[] = [
 ];
 
 const stageAppearanceMap = Object.fromEntries(defaultStages.map((stage) => [stage.code, stage])) as Record<string, StageDefinition>;
-
-function slugifyStageCode(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-}
 
 function normalizeStageCode(code?: string | null) {
   if (!code) return 'new_lead';
@@ -259,8 +250,6 @@ export default function CrmPage() {
   const [interactionOpen, setInteractionOpen] = useState(false);
   const [lossModal, setLossModal] = useState<{ lead: LeadRow; targetStage: StageCode } | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
-  const [stagesOpen, setStagesOpen] = useState(false);
-  const [stageDraft, setStageDraft] = useState({ label: '', description: '' });
   const [bulkAssignValue, setBulkAssignValue] = useState('unassigned');
   const [bulkStageValue, setBulkStageValue] = useState('none');
   const [quickForm, setQuickForm] = useState({
@@ -1168,102 +1157,6 @@ export default function CrmPage() {
     onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
   });
 
-  const saveStagesMutation = useMutation({
-    mutationFn: async (nextStages: StageDefinition[]) => {
-      if (!clinicId) return;
-      const payload = JSON.stringify(
-        nextStages.map((stage) => ({
-          code: stage.code,
-          label: stage.label,
-          description: stage.description,
-        }))
-      );
-
-      const { data: existing, error: existingError } = await supabase
-        .from('clinic_settings')
-        .select('id')
-        .eq('clinic_id', clinicId)
-        .eq('key', 'crm_kanban_stages')
-        .maybeSingle();
-      if (existingError) throw existingError;
-
-      if (existing?.id) {
-        const { error } = await supabase
-          .from('clinic_settings')
-          .update({ value: payload })
-          .eq('id', existing.id);
-        if (error) throw error;
-        return;
-      }
-
-      const { error } = await supabase.from('clinic_settings').insert({
-        clinic_id: clinicId,
-        key: 'crm_kanban_stages',
-        value: payload,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['crm-stage-settings'] });
-      toast({ title: 'Etapas atualizadas' });
-    },
-    onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
-  });
-
-  const addStage = () => {
-    const label = stageDraft.label.trim();
-    if (!label) {
-      toast({ title: 'Informe o nome da etapa', variant: 'destructive' });
-      return;
-    }
-
-    const code = slugifyStageCode(label);
-    if (!code) {
-      toast({ title: 'Nome inválido para etapa', variant: 'destructive' });
-      return;
-    }
-
-    if (configuredStages.some((stage) => stage.code === code)) {
-      toast({ title: 'Já existe uma etapa com esse nome', variant: 'destructive' });
-      return;
-    }
-
-    saveStagesMutation.mutate([
-      ...configuredStages,
-      stageAppearance({
-        code,
-        label,
-        description: stageDraft.description.trim() || 'Etapa personalizada do processo comercial.',
-        isSystem: false,
-      }, configuredStages.length),
-    ]);
-    setStageDraft({ label: '', description: '' });
-  };
-
-  const removeStage = (stageCode: string) => {
-    const target = configuredStages.find((stage) => stage.code === stageCode);
-    if (!target || target.isSystem) return;
-    if (leads.some((lead) => lead.kanban_stage === stageCode)) {
-      toast({
-        title: 'Etapa em uso',
-        description: 'Mova os leads dessa etapa antes de removê-la.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    saveStagesMutation.mutate(configuredStages.filter((stage) => stage.code !== stageCode));
-  };
-
-  const moveStageOrder = (stageCode: string, direction: -1 | 1) => {
-    const index = configuredStages.findIndex((stage) => stage.code === stageCode);
-    const nextIndex = index + direction;
-    if (index < 0 || nextIndex < 0 || nextIndex >= configuredStages.length) return;
-    const next = [...configuredStages];
-    const [moved] = next.splice(index, 1);
-    next.splice(nextIndex, 0, moved);
-    saveStagesMutation.mutate(next);
-  };
-
   const canOpenWhatsApp = (lead: LeadRow) => !!normalizePhone(lead.phone);
 
   const latestLeadProposal = leadProposals[0];
@@ -1273,10 +1166,6 @@ export default function CrmPage() {
     <div>
       <PageHeader title="CRM Kanban" description="Funil comercial de leads e avaliações da clínica">
         <div className="flex gap-2">
-          <BrandButton variant="outline" onClick={() => setStagesOpen(true)}>
-            <Settings2 className="w-4 h-4" />
-            Etapas
-          </BrandButton>
           <BrandButton variant="outline" onClick={() => navigate('/clinic/appointments')}>
             <CalendarDays className="w-4 h-4" />
             Agenda
@@ -1996,70 +1885,6 @@ export default function CrmPage() {
           </CardContent>
         </Card>
       )}
-
-      <Dialog open={stagesOpen} onOpenChange={setStagesOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Etapas do Kanban</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-5 mt-4">
-            <div className="rounded-xl border bg-slate-50/70 p-4">
-              <p className="text-sm font-medium text-slate-900">Padrão atual do sistema</p>
-              <p className="mt-1 text-xs text-slate-500">
-                Novo Lead · Contato Iniciado · Agendado · Proposta · Fechado · Perdido
-              </p>
-            </div>
-            <div className="space-y-2">
-              {configuredStages.map((stage, index) => (
-                <div key={stage.code} className="flex items-center gap-2 rounded-xl border px-3 py-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-slate-900">{stage.label}</p>
-                      {stage.isSystem && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                          <Lock className="h-3 w-3" /> padrão
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-500">{stage.description || 'Sem descrição.'}</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <BrandButton size="sm" variant="outline" className="h-8 px-2" onClick={() => moveStageOrder(stage.code, -1)} disabled={index === 0 || saveStagesMutation.isPending}>
-                      <ArrowUp className="h-3.5 w-3.5" />
-                    </BrandButton>
-                    <BrandButton size="sm" variant="outline" className="h-8 px-2" onClick={() => moveStageOrder(stage.code, 1)} disabled={index === configuredStages.length - 1 || saveStagesMutation.isPending}>
-                      <ArrowDown className="h-3.5 w-3.5" />
-                    </BrandButton>
-                    {!stage.isSystem && (
-                      <BrandButton size="sm" variant="outline" className="h-8 px-2 text-rose-600" onClick={() => removeStage(stage.code)} disabled={saveStagesMutation.isPending}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </BrandButton>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="rounded-xl border p-4">
-              <p className="text-sm font-medium text-slate-900">Adicionar nova etapa</p>
-              <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1.2fr_auto]">
-                <Input
-                  value={stageDraft.label}
-                  onChange={(event) => setStageDraft((current) => ({ ...current, label: event.target.value }))}
-                  placeholder="Nome da etapa"
-                />
-                <Input
-                  value={stageDraft.description}
-                  onChange={(event) => setStageDraft((current) => ({ ...current, description: event.target.value }))}
-                  placeholder="Descrição curta"
-                />
-                <BrandButton onClick={addStage} disabled={saveStagesMutation.isPending}>
-                  Adicionar
-                </BrandButton>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={quickCreateOpen} onOpenChange={setQuickCreateOpen}>
         <DialogContent className="max-w-lg">

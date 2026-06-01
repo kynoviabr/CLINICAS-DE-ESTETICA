@@ -162,7 +162,7 @@ export default function PatientDetailPage() {
   const { data: portalAccess } = useQuery({
     queryKey: ['patient-portal-access', id],
     queryFn: async () => {
-      const { data } = await supabase.from('patient_portal_access').select('*')
+      const { data } = await supabase.from('patient_users' as unknown).select('*')
         .eq('patient_id', id!).limit(1).maybeSingle();
       return data;
     },

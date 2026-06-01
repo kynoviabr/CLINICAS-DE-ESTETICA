@@ -29,6 +29,8 @@ import {
   type PaymentConfig,
   type PaymentMethod,
 } from '@/components/contracts/ContractPaymentConfigurator';
+import PayerSection, { type PayerData } from '@/components/patient/PayerSection';
+import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
 
 const statusMap: Record<string, { label: string; badge: BadgeStatus }> = {
   draft: { label: 'Rascunho', badge: 'draft' },
@@ -51,7 +53,7 @@ type ContractStatus = Database['public']['Enums']['contract_status'];
 type ProposalRow = Database['public']['Tables']['proposals']['Row'];
 type ProposalInsert = Database['public']['Tables']['proposals']['Insert'];
 type ProposalItemRow = Database['public']['Tables']['proposal_items']['Row'];
-type PatientLite = Pick<Database['public']['Tables']['patients']['Row'], 'id' | 'full_name'>;
+type PatientLite = Pick<Database['public']['Tables']['patients']['Row'], 'id' | 'full_name' | 'payer_id' | 'is_self_payer'>;
 type TreatmentLite = Pick<Database['public']['Tables']['treatments']['Row'], 'id' | 'name' | 'price' | 'min_price' | 'default_price'>;
 type LeadLite = Pick<Database['public']['Tables']['leads']['Row'], 'id' | 'full_name' | 'kanban_stage' | 'patient_id' | 'proposal_id'>;
 type ProposalWithPatient = ProposalRow & { patients?: { full_name?: string | null; cpf?: string | null } | null };
@@ -169,6 +171,7 @@ export default function ProposalsPage() {
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<PaymentMethod[]>([]);
   const [paymentDetails, setPaymentDetails] = useState<Partial<Record<PaymentMethod, string>>>({});
   const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>({});
+  const [payerData, setPayerData] = useState<PayerData>({ is_self_payer: true, payer_id: null });
   const [proposalPaymentEnabled, setProposalPaymentEnabled] = useState(false);
   const [proposalPaymentCondition, setProposalPaymentCondition] = useState<PaymentCondition>('cash');
   const [proposalSelectedPaymentMethods, setProposalSelectedPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -202,10 +205,30 @@ export default function ProposalsPage() {
   const { data: patients = [] } = useQuery({
     queryKey: ['patients-list', clinicId],
     queryFn: async () => {
-      const { data } = await supabase.from('patients').select('id, full_name').eq('clinic_id', clinicId!).eq('status', 'active').order('full_name');
+      const { data } = await supabase.from('patients').select('id, full_name, payer_id, is_self_payer').eq('clinic_id', clinicId!).eq('status', 'active').order('full_name');
       return ((data || []) as PatientLite[]);
     },
     enabled: !!clinicId,
+  });
+
+  const selectedContractPatient = proposalToContract
+    ? patients.find((patient) => patient.id === proposalToContract.patient_id) || null
+    : null;
+  const linkedPayerId = selectedContractPatient?.payer_id || null;
+
+  const { data: linkedPayerOption = null } = useQuery({
+    queryKey: ['proposal-linked-payer', clinicId, linkedPayerId],
+    queryFn: async () => {
+      if (!linkedPayerId) return null;
+      const { data } = await supabase
+        .from('payers' as unknown)
+        .select('id, name, cpf')
+        .eq('clinic_id', clinicId!)
+        .eq('id', linkedPayerId)
+        .maybeSingle();
+      return (data as { id: string; name: string; cpf?: string | null } | null) || null;
+    },
+    enabled: !!clinicId && !!linkedPayerId,
   });
 
   const { data: treatments = [] } = useQuery({
@@ -587,6 +610,12 @@ export default function ProposalsPage() {
   const openGenerateContractDialog = (proposal: ProposalWithPatient) => {
     const parsed = parseProposalNotesPayload(proposal.notes);
     setProposalToContract(proposal);
+    const patientData = patients.find((patient) => patient.id === proposal.patient_id) || null;
+    setPayerData({
+      is_self_payer: patientData?.is_self_payer ?? true,
+      payer_id: patientData?.payer_id || null,
+      new_payer: patientData?.is_self_payer === false ? { name: '', cpf: '', birth_date: '' } : undefined,
+    });
     if (parsed.paymentPreset) {
       setPaymentCondition(parsed.paymentPreset.condition);
       setSelectedPaymentMethods(parsed.paymentPreset.methods);
@@ -655,31 +684,6 @@ export default function ProposalsPage() {
     });
   };
 
-  const buildContractPaymentNotes = () => {
-    const methodsDescription = selectedPaymentMethods
-      .map((method) => {
-        const option = paymentMethodOptions.find((item) => item.value === method);
-        const amount = Number(paymentConfig[method]?.amount || 0);
-        const installments = Number(paymentConfig[method]?.installments || 0);
-        const installmentAmount = Number(paymentConfig[method]?.installmentAmount || 0);
-        const details = paymentDetails[method]?.trim();
-        if (method === 'card' || method === 'boleto') {
-          const brandLabel = method === 'card'
-            ? cardBrandOptions.find((item) => item.value === paymentConfig.card?.brand)?.label
-            : '';
-          const last4 = method === 'card' ? (paymentConfig.card?.last4 || '').replace(/\D/g, '') : '';
-          const trace = method === 'card' ? ` · ${brandLabel || 'Bandeira'} · finais ${last4}` : '';
-          const base = `${option?.label || method}: valor R$ ${amount.toFixed(2)} | ${installments}x de R$ ${installmentAmount.toFixed(2)}${trace}`;
-          return details ? `${base} (${details})` : base;
-        }
-        const base = `${option?.label || method}: R$ ${amount.toFixed(2)}`;
-        return details ? `${base} (${details})` : base;
-      })
-      .join(' | ');
-
-    return `Condição: ${paymentConditionLabels[paymentCondition]}\nFormas: ${methodsDescription}`;
-  };
-
   const proposalPaymentSum = proposalSelectedPaymentMethods.reduce(
     (sum, method) => sum + Number(proposalPaymentConfig[method]?.amount || 0),
     0
@@ -723,9 +727,52 @@ export default function ProposalsPage() {
       return;
     }
 
+    let resolvedPayerId: string | null = null;
+    if (!payerData.is_self_payer) {
+      if (payerData.payer_id) {
+        resolvedPayerId = payerData.payer_id;
+      } else if (payerData.new_payer) {
+        if (!payerData.new_payer.name.trim()) {
+          toast({ title: 'Erro', description: 'Nome do pagador é obrigatório.', variant: 'destructive' });
+          return;
+        }
+        if (!payerData.new_payer.cpf.trim()) {
+          toast({ title: 'Erro', description: 'CPF do pagador é obrigatório.', variant: 'destructive' });
+          return;
+        }
+        const { data: newPayer, error: payerError } = await supabase
+          .from('payers' as unknown)
+          .insert({
+            clinic_id: clinicId!,
+            patient_id: proposal.patient_id,
+            name: payerData.new_payer.name.trim(),
+            cpf: payerData.new_payer.cpf.trim(),
+            birth_date: payerData.new_payer.birth_date || null,
+          } as unknown)
+          .select('id')
+          .single();
+        if (payerError) {
+          toast({ title: 'Erro', description: payerError.message, variant: 'destructive' });
+          return;
+        }
+        resolvedPayerId = (newPayer as { id: string }).id;
+      } else {
+        toast({ title: 'Erro', description: 'Selecione ou cadastre um pagador.', variant: 'destructive' });
+        return;
+      }
+    }
+
     const now = new Date();
     const num = `CONT-${format(now, 'yyyyMM')}-${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}`;
-    const { error } = await supabase.from('contracts').insert({
+    const paymentNotes = buildContractPaymentNotes(
+      selectedPaymentMethods,
+      paymentConfig,
+      paymentDetails,
+      paymentConditionLabels[paymentCondition],
+      (brand) => cardBrandOptions.find((item) => item.value === brand)?.label
+    );
+
+    const { data: insertedContract, error } = await supabase.from('contracts').insert({
       clinic_id: clinicId!,
       patient_id: proposal.patient_id,
       proposal_id: proposal.id,
@@ -733,17 +780,30 @@ export default function ProposalsPage() {
       status: 'draft' as ContractStatus,
       created_by: user?.id || null,
       start_date: format(now, 'yyyy-MM-dd'),
-      notes: buildContractPaymentNotes(),
-    });
+      notes: paymentNotes,
+      payer_id: payerData.is_self_payer ? null : resolvedPayerId,
+    }).select('id').single();
     if (error) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     } else {
+      if (insertedContract?.id) {
+        await upsertContractFinancialForecast(insertedContract.id);
+      }
       qc.invalidateQueries({ queryKey: ['contracts'] });
       qc.invalidateQueries({ queryKey: ['crm-leads'] });
       toast({ title: 'Contrato gerado!', description: `Nº ${num}` });
+      await supabase
+        .from('patients')
+        .update({
+          is_self_payer: payerData.is_self_payer,
+          payer_id: payerData.is_self_payer ? null : resolvedPayerId,
+        })
+        .eq('id', proposal.patient_id)
+        .eq('clinic_id', clinicId!);
       setViewDialog(null);
       setContractDialogOpen(false);
       setProposalToContract(null);
+      setPayerData({ is_self_payer: true, payer_id: null });
       if (crmReturnUrl) {
         navigate(crmReturnUrl);
       }
@@ -1176,6 +1236,7 @@ export default function ProposalsPage() {
             setSelectedPaymentMethods([]);
             setPaymentDetails({});
             setPaymentConfig({});
+            setPayerData({ is_self_payer: true, payer_id: null });
           }
         }}
       >
@@ -1197,6 +1258,14 @@ export default function ProposalsPage() {
               />
 
               <div className="space-y-4 rounded-lg border p-4 bg-card">
+                {proposalToContract && (
+                  <PayerSection
+                    value={payerData}
+                    onChange={setPayerData}
+                    patientName={proposalToContract.patients?.full_name || undefined}
+                    payerOptionsOverride={linkedPayerOption ? [linkedPayerOption] : []}
+                  />
+                )}
                 {proposalToContract && (
                   <div className="rounded-md border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
                     Valor da proposta: <span className="font-semibold text-foreground">R$ {Number(proposalToContract.final_amount || 0).toFixed(2)}</span> ·
@@ -1225,7 +1294,10 @@ export default function ProposalsPage() {
                         Number(paymentConfig[method]?.installmentAmount || 0) <= 0
                     ) ||
                   (selectedPaymentMethods.includes('card') &&
-                    (!paymentConfig.card?.brand || (paymentConfig.card?.last4 || '').replace(/\D/g, '').length !== 4))
+                    (!paymentConfig.card?.brand || (paymentConfig.card?.last4 || '').replace(/\D/g, '').length !== 4)) ||
+                  (!payerData.is_self_payer &&
+                    !payerData.payer_id &&
+                    (!payerData.new_payer?.name?.trim() || !payerData.new_payer?.cpf?.trim()))
                 }
                 onClick={() => proposalToContract && generateContract(proposalToContract)}
               >

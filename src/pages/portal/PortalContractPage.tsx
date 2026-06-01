@@ -22,8 +22,8 @@ export default function PortalContractPage() {
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      const { data: portal } = await supabase.from('patient_portal_access')
-        .select('patient_id').eq('auth_user_id', user.id).eq('access_status', 'active').limit(1).maybeSingle();
+      const { data: portal } = await supabase.from('patient_users' as unknown)
+        .select('patient_id').eq('auth_user_id', user.id).eq('status', 'active').limit(1).maybeSingle();
       if (!portal) { setLoading(false); return; }
       const { data } = await supabase.from('contracts').select('*').eq('patient_id', portal.patient_id).order('created_at', { ascending: false });
       setContracts(data || []);

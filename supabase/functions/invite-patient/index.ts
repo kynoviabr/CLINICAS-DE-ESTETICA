@@ -34,7 +34,7 @@ serve(async (req) => {
       });
     }
 
-    const { patientId, clinicId } = await req.json();
+    const { patientId, clinicId, forceResend } = await req.json();
 
     if (!patientId || !clinicId) {
       return new Response(JSON.stringify({ error: "patientId e clinicId são obrigatórios" }), {
@@ -72,7 +72,22 @@ serve(async (req) => {
 
     const email = patient.email.toLowerCase().trim();
 
-    // Check if portal access already exists
+    // Check if patient app access already exists (new table)
+    const { data: existingPatientUser } = await adminClient
+      .from("patient_users")
+      .select("id")
+      .eq("patient_id", patientId)
+      .eq("clinic_id", clinicId)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (existingPatientUser && !forceResend) {
+      return new Response(JSON.stringify({ error: "Paciente já possui acesso ao portal" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Legacy fallback check
     const { data: existingAccess } = await adminClient
       .from("patient_portal_access")
       .select("id")
@@ -80,7 +95,7 @@ serve(async (req) => {
       .eq("clinic_id", clinicId)
       .maybeSingle();
 
-    if (existingAccess) {
+    if (existingAccess && !forceResend) {
       return new Response(JSON.stringify({ error: "Paciente já possui acesso ao portal" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -91,10 +106,22 @@ serve(async (req) => {
     let authUserId: string;
     let accountCreated = false;
 
-    const existingUser = existingUsers?.find((u: unknown) => u.email === email);
+    const existingUser = existingUsers?.find((u) => u.email === email);
 
     if (existingUser) {
       authUserId = existingUser.id;
+      if (forceResend && (existingPatientUser || existingAccess)) {
+        await adminClient.auth.resetPasswordForEmail(email, {
+          redirectTo: `${supabaseUrl.replace('.supabase.co', '.lovable.app')}/reset-password`,
+        });
+        return new Response(JSON.stringify({
+          message: "Convite reenviado com sucesso para o e-mail do paciente.",
+          accountCreated: false,
+          resent: true,
+        }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     } else {
       // Create auth account via invite — Supabase sends an invite email with a link to set password
       const { data: newUser, error: createError } = await adminClient.auth.admin.inviteUserByEmail(email, {
@@ -115,13 +142,27 @@ serve(async (req) => {
     // Link patient record to auth user
     await adminClient.from("patients").update({ user_id: authUserId }).eq("id", patientId);
 
-    // Create portal access
-    const { error: accessError } = await adminClient.from("patient_portal_access").insert({
+    // Create patient app access (new table)
+    const { error: patientUsersError } = await adminClient.from("patient_users").upsert({
+      patient_id: patientId,
+      clinic_id: clinicId,
+      auth_user_id: authUserId,
+      status: "active",
+    }, { onConflict: "clinic_id,patient_id,auth_user_id" });
+
+    if (patientUsersError) {
+      return new Response(JSON.stringify({ error: patientUsersError.message }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Backward compatibility with legacy access table
+    const { error: accessError } = await adminClient.from("patient_portal_access").upsert({
       patient_id: patientId,
       clinic_id: clinicId,
       auth_user_id: authUserId,
       access_status: "active",
-    });
+    }, { onConflict: "patient_id,auth_user_id" });
 
     if (accessError) {
       return new Response(JSON.stringify({ error: accessError.message }), {

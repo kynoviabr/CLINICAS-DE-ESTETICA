@@ -1,5 +1,9 @@
 import { Outlet } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import ClinicSidebar from './ClinicSidebar';
+import { PATH_PERMISSION_MAP } from '@/lib/accessPermissions';
+import { useAccessControl } from '@/hooks/useAccessControl';
 
 /**
  * Stripe-style clinic shell.
@@ -8,6 +12,19 @@ import ClinicSidebar from './ClinicSidebar';
  * - Content area uses bg-page (#f6f9fc)
  */
 export default function ClinicLayout() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { has, loading } = useAccessControl();
+
+  useEffect(() => {
+    if (loading) return;
+    const matched = PATH_PERMISSION_MAP.find((item) => location.pathname.startsWith(item.prefix));
+    if (!matched) return;
+    if (!has(matched.key)) {
+      navigate(location.pathname === '/clinic' ? '/login' : '/clinic', { replace: true });
+    }
+  }, [location.pathname, has, loading, navigate]);
+
   return (
     <div className="min-h-screen bg-bg-page">
       <ClinicSidebar />

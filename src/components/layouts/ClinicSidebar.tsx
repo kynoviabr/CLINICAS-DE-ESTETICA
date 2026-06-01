@@ -3,11 +3,13 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, FileText, ClipboardList, CreditCard,
   CalendarDays, Activity, Camera, MessageSquare, Settings, LogOut,
-  Menu, X, Stethoscope, FileSignature, BarChart3, TrendingUp, Star, KanbanSquare
+  Menu, X, Stethoscope, FileSignature, BarChart3, TrendingUp, Star, KanbanSquare, Landmark, Goal
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
 import { useUserRole, type AppRole } from '@/hooks/useUserRole';
+import { useAccessControl } from '@/hooks/useAccessControl';
+import type { MenuPermissionKey } from '@/lib/accessPermissions';
 import { cn } from '@/lib/utils';
 import NotificationBell from '@/components/NotificationBell';
 
@@ -16,25 +18,28 @@ interface NavItem {
   icon: unknown;
   label: string;
   roles: AppRole[];
+  permissionKey: MenuPermissionKey;
 }
 
 const navItems: NavItem[] = [
-  { to: '/clinic', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'receptionist', 'professional', 'sales'] },
-  { to: '/clinic/crm', icon: KanbanSquare, label: 'CRM', roles: ['admin', 'receptionist', 'sales'] },
-  { to: '/clinic/patients', icon: Users, label: 'Pacientes', roles: ['admin', 'receptionist', 'professional', 'sales'] },
-  { to: '/clinic/treatments', icon: Stethoscope, label: 'Tratamentos', roles: ['admin', 'receptionist', 'professional', 'sales'] },
-  { to: '/clinic/proposals', icon: FileText, label: 'Propostas', roles: ['admin', 'receptionist', 'sales'] },
-  { to: '/clinic/contracts', icon: FileSignature, label: 'Contratos', roles: ['admin', 'receptionist', 'sales'] },
-  { to: '/clinic/payments', icon: CreditCard, label: 'Pagamentos', roles: ['admin', 'receptionist'] },
-  { to: '/clinic/appointments', icon: CalendarDays, label: 'Agenda', roles: ['admin', 'receptionist', 'professional'] },
-  { to: '/clinic/sessions', icon: ClipboardList, label: 'Sessões', roles: ['admin', 'professional'] },
-  { to: '/clinic/evolution', icon: Activity, label: 'Evolução', roles: ['admin', 'professional'] },
-  { to: '/clinic/photos', icon: Camera, label: 'Fotos', roles: ['admin', 'professional'] },
-  { to: '/clinic/feedback', icon: Star, label: 'Feedbacks', roles: ['admin', 'receptionist', 'professional'] },
-  { to: '/clinic/nps', icon: TrendingUp, label: 'NPS', roles: ['admin', 'receptionist', 'professional'] },
-  { to: '/clinic/satisfaction', icon: BarChart3, label: 'Satisfação', roles: ['admin'] },
-  { to: '/clinic/reports', icon: MessageSquare, label: 'Relatórios', roles: ['admin', 'sales'] },
-  { to: '/clinic/settings', icon: Settings, label: 'Configurações', roles: ['admin'] },
+  { to: '/clinic', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'receptionist', 'professional', 'sales'], permissionKey: 'dashboard.view' },
+  { to: '/clinic/crm', icon: KanbanSquare, label: 'CRM', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'crm.view' },
+  { to: '/clinic/patients', icon: Users, label: 'Pacientes', roles: ['admin', 'receptionist', 'professional', 'sales'], permissionKey: 'patients.view' },
+  { to: '/clinic/treatments', icon: Stethoscope, label: 'Tratamentos', roles: ['admin', 'receptionist', 'professional', 'sales'], permissionKey: 'treatments.view' },
+  { to: '/clinic/proposals', icon: FileText, label: 'Propostas', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'proposals.view' },
+  { to: '/clinic/contracts', icon: FileSignature, label: 'Contratos', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'contracts.view' },
+  { to: '/clinic/payments', icon: CreditCard, label: 'Pagamentos', roles: ['admin', 'receptionist'], permissionKey: 'payments.view' },
+  { to: '/clinic/finance/contracts', icon: Landmark, label: 'Financeiro Contratos', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'finance_contracts.view' },
+  { to: '/clinic/metas/acompanhamento', icon: Goal, label: 'Metas', roles: ['admin', 'receptionist', 'sales', 'professional'], permissionKey: 'goals.view' },
+  { to: '/clinic/appointments', icon: CalendarDays, label: 'Agenda', roles: ['admin', 'receptionist', 'professional'], permissionKey: 'appointments.view' },
+  { to: '/clinic/sessions', icon: ClipboardList, label: 'Sessões', roles: ['admin', 'professional'], permissionKey: 'sessions.view' },
+  { to: '/clinic/evolution', icon: Activity, label: 'Evolução', roles: ['admin', 'professional'], permissionKey: 'evolution.view' },
+  { to: '/clinic/photos', icon: Camera, label: 'Fotos', roles: ['admin', 'professional'], permissionKey: 'photos.view' },
+  { to: '/clinic/feedback', icon: Star, label: 'Feedbacks', roles: ['admin', 'receptionist', 'professional'], permissionKey: 'feedback.view' },
+  { to: '/clinic/nps', icon: TrendingUp, label: 'NPS', roles: ['admin', 'receptionist', 'professional'], permissionKey: 'nps.view' },
+  { to: '/clinic/satisfaction', icon: BarChart3, label: 'Satisfação', roles: ['admin'], permissionKey: 'satisfaction.view' },
+  { to: '/clinic/reports', icon: MessageSquare, label: 'Relatórios', roles: ['admin', 'sales'], permissionKey: 'reports.view' },
+  { to: '/clinic/settings', icon: Settings, label: 'Configurações', roles: ['admin'], permissionKey: 'settings.view' },
 ];
 
 /**
@@ -48,9 +53,14 @@ export default function ClinicSidebar() {
   const { signOut } = useAuth();
   const { clinicName, logoUrl } = useBranding();
   const { role } = useUserRole();
+  const { has, loading: accessLoading } = useAccessControl();
   const location = useLocation();
 
-  const filteredNav = navItems.filter(item => !role || item.roles.includes(role as AppRole));
+  const filteredNav = navItems.filter((item) => {
+    if (!role || !item.roles.includes(role as AppRole)) return false;
+    if (accessLoading) return false;
+    return has(item.permissionKey);
+  });
 
   return (
     <>

@@ -23,8 +23,8 @@ export default function PortalPaymentsPage() {
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      const { data: portal } = await supabase.from('patient_portal_access')
-        .select('patient_id').eq('auth_user_id', user.id).eq('access_status', 'active').limit(1).maybeSingle();
+      const { data: portal } = await supabase.from('patient_users' as unknown)
+        .select('patient_id').eq('auth_user_id', user.id).eq('status', 'active').limit(1).maybeSingle();
       if (!portal) { setLoading(false); return; }
       const { data: plans } = await supabase.from('payment_plans').select('id').eq('patient_id', portal.patient_id);
       if (!plans?.length) { setLoading(false); return; }

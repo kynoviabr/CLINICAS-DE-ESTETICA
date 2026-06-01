@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog } from 'lucide-react';
+import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock } from 'lucide-react';
 import CategoriesTab from '@/components/settings/CategoriesTab';
 import CostItemsTab from '@/components/settings/CostItemsTab';
 import ParametersTab from '@/components/settings/ParametersTab';
@@ -21,6 +21,10 @@ import ProfessionalsTab from '@/components/settings/ProfessionalsTab';
 import RolesTab from '@/components/settings/RolesTab';
 import ClassEntitiesTab from '@/components/settings/ClassEntitiesTab';
 import DashboardAlertsTab from '@/components/settings/DashboardAlertsTab';
+import KanbanStagesTab from '@/components/settings/KanbanStagesTab';
+import PatientAppAccessTab from '@/components/settings/PatientAppAccessTab';
+import AccessGroupsTab from '@/components/settings/AccessGroupsTab';
+import TreatmentsPage from '@/pages/clinic/TreatmentsPage';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -59,10 +63,9 @@ export default function SettingsPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<string>('professional');
+  const [inviteCargo, setInviteCargo] = useState('');
   const [inviting, setInviting] = useState(false);
-
-  // Treatments
-  const [treatments, setTreatments] = useState<unknown[]>([]);
+  const [cargos, setCargos] = useState<Array<{ id: string; name: string; description: string | null; status: string }>>([]);
 
   useEffect(() => {
     if (!clinicId) return;
@@ -80,10 +83,31 @@ export default function SettingsPage() {
       });
 
     loadTeam();
+    loadCargos();
 
-    supabase.from('treatments').select('*').eq('clinic_id', clinicId).order('name')
-      .then(({ data }) => { if (data) setTreatments(data); });
   }, [clinicId]);
+
+  const mapCargoToSystemRole = (cargoName: string) => {
+    const normalized = cargoName.toLowerCase();
+    if (normalized.includes('recepcion') || normalized.includes('coordenador') || normalized.includes('atendimento')) return 'receptionist';
+    if (normalized.includes('comercial') || normalized.includes('venda') || normalized.includes('consultor')) return 'sales';
+    return 'professional';
+  };
+
+  const loadCargos = async () => {
+    if (!clinicId) return;
+    const { data, error } = await supabase
+      .from('roles')
+      .select('id,name,description,status')
+      .eq('clinic_id', clinicId)
+      .eq('status', 'active')
+      .order('name');
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setCargos((data || []) as Array<{ id: string; name: string; description: string | null; status: string }>);
+  };
 
   const loadTeam = async () => {
     if (!clinicId) return;
@@ -145,18 +169,21 @@ export default function SettingsPage() {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clinicId || !inviteEmail.trim()) return;
+    if (!clinicId || !inviteEmail.trim() || !inviteCargo) return;
     setInviting(true);
 
     try {
+      const derivedRole = mapCargoToSystemRole(inviteCargo);
+      setInviteRole(derivedRole);
       const { data, error } = await supabase.functions.invoke('invite-team-member', {
-        body: { email: inviteEmail.trim(), role: inviteRole, clinicId },
+        body: { email: inviteEmail.trim(), role: derivedRole, clinicId, cargoName: inviteCargo },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
       toast({ title: data.status === 'added' ? 'Membro adicionado!' : 'Convite enviado!', description: data.message });
       setInviteEmail('');
+      setInviteCargo('');
       setInviteOpen(false);
       loadTeam();
     } catch (err: unknown) {
@@ -191,16 +218,16 @@ export default function SettingsPage() {
         <TabsList className="flex-wrap">
           <TabsTrigger value="general"><Settings className="w-4 h-4 mr-1" />Geral</TabsTrigger>
           <TabsTrigger value="branding"><Palette className="w-4 h-4 mr-1" />Branding</TabsTrigger>
-          <TabsTrigger value="team"><Users className="w-4 h-4 mr-1" />Equipe</TabsTrigger>
-          <TabsTrigger value="treatments"><Stethoscope className="w-4 h-4 mr-1" />Tratamentos</TabsTrigger>
-          <TabsTrigger value="categories"><Tags className="w-4 h-4 mr-1" />Categorias</TabsTrigger>
-          <TabsTrigger value="costs"><DollarSign className="w-4 h-4 mr-1" />Custos</TabsTrigger>
-          <TabsTrigger value="parameters"><SlidersHorizontal className="w-4 h-4 mr-1" />Parâmetros</TabsTrigger>
-          <TabsTrigger value="goals"><Target className="w-4 h-4 mr-1" />Metas</TabsTrigger>
-          <TabsTrigger value="dashboard-alerts"><AlertTriangle className="w-4 h-4 mr-1" />Alertas Dashboard</TabsTrigger>
-          <TabsTrigger value="professionals"><UserCog className="w-4 h-4 mr-1" />Profissionais</TabsTrigger>
           <TabsTrigger value="roles"><Briefcase className="w-4 h-4 mr-1" />Cargos</TabsTrigger>
           <TabsTrigger value="entities"><Building2 className="w-4 h-4 mr-1" />Conselhos</TabsTrigger>
+          <TabsTrigger value="categories"><Tags className="w-4 h-4 mr-1" />Categorias</TabsTrigger>
+          <TabsTrigger value="costs"><DollarSign className="w-4 h-4 mr-1" />Custos</TabsTrigger>
+          <TabsTrigger value="team"><Lock className="w-4 h-4 mr-1" />Segurança e Acesso</TabsTrigger>
+          <TabsTrigger value="professionals"><UserCog className="w-4 h-4 mr-1" />Profissionais</TabsTrigger>
+          <TabsTrigger value="treatments"><Stethoscope className="w-4 h-4 mr-1" />Tratamentos</TabsTrigger>
+          <TabsTrigger value="crm-kanban"><Settings className="w-4 h-4 mr-1" />CRM Kanban</TabsTrigger>
+          <TabsTrigger value="goals"><Target className="w-4 h-4 mr-1" />Metas</TabsTrigger>
+          <TabsTrigger value="parameters"><SlidersHorizontal className="w-4 h-4 mr-1" />Parâmetros</TabsTrigger>
         </TabsList>
 
         {/* ===== GENERAL ===== */}
@@ -297,7 +324,14 @@ export default function SettingsPage() {
 
         {/* ===== TEAM ===== */}
         <TabsContent value="team">
-          <div className="space-y-4">
+          <Tabs defaultValue="internal-team" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="internal-team">Equipe (acessos internos)</TabsTrigger>
+              <TabsTrigger value="groups-permissions">Grupos e permissões</TabsTrigger>
+              <TabsTrigger value="patient-app-access">Pacientes APP</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="internal-team" className="space-y-4">
             {/* Invite button */}
             <div className="flex justify-end">
               <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
@@ -320,19 +354,24 @@ export default function SettingsPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Papel</Label>
-                      <Select value={inviteRole} onValueChange={setInviteRole}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                      <Label>Cargo</Label>
+                      <Select value={inviteCargo} onValueChange={setInviteCargo}>
+                        <SelectTrigger><SelectValue placeholder="Selecionar cargo" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="professional">Profissional</SelectItem>
-                          <SelectItem value="receptionist">Recepcionista</SelectItem>
-                          <SelectItem value="sales">Vendas</SelectItem>
+                          {cargos.map((cargo) => (
+                            <SelectItem key={cargo.id} value={cargo.name}>{cargo.name}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        {inviteRole === 'professional'
-                          ? 'Pode ver pacientes, sessões e registrar atendimentos.'
-                          : 'Pode gerenciar agenda, pacientes e pagamentos.'}
+                        {inviteCargo
+                          ? `Perfil de acesso aplicado automaticamente: ${mapCargoToSystemRole(inviteCargo) === 'sales'
+                            ? 'Vendas'
+                            : mapCargoToSystemRole(inviteCargo) === 'receptionist'
+                              ? 'Recepcionista'
+                              : 'Profissional'
+                          }.`
+                          : 'Selecione um cargo cadastrado na aba Cargos.'}
                       </p>
                     </div>
                     <Button type="submit" disabled={inviting} className="w-full gradient-primary text-primary-foreground">
@@ -417,6 +456,9 @@ export default function SettingsPage() {
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <Badge variant="outline">{roleLabel[inv.role] || inv.role}</Badge>
+                            {inv.cargo_name && (
+                              <Badge variant="secondary">{inv.cargo_name}</Badge>
+                            )}
                             <Badge variant={isPending ? 'secondary' : isAccepted ? 'default' : 'destructive'}
                               className={isPending ? 'bg-yellow-100 text-yellow-700' : isAccepted ? 'bg-green-100 text-green-700' : ''}>
                               {isPending ? 'Pendente' : isAccepted ? 'Aceito' : 'Cancelado'}
@@ -434,34 +476,21 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
             )}
-          </div>
+            </TabsContent>
+
+            <TabsContent value="patient-app-access">
+              <PatientAppAccessTab />
+            </TabsContent>
+
+            <TabsContent value="groups-permissions">
+              <AccessGroupsTab />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         {/* ===== TREATMENTS ===== */}
         <TabsContent value="treatments">
-          <Card className="shadow-card">
-            <CardHeader><CardTitle>Catálogo de Tratamentos</CardTitle></CardHeader>
-            <CardContent>
-              {treatments.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">Nenhum tratamento cadastrado</p>
-              ) : (
-                <div className="divide-y divide-border">
-                  {treatments.map(t => (
-                    <div key={t.id} className="flex items-center justify-between py-3">
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{t.name}</p>
-                        <p className="text-xs text-muted-foreground">{t.num_sessions} sessões • {t.duration_minutes}min</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-foreground">R$ {Number(t.price).toFixed(2)}</span>
-                        <Badge variant={t.is_active ? 'default' : 'secondary'}>{t.is_active ? 'Ativo' : 'Inativo'}</Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <TreatmentsPage embedded />
         </TabsContent>
 
         {/* ===== CATEGORIES ===== */}
@@ -476,7 +505,16 @@ export default function SettingsPage() {
 
         {/* ===== PARAMETERS ===== */}
         <TabsContent value="parameters">
-          <ParametersTab />
+          <div className="space-y-6">
+            <ParametersTab />
+            <div>
+              <div className="mb-2 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-muted-foreground" />
+                <h3 className="text-sm font-semibold text-foreground">Alertas Dashboard</h3>
+              </div>
+              <DashboardAlertsTab />
+            </div>
+          </div>
         </TabsContent>
 
         {/* ===== SALES GOALS ===== */}
@@ -484,8 +522,8 @@ export default function SettingsPage() {
           <SalesGoalsTab />
         </TabsContent>
 
-        <TabsContent value="dashboard-alerts">
-          <DashboardAlertsTab />
+        <TabsContent value="crm-kanban">
+          <KanbanStagesTab />
         </TabsContent>
 
         <TabsContent value="professionals">

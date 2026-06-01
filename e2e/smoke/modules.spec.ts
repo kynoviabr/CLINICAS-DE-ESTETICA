@@ -8,6 +8,7 @@ const moduleChecks = [
   { menu: 'Agenda', url: /\/clinic\/appointments/i, heading: /agenda/i },
   { menu: 'Propostas', url: /\/clinic\/proposals/i, heading: /propostas/i },
   { menu: 'Contratos', url: /\/clinic\/contracts/i, heading: /contratos/i },
+  { menu: 'Financeiro Contratos', url: /\/clinic\/finance\/contracts/i, heading: /financeiro/i },
   { menu: 'Pagamentos', url: /\/clinic\/payments/i, heading: /pagamentos/i },
   { menu: 'Sessões', url: /\/clinic\/sessions/i, heading: /sessões|sessoes/i },
 ];

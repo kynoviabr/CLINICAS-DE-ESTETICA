@@ -15,8 +15,8 @@ export default function PortalSessionsPage() {
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      const { data: portal } = await supabase.from('patient_portal_access')
-        .select('patient_id').eq('auth_user_id', user.id).eq('access_status', 'active').limit(1).maybeSingle();
+      const { data: portal } = await supabase.from('patient_users' as unknown)
+        .select('patient_id').eq('auth_user_id', user.id).eq('status', 'active').limit(1).maybeSingle();
       if (!portal) { setLoading(false); return; }
       const { data } = await supabase.from('session_records')
         .select('*, treatments(name)')
