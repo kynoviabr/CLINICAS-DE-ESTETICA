@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -43,7 +43,7 @@ export default function PhotosPage() {
       .then(({ data }) => { if (data) setPatients(data); });
   }, [clinicId]);
 
-  const fetchPhotos = async () => {
+  const fetchPhotos = useCallback(async () => {
     if (!clinicId || !selectedPatient) { setPhotos([]); setLoading(false); return; }
     setLoading(true);
     let q = supabase.from('patient_photos').select('*').eq('clinic_id', clinicId).eq('patient_id', selectedPatient).order('taken_at', { ascending: false });
@@ -51,9 +51,9 @@ export default function PhotosPage() {
     const { data } = await q;
     setPhotos(data || []);
     setLoading(false);
-  };
+  }, [clinicId, selectedPatient, filterType]);
 
-  useEffect(() => { fetchPhotos(); }, [clinicId, selectedPatient, filterType]);
+  useEffect(() => { fetchPhotos(); }, [fetchPhotos]);
 
   const handleUpload = async () => {
     if (!clinicId || !selectedPatient || !user || selectedFiles.length === 0) return;

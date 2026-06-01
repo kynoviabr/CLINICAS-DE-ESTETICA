@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { addDays, endOfMonth, endOfWeek, endOfYear, format, parseISO, startOfMonth, startOfWeek, startOfYear } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
@@ -212,7 +212,7 @@ export default function SalesGoalsTab() {
     setFormStatus('active');
   };
 
-  const loadBaseData = async () => {
+  const loadBaseData = useCallback(async () => {
     if (!clinicId) return;
     setLoading(true);
     const [goalsRes, staffRes, categoriesRes, treatmentsRes] = await Promise.all([
@@ -243,11 +243,11 @@ export default function SalesGoalsTab() {
     setCategories((categoriesRes.data || []) as Array<{ id: string; name: string }>);
     setTreatments((treatmentsRes.data || []) as Array<{ id: string; name: string; category_id: string | null }>);
     setLoading(false);
-  };
+  }, [clinicId]);
 
   useEffect(() => {
     if (clinicId) loadBaseData();
-  }, [clinicId]);
+  }, [clinicId, loadBaseData]);
 
   const isClosedContract = (contract: { status?: string; process_status?: string }) => {
     if (contract.status === 'cancelled') return false;
@@ -259,7 +259,7 @@ export default function SalesGoalsTab() {
     return contract.signed_at || contract.confirmed_at || contract.created_at || null;
   };
 
-  const computeGoalMetrics = async (goal: GoalRow): Promise<GoalMetrics> => {
+  const computeGoalMetrics = useCallback(async (goal: GoalRow): Promise<GoalMetrics> => {
     const range = rangeFromGoal(goal);
     if (!range || !clinicId) return { sold: 0, contracts: 0, missing: Math.max(goal.goal_amount, 0), pct: 0, ticket: 0 };
 
@@ -356,9 +356,9 @@ export default function SalesGoalsTab() {
     const ticket = contracts > 0 ? sold / contracts : 0;
 
     return { sold, contracts, missing, pct, ticket };
-  };
+  }, [clinicId]);
 
-  const recomputeMetrics = async (sourceGoals: GoalRow[]) => {
+  const recomputeMetrics = useCallback(async (sourceGoals: GoalRow[]) => {
     if (!clinicId || sourceGoals.length === 0) {
       setMetricsMap({});
       return;
@@ -374,12 +374,12 @@ export default function SalesGoalsTab() {
       }),
     );
     setMetricsMap(Object.fromEntries(entries));
-  };
+  }, [clinicId, computeGoalMetrics]);
 
   useEffect(() => {
     if (goals.length > 0) recomputeMetrics(goals);
     if (goals.length === 0) setMetricsMap({});
-  }, [goals.length, clinicId]);
+  }, [goals, recomputeMetrics]);
 
   const handleSaveGoal = async (e: React.FormEvent) => {
     e.preventDefault();

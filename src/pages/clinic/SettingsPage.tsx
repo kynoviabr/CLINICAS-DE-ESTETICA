@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -67,6 +67,38 @@ export default function SettingsPage() {
   const [inviting, setInviting] = useState(false);
   const [cargos, setCargos] = useState<Array<{ id: string; name: string; description: string | null; status: string }>>([]);
 
+  const mapCargoToSystemRole = (cargoName: string) => {
+    const normalized = cargoName.toLowerCase();
+    if (normalized.includes('recepcion') || normalized.includes('coordenador') || normalized.includes('atendimento')) return 'receptionist';
+    if (normalized.includes('comercial') || normalized.includes('venda') || normalized.includes('consultor')) return 'sales';
+    return 'professional';
+  };
+
+  const loadCargos = useCallback(async () => {
+    if (!clinicId) return;
+    const { data, error } = await supabase
+      .from('roles')
+      .select('id,name,description,status')
+      .eq('clinic_id', clinicId)
+      .eq('status', 'active')
+      .order('name');
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setCargos((data || []) as Array<{ id: string; name: string; description: string | null; status: string }>);
+  }, [clinicId, toast]);
+
+  const loadTeam = useCallback(async () => {
+    if (!clinicId) return;
+    const [staffRes, invRes] = await Promise.all([
+      supabase.from('user_roles').select('id, user_id, role, is_active, created_at').eq('clinic_id', clinicId),
+      supabase.from('team_invitations' as unknown).select('*').eq('clinic_id', clinicId).order('created_at', { ascending: false }),
+    ]);
+    if (staffRes.data) setStaff(staffRes.data);
+    if (invRes.data) setInvitations(invRes.data as unknown[]);
+  }, [clinicId]);
+
   useEffect(() => {
     if (!clinicId) return;
 
@@ -85,39 +117,7 @@ export default function SettingsPage() {
     loadTeam();
     loadCargos();
 
-  }, [clinicId]);
-
-  const mapCargoToSystemRole = (cargoName: string) => {
-    const normalized = cargoName.toLowerCase();
-    if (normalized.includes('recepcion') || normalized.includes('coordenador') || normalized.includes('atendimento')) return 'receptionist';
-    if (normalized.includes('comercial') || normalized.includes('venda') || normalized.includes('consultor')) return 'sales';
-    return 'professional';
-  };
-
-  const loadCargos = async () => {
-    if (!clinicId) return;
-    const { data, error } = await supabase
-      .from('roles')
-      .select('id,name,description,status')
-      .eq('clinic_id', clinicId)
-      .eq('status', 'active')
-      .order('name');
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-      return;
-    }
-    setCargos((data || []) as Array<{ id: string; name: string; description: string | null; status: string }>);
-  };
-
-  const loadTeam = async () => {
-    if (!clinicId) return;
-    const [staffRes, invRes] = await Promise.all([
-      supabase.from('user_roles').select('id, user_id, role, is_active, created_at').eq('clinic_id', clinicId),
-      supabase.from('team_invitations' as unknown).select('*').eq('clinic_id', clinicId).order('created_at', { ascending: false }),
-    ]);
-    if (staffRes.data) setStaff(staffRes.data);
-    if (invRes.data) setInvitations(invRes.data as unknown[]);
-  };
+  }, [clinicId, loadTeam, loadCargos]);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

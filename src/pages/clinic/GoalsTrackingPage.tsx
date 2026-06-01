@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { parseISO, format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -115,7 +115,7 @@ export default function GoalsTrackingPage() {
   const contractDate = (c: { signed_at?: string | null; created_at?: string | null; confirmed_at?: string | null }) =>
     c.signed_at || c.confirmed_at || c.created_at || null;
 
-  const computeMetrics = async (goal: GoalRow): Promise<GoalMetrics> => {
+  const computeMetrics = useCallback(async (goal: GoalRow): Promise<GoalMetrics> => {
     if (!clinicId) return { sold: 0, contracts: 0, missing: goal.goal_amount, pct: 0, ticket: 0 };
     const range = rangeFromGoal(goal);
     if (!range) return { sold: 0, contracts: 0, missing: goal.goal_amount, pct: 0, ticket: 0 };
@@ -158,9 +158,9 @@ export default function GoalsTrackingPage() {
     const pct = goal.goal_amount > 0 ? (sold / goal.goal_amount) * 100 : 0;
     const ticket = contracts > 0 ? sold / contracts : 0;
     return { sold, contracts, missing, pct, ticket };
-  };
+  }, [clinicId]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!clinicId) return;
     setLoading(true);
     const [goalsRes, staffRes] = await Promise.all([
@@ -174,9 +174,9 @@ export default function GoalsTrackingPage() {
     const metricsEntries = await Promise.all(loadedGoals.map(async (g) => [g.id, await computeMetrics(g)] as const));
     setMetricsMap(Object.fromEntries(metricsEntries));
     setLoading(false);
-  };
+  }, [clinicId, computeMetrics]);
 
-  useEffect(() => { if (clinicId) load(); }, [clinicId]);
+  useEffect(() => { if (clinicId) load(); }, [clinicId, load]);
 
   const rows = useMemo(() => {
     const withMetrics = goals.map((goal) => ({ goal, metrics: metricsMap[goal.id] || { sold: 0, contracts: 0, missing: goal.goal_amount, pct: 0, ticket: 0 } }));

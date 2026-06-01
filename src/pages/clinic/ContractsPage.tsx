@@ -519,7 +519,7 @@ export default function ContractsPage() {
         ? undefined
         : { name: '', cpf: '', birth_date: '' },
     });
-  }, [selectedProposalData?.id]);
+  }, [selectedProposalData]);
 
   return (
     <div>

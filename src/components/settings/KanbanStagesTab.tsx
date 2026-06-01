@@ -93,7 +93,7 @@ export default function KanbanStagesTab() {
     enabled: !!clinicId,
   });
 
-  const usageMap = leadUsageQuery.data || {};
+  const usageMap = useMemo(() => leadUsageQuery.data || {}, [leadUsageQuery.data]);
 
   const saveStagesMutation = useMutation({
     mutationFn: async (nextStages: StageDefinition[]) => {
@@ -272,4 +272,3 @@ export default function KanbanStagesTab() {
     </Card>
   );
 }
-

@@ -41,7 +41,7 @@ export default function SatisfactionPage() {
       toast({ title: 'Acesso restrito', description: 'Apenas administradores', variant: 'destructive' });
       navigate('/clinic');
     }
-  }, [role]);
+  }, [role, navigate, toast]);
 
   const periodStart = subDays(new Date(), parseInt(periodDays));
   const prevPeriodStart = subDays(periodStart, parseInt(periodDays));
