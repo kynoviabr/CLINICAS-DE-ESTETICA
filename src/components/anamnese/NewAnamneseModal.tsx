@@ -55,7 +55,7 @@ export default function NewAnamneseModal({ open, onOpenChange, patientId, clinic
       if (form.filled_at) {
         payload.filled_at = new Date(form.filled_at).toISOString();
       }
-      const { error } = await supabase.from('patient_anamneses').insert(payload as unknown);
+      const { error } = await supabase.from('patient_anamneses').insert(payload as any);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -65,7 +65,7 @@ export default function NewAnamneseModal({ open, onOpenChange, patientId, clinic
       onOpenChange(false);
       setForm({ title: '', description: '', source_type: 'digital', filled_at: '', validity_days: '180', notes: '' });
     },
-    onError: (err: unknown) => toast.error(err.message || 'Erro ao criar anamnese'),
+    onError: (err: any) => toast.error(err.message || 'Erro ao criar anamnese'),
   });
 
   return (

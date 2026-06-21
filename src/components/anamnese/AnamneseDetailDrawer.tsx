@@ -12,7 +12,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  anamnese: unknown;
+  anamnese: any;
 }
 
 const sourceLabels: Record<string, string> = {
@@ -115,7 +115,7 @@ function fmtDateShort(d: string | null) {
   return format(new Date(d), 'dd/MM/yyyy', { locale: ptBR });
 }
 
-function formatValue(value: unknown): string {
+function formatValue(value: any): string {
   if (value === true) return 'Sim';
   if (value === false) return 'Não';
   if (value === null || value === undefined || value === '') return '—';

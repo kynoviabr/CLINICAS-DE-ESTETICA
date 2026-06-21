@@ -38,7 +38,7 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
         .eq('patient_id', patientId)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return (data as unknown[]) || [];
+      return (data as any[]) || [];
     },
     enabled: !!patientId,
   });
@@ -52,13 +52,13 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
         .eq('clinic_id', clinicId)
         .eq('key', 'anamnese_validity_days')
         .maybeSingle();
-      return data ? parseInt((data as unknown).value) || 180 : 180;
+      return data ? parseInt((data as any).value) || 180 : 180;
     },
     enabled: !!clinicId,
   });
 
-  const current = anamneses.find((a: unknown) => a.is_current);
-  const history = anamneses.filter((a: unknown) => !a.is_current);
+  const current = anamneses.find((a: any) => a.is_current);
+  const history = anamneses.filter((a: any) => !a.is_current);
 
   const validateMut = useMutation({
     mutationFn: async (id: string) => {
@@ -69,7 +69,7 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
         validated_at: now,
         updated_by: user?.id,
         filled_at: now,
-      } as unknown).eq('id', id);
+      } as any).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -77,7 +77,7 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
       qc.invalidateQueries({ queryKey: ['patient', patientId] });
       toast.success('Anamnese validada!');
     },
-    onError: (err: unknown) => toast.error(err.message),
+    onError: (err: any) => toast.error(err.message),
   });
 
   const archiveMut = useMutation({
@@ -87,7 +87,7 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
         archived_at: new Date().toISOString(),
         is_current: false,
         updated_by: user?.id,
-      } as unknown).eq('id', id);
+      } as any).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -95,7 +95,7 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
       qc.invalidateQueries({ queryKey: ['patient', patientId] });
       toast.success('Anamnese arquivada!');
     },
-    onError: (err: unknown) => toast.error(err.message),
+    onError: (err: any) => toast.error(err.message),
   });
 
   if (isLoading) {
