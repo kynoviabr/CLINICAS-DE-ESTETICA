@@ -14,12 +14,12 @@ const sourceLabels: Record<string, string> = {
 };
 
 interface Props {
-  anamneses: unknown[];
+  anamneses: any[];
   patientId: string;
   onValidate: (id: string) => void;
   onArchive: (id: string) => void;
-  onEdit?: (anamnese: unknown) => void;
-  onView?: (anamnese: unknown) => void;
+  onEdit?: (anamnese: any) => void;
+  onView?: (anamnese: any) => void;
 }
 
 function fmtShort(d: string | null) {
@@ -46,7 +46,7 @@ export default function PatientAnamneseHistoryTable({ anamneses, patientId, onVa
           </TableRow>
         </TableHeader>
         <TableBody>
-          {anamneses.map((a: unknown) => (
+          {anamneses.map((a: any) => (
             <TableRow key={a.id} className={a.is_current ? 'bg-primary/[0.03]' : ''}>
               <TableCell className="text-xs font-mono font-medium">{a.anamnese_number}</TableCell>
               <TableCell className="text-xs">{fmtShort(a.created_at)}</TableCell>

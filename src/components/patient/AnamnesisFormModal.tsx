@@ -132,7 +132,7 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
 
   const currentSection = sections[step];
 
-  const updateSection = (section: keyof FormData, field: string, value: unknown) => {
+  const updateSection = (section: keyof FormData, field: string, value: any) => {
     setForm(prev => ({
       ...prev,
       [section]: { ...prev[section], [field]: value },
@@ -148,13 +148,13 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
       const { error } = await supabase.from('patient_anamneses').insert({
         clinic_id: clinicId,
         patient_id: patientId,
-        form_data: form as unknown,
+        form_data: form as any,
         filled_at: now,
         source_type: 'digital',
         status: 'filled',
         validity_days: validityDays,
         created_by: user?.id,
-      } as unknown);
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -165,7 +165,7 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
       setStep(0);
       onOpenChange(false);
     },
-    onError: (err: unknown) => {
+    onError: (err: any) => {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     },
   });
