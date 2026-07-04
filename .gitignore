@@ -27,3 +27,4 @@ tmp-settings.png
 *.njsproj
 *.sln
 *.sw?
+.vercel
