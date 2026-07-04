@@ -28,16 +28,29 @@ export default function LoginPage() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, signInWithSocial, signUp, signOut, user } = useAuth();
   const { role, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [socialLoading, setSocialLoading] = useState<'google' | 'facebook' | null>(null);
+  const [accessBlockedMessage, setAccessBlockedMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (user && !roleLoading) {
       if (role === 'patient') navigate('/portal', { replace: true });
       else if (role) navigate('/clinic', { replace: true });
-      else navigate('/onboarding', { replace: true });
+      else {
+        const provider = (user.app_metadata?.provider || '').toLowerCase();
+        if (provider === 'facebook') {
+          setAccessBlockedMessage(
+            'Login com Facebook está liberado para pacientes com acesso ativo. Contate a clínica para ativar seu vínculo.',
+          );
+        } else {
+          setAccessBlockedMessage(
+            'Seu acesso ainda não foi liberado. Apenas usuários convidados por um administrador da clínica podem entrar.',
+          );
+        }
+      }
     }
   }, [user, role, roleLoading, navigate]);
 
@@ -83,6 +96,28 @@ export default function LoginPage() {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     } finally {
       setForgotLoading(false);
+    }
+  };
+
+  const handleSocialLogin = async (provider: 'google' | 'facebook') => {
+    setSocialLoading(provider);
+    try {
+      await signInWithSocial(provider);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Falha no login social.';
+      toast({ title: 'Erro no login social', description: message, variant: 'destructive' });
+      setSocialLoading(null);
+    }
+  };
+
+  const handleBlockedSignOut = async () => {
+    try {
+      await signOut();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erro ao sair';
+      toast({ title: 'Erro ao sair', description: message, variant: 'destructive' });
+    } finally {
+      setAccessBlockedMessage(null);
     }
   };
 
@@ -219,6 +254,32 @@ export default function LoginPage() {
                 <Button type="submit" className="w-full" size="lg" disabled={loading}>
                   {loading ? 'Entrando...' : 'Entrar'}
                 </Button>
+                <div className="relative py-1">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-border" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-bg-page px-2 text-muted-foreground">ou</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleSocialLogin('google')}
+                    disabled={!!socialLoading}
+                  >
+                    {socialLoading === 'google' ? 'Redirecionando...' : 'Entrar com Google'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleSocialLogin('facebook')}
+                    disabled={!!socialLoading}
+                  >
+                    {socialLoading === 'facebook' ? 'Redirecionando...' : 'Entrar com Facebook (pacientes)'}
+                  </Button>
+                </div>
               </form>
             </TabsContent>
 
@@ -273,6 +334,20 @@ export default function LoginPage() {
           </p>
         </div>
       </main>
+
+      <Dialog open={!!accessBlockedMessage} onOpenChange={(open) => { if (!open) setAccessBlockedMessage(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Acesso não liberado</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-[hsl(var(--text-secondary))]">{accessBlockedMessage}</p>
+          <div className="mt-2 flex justify-end">
+            <Button type="button" onClick={handleBlockedSignOut}>
+              Sair
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Forgot Password Dialog */}
       <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
