@@ -41,7 +41,7 @@ export default function OnboardingPage() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      toast({ title: 'Clínica criada com sucesso!', description: 'Bem-vindo ao Clinic Journey.' });
+      toast({ title: 'Clínica criada com sucesso!', description: 'Bem-vindo ao Kynovia.' });
       // Small delay to let role propagate
       setTimeout(() => navigate('/clinic', { replace: true }), 500);
     } catch (err: unknown) {
@@ -161,7 +161,7 @@ export default function OnboardingPage() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          © 2026 Clinic Journey OS. Todos os direitos reservados.
+          © 2026 Kynovia. Todos os direitos reservados.
         </p>
       </div>
     </div>

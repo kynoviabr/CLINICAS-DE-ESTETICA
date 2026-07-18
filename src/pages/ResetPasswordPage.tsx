@@ -70,7 +70,7 @@ export default function ResetPasswordPage() {
           <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-4 shadow-glow">
             <Stethoscope className="w-8 h-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground">Clinic Journey</h1>
+          <h1 className="text-3xl font-bold text-foreground">Kynovia</h1>
           <p className="text-muted-foreground mt-1">Defina sua senha de acesso</p>
         </div>
 
@@ -168,7 +168,7 @@ export default function ResetPasswordPage() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          © 2026 Clinic Journey OS. Todos os direitos reservados.
+          © 2026 Kynovia. Todos os direitos reservados.
         </p>
       </div>
     </div>

@@ -1,4 +1,4 @@
-# Remix of Clinic Journey
+# Kynovia
 
 ## E2E rápido (Playwright)
 

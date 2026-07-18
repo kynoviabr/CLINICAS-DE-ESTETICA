@@ -15,7 +15,7 @@ interface BrandingData {
 
 const defaultBranding: BrandingData = {
   clinicId: null,
-  clinicName: 'Clinic Journey',
+  clinicName: 'Kynovia',
   logoUrl: null,
   primaryColor: '#1a7a6d',
   secondaryColor: '#f5f0e8',

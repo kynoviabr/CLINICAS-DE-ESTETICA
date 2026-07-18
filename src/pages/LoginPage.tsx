@@ -141,7 +141,7 @@ export default function LoginPage() {
           <div className="w-9 h-9 rounded-btn bg-primary flex items-center justify-center shadow-glow">
             <Stethoscope className="w-5 h-5 text-primary-foreground" />
           </div>
-          <span className="font-heading font-semibold text-[17px] tracking-tight">Clinic Journey OS</span>
+          <span className="font-heading font-semibold text-[17px] tracking-tight">Kynovia</span>
         </div>
 
         <div className="relative max-w-md">
@@ -173,7 +173,7 @@ export default function LoginPage() {
         </div>
 
         <p className="relative text-xs text-white/40">
-          © 2026 Clinic Journey OS. Todos os direitos reservados.
+          © 2026 Kynovia. Todos os direitos reservados.
         </p>
       </aside>
 
@@ -187,7 +187,7 @@ export default function LoginPage() {
                 <Stethoscope className="w-5 h-5 text-primary-foreground" />
               </div>
               <span className="font-heading font-semibold text-lg tracking-tight text-foreground">
-                Clinic Journey OS
+                Kynovia
               </span>
             </div>
           </div>
@@ -330,7 +330,7 @@ export default function LoginPage() {
           </Tabs>
 
           <p className="lg:hidden text-center text-xs text-[hsl(var(--text-muted))] mt-8">
-            © 2026 Clinic Journey OS
+            © 2026 Kynovia
           </p>
         </div>
       </main>
