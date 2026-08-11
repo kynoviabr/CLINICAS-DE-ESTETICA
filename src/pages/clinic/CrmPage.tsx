@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, formatDistanceToNow, startOfDay, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, ArrowDown, ArrowUp, CalendarDays, Clock3, GripVertical, MessageSquare, Phone, Plus, Search, TrendingUp, UserCheck2, UserRound } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, CalendarDays, Clock3, FileText, GripVertical, MessageSquare, Phone, Plus, Search, TrendingUp, UserCheck2, UserRound } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -23,6 +23,15 @@ import { BrandBadge } from '@/components/ui/brand-badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getRenewalAlertLevel, getSnoozeLimitDays } from '@/lib/renewal/rules';
 import { formatCep, lookupCepAddress } from '@/lib/cep';
+import PayerSection, { type PayerData } from '@/components/patient/PayerSection';
+import {
+  ContractPaymentConfigurator,
+  paymentConditionLabels,
+  type PaymentCondition,
+  type PaymentConfig,
+  type PaymentMethod,
+} from '@/components/contracts/ContractPaymentConfigurator';
+import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
 
 type StageCode = string;
 
@@ -99,6 +108,21 @@ interface RenewalInteractionRow {
   notes: string | null;
   performed_at: string;
 }
+
+type LeadProposalRow = {
+  id: string;
+  proposal_number: string;
+  status: 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired';
+  final_amount: number | null;
+  patient_id: string;
+  created_at: string;
+  notes?: string | null;
+  patients?: {
+    full_name?: string | null;
+    payer_id?: string | null;
+    is_self_payer?: boolean | null;
+  } | null;
+};
 
 const defaultStages: StageDefinition[] = [
   { code: 'new_lead', label: 'Novo Lead', accent: 'bg-slate-100 text-slate-700', surface: 'from-slate-50 to-white border-slate-200', description: 'Entradas novas sem contato.', isSystem: true },
@@ -343,6 +367,12 @@ export default function CrmPage() {
   });
   const [interactionForm, setInteractionForm] = useState({ type: 'call_made', notes: '' });
   const [lossForm, setLossForm] = useState({ reason: lostReasons[0], notes: '' });
+  const [contractDialogProposal, setContractDialogProposal] = useState<LeadProposalRow | null>(null);
+  const [paymentCondition, setPaymentCondition] = useState<PaymentCondition>('cash');
+  const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [paymentDetails, setPaymentDetails] = useState<Partial<Record<PaymentMethod, string>>>({});
+  const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>({});
+  const [payerData, setPayerData] = useState<PayerData>({ is_self_payer: true, payer_id: null });
   const prefillLeadId = searchParams.get('leadId');
 
   const { data: leads = [], isLoading } = useQuery({
@@ -483,12 +513,12 @@ export default function CrmPage() {
       if (!leadDrawer?.patient_id) return [];
       const { data, error } = await supabase
         .from('proposals')
-        .select('id, proposal_number, status, final_amount, created_at')
+        .select('id, proposal_number, status, final_amount, patient_id, notes, created_at, patients(full_name, payer_id, is_self_payer)')
         .eq('clinic_id', clinicId!)
         .eq('patient_id', leadDrawer.patient_id)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data || [];
+      return (data || []) as LeadProposalRow[];
     },
     enabled: !!clinicId && !!leadDrawer?.patient_id,
   });
@@ -557,6 +587,56 @@ export default function CrmPage() {
         ? `/clinic/contracts?contractId=${contractId}&view=1&returnTo=crm&returnLeadId=${returnLeadId}`
         : `/clinic/contracts?contractId=${contractId}&view=1`,
     );
+  };
+
+  const resetContractDialog = () => {
+    setContractDialogProposal(null);
+    setPaymentCondition('cash');
+    setSelectedPaymentMethods([]);
+    setPaymentDetails({});
+    setPaymentConfig({});
+    setPayerData({ is_self_payer: true, payer_id: null });
+  };
+
+  const openLeadContractDialog = (proposal: LeadProposalRow) => {
+    setContractDialogProposal(proposal);
+    setPayerData({
+      is_self_payer: proposal.patients?.is_self_payer ?? true,
+      payer_id: proposal.patients?.payer_id || null,
+      new_payer: proposal.patients?.is_self_payer === false ? { name: '', cpf: '', birth_date: '' } : undefined,
+    });
+    setPaymentCondition('cash');
+    setSelectedPaymentMethods([]);
+    setPaymentDetails({});
+    setPaymentConfig({});
+  };
+
+  const togglePaymentMethod = (method: PaymentMethod, checked: boolean) => {
+    if (checked) {
+      if (selectedPaymentMethods.includes(method)) return;
+      if (selectedPaymentMethods.length >= 2) {
+        toast({
+          title: 'Limite de formas de pagamento',
+          description: 'Você pode selecionar no máximo 2 formas de pagamento.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setSelectedPaymentMethods((current) => [...current, method]);
+      return;
+    }
+
+    setSelectedPaymentMethods((current) => current.filter((item) => item !== method));
+    setPaymentDetails((current) => {
+      const next = { ...current };
+      delete next[method];
+      return next;
+    });
+    setPaymentConfig((current) => {
+      const next = { ...current };
+      delete next[method];
+      return next;
+    });
   };
 
   const clearQuickFilters = () => {
@@ -1325,6 +1405,129 @@ export default function CrmPage() {
       qc.invalidateQueries({ queryKey: ['crm-leads'] });
       setSelectedLeadIds([]);
       toast({ title: 'Follow-up em lote concluído', description: `${count} lead(s) atualizado(s).` });
+    },
+    onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+  });
+
+  const generateContractFromCrmMutation = useMutation({
+    mutationFn: async () => {
+      if (!clinicId || !contractDialogProposal) throw new Error('Selecione uma proposta.');
+      if (selectedPaymentMethods.length === 0) throw new Error('Selecione ao menos uma forma de pagamento.');
+
+      const proposalAmount = Number(contractDialogProposal.final_amount || 0);
+      const amounts = selectedPaymentMethods.map((method) => Number(paymentConfig[method]?.amount || 0));
+      if (amounts.some((value) => !Number.isFinite(value) || value <= 0)) {
+        throw new Error('Informe um valor válido para cada forma selecionada.');
+      }
+
+      const installmentMethods = selectedPaymentMethods.filter((method) => method === 'card' || method === 'boleto');
+      if (installmentMethods.some((method) => Number(paymentConfig[method]?.installments || 0) <= 0)) {
+        throw new Error('Cartão e boleto exigem quantidade de parcelas maior que zero.');
+      }
+      if (installmentMethods.some((method) => Number(paymentConfig[method]?.installmentAmount || 0) <= 0)) {
+        throw new Error('Cartão e boleto exigem valor da parcela maior que zero.');
+      }
+
+      const totalInformed = amounts.reduce((sum, value) => sum + value, 0);
+      if (totalInformed + 0.0001 < proposalAmount) {
+        throw new Error(
+          `A soma das formas de pagamento (R$ ${totalInformed.toFixed(2)}) deve ser igual ou maior ao valor da proposta (R$ ${proposalAmount.toFixed(2)}).`
+        );
+      }
+
+      let resolvedPayerId: string | null = null;
+      if (!payerData.is_self_payer) {
+        if (payerData.payer_id) {
+          resolvedPayerId = payerData.payer_id;
+        } else if (payerData.new_payer) {
+          if (!payerData.new_payer.name.trim()) throw new Error('Nome do pagador é obrigatório.');
+          if (!payerData.new_payer.cpf.trim()) throw new Error('CPF do pagador é obrigatório.');
+          const { data: newPayer, error: payerError } = await supabase
+            .from('payers' as unknown)
+            .insert({
+              clinic_id: clinicId,
+              patient_id: contractDialogProposal.patient_id,
+              name: payerData.new_payer.name.trim(),
+              cpf: payerData.new_payer.cpf.trim(),
+              birth_date: payerData.new_payer.birth_date || null,
+            } as unknown)
+            .select('id')
+            .single();
+          if (payerError) throw payerError;
+          resolvedPayerId = (newPayer as { id: string }).id;
+        } else {
+          throw new Error('Selecione ou cadastre um pagador.');
+        }
+      }
+
+      const now = new Date();
+      const contractNumber = `CONT-${format(now, 'yyyyMM')}-${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}`;
+      const paymentNotes = buildContractPaymentNotes(
+        selectedPaymentMethods,
+        paymentConfig,
+        paymentDetails,
+        paymentConditionLabels[paymentCondition]
+      );
+
+      if (contractDialogProposal.status !== 'accepted') {
+        const { error: proposalError } = await supabase
+          .from('proposals')
+          .update({ status: 'accepted' })
+          .eq('clinic_id', clinicId)
+          .eq('id', contractDialogProposal.id);
+        if (proposalError) throw proposalError;
+      }
+
+      const { data: insertedContract, error } = await supabase
+        .from('contracts')
+        .insert({
+          clinic_id: clinicId,
+          patient_id: contractDialogProposal.patient_id,
+          proposal_id: contractDialogProposal.id,
+          contract_number: contractNumber,
+          status: 'draft',
+          created_by: user?.id || null,
+          start_date: format(now, 'yyyy-MM-dd'),
+          notes: paymentNotes,
+          payer_id: payerData.is_self_payer ? null : resolvedPayerId,
+        })
+        .select('id')
+        .single();
+      if (error) throw error;
+
+      if (insertedContract?.id) {
+        await upsertContractFinancialForecast(insertedContract.id);
+      }
+
+      const { error: patientError } = await supabase
+        .from('patients')
+        .update({
+          is_self_payer: payerData.is_self_payer,
+          payer_id: payerData.is_self_payer ? null : resolvedPayerId,
+        })
+        .eq('id', contractDialogProposal.patient_id)
+        .eq('clinic_id', clinicId);
+      if (patientError) throw patientError;
+
+      if (leadDrawer) {
+        const { error: leadError } = await supabase
+          .from('leads')
+          .update({ kanban_stage: 'closed_won', proposal_id: contractDialogProposal.id })
+          .eq('clinic_id', clinicId)
+          .eq('id', leadDrawer.id);
+        if (leadError) throw leadError;
+      }
+
+      return contractNumber;
+    },
+    onSuccess: (contractNumber) => {
+      qc.invalidateQueries({ queryKey: ['crm-leads'] });
+      qc.invalidateQueries({ queryKey: ['crm-proposals'] });
+      qc.invalidateQueries({ queryKey: ['crm-contracts'] });
+      qc.invalidateQueries({ queryKey: ['proposals'] });
+      qc.invalidateQueries({ queryKey: ['contracts'] });
+      toast({ title: 'Contrato gerado!', description: `Nº ${contractNumber}` });
+      resetContractDialog();
     },
     onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
   });
@@ -2626,26 +2829,44 @@ export default function CrmPage() {
                           Nenhuma proposta vinculada a este paciente ainda.
                         </div>
                       )}
-                      {leadProposals.map((proposal) => (
-                        <div key={proposal.id} className="rounded-xl border p-4 flex items-center justify-between gap-3">
-                          <div>
-                            <button
-                              type="button"
-                              onClick={() => openExistingProposal(proposal.id)}
-                              className="text-left font-medium text-foreground text-sm underline-offset-4 hover:underline"
-                            >
-                              {proposal.proposal_number}
-                            </button>
-                            <p className="text-xs text-muted-foreground">{relativeDate(proposal.created_at)}</p>
+                      {leadProposals.map((proposal) => {
+                        const hasLinkedContract = leadContracts.some((contract) => contract.proposal_id === proposal.id);
+                        const canGenerateContract = !hasLinkedContract && (proposal.status === 'draft' || proposal.status === 'sent' || proposal.status === 'accepted');
+                        return (
+                          <div key={proposal.id} className="rounded-xl border p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <button
+                                  type="button"
+                                  onClick={() => openExistingProposal(proposal.id)}
+                                  className="text-left font-medium text-foreground text-sm underline-offset-4 hover:underline"
+                                >
+                                  {proposal.proposal_number}
+                                </button>
+                                <p className="text-xs text-muted-foreground">{relativeDate(proposal.created_at)}</p>
+                              </div>
+                              <div className="text-right">
+                                <BrandBadge status={proposal.status === 'accepted' ? 'approved' : proposal.status === 'rejected' ? 'rejected' : proposal.status === 'draft' ? 'draft' : 'sent'}>
+                                  {proposal.status}
+                                </BrandBadge>
+                                <p className="text-sm font-semibold text-foreground mt-1">R$ {Number(proposal.final_amount || 0).toFixed(0)}</p>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex flex-wrap justify-end gap-2 border-t pt-3">
+                              {hasLinkedContract ? (
+                                <span className="text-xs text-muted-foreground">Contrato já gerado para esta proposta</span>
+                              ) : canGenerateContract ? (
+                                <BrandButton size="sm" onClick={() => openLeadContractDialog(proposal)}>
+                                  <FileText className="w-4 h-4" />
+                                  {proposal.status === 'accepted' ? 'Gerar contrato' : 'Aprovar e gerar contrato'}
+                                </BrandButton>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Proposta sem ação de contrato</span>
+                              )}
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <BrandBadge status={proposal.status === 'accepted' ? 'approved' : proposal.status === 'rejected' ? 'rejected' : proposal.status === 'draft' ? 'draft' : 'sent'}>
-                              {proposal.status}
-                            </BrandBadge>
-                            <p className="text-sm font-semibold text-foreground mt-1">R$ {Number(proposal.final_amount || 0).toFixed(0)}</p>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </TabsContent>
                   <TabsContent value="contracts">
@@ -2731,6 +2952,78 @@ export default function CrmPage() {
                 </div>
               </div>
             </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!contractDialogProposal}
+        onOpenChange={(open) => {
+          if (!open) resetContractDialog();
+        }}
+      >
+        <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {contractDialogProposal?.status === 'accepted' ? 'Gerar contrato' : 'Aprovar proposta e gerar contrato'}
+            </DialogTitle>
+            <DialogDescription>
+              Configure pagamento e pagador sem sair da negociação do lead.
+            </DialogDescription>
+          </DialogHeader>
+
+          {contractDialogProposal && (
+            <div className="space-y-4">
+              <div className="rounded-lg border bg-amber-50/60 p-4">
+                <p className="text-sm font-semibold text-foreground">{contractDialogProposal.proposal_number}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {contractDialogProposal.patients?.full_name || leadDrawer?.full_name || 'Paciente'} · R$ {Number(contractDialogProposal.final_amount || 0).toFixed(2)}
+                </p>
+                {contractDialogProposal.status !== 'accepted' && (
+                  <p className="mt-2 text-xs text-amber-800">
+                    Ao confirmar, a proposta será marcada como aprovada e o lead irá para Fechado.
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <ContractPaymentConfigurator
+                  paymentCondition={paymentCondition}
+                  setPaymentCondition={setPaymentCondition}
+                  selectedPaymentMethods={selectedPaymentMethods}
+                  togglePaymentMethod={togglePaymentMethod}
+                  paymentConfig={paymentConfig}
+                  setPaymentConfig={setPaymentConfig}
+                  paymentDetails={paymentDetails}
+                  setPaymentDetails={setPaymentDetails}
+                />
+                <div className="space-y-4">
+                  <PayerSection
+                    value={payerData}
+                    onChange={setPayerData}
+                    patientName={contractDialogProposal.patients?.full_name || leadDrawer?.full_name || undefined}
+                  />
+                  <div className="rounded-md border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
+                    Valor da proposta: <span className="font-semibold text-foreground">R$ {Number(contractDialogProposal.final_amount || 0).toFixed(2)}</span> ·
+                    Soma informada: <span className="font-semibold text-foreground">R$ {selectedPaymentMethods.reduce((sum, method) => sum + Number(paymentConfig[method]?.amount || 0), 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 border-t pt-4">
+                <BrandButton type="button" variant="outline" onClick={resetContractDialog}>
+                  Cancelar
+                </BrandButton>
+                <BrandButton
+                  type="button"
+                  disabled={generateContractFromCrmMutation.isPending}
+                  onClick={() => generateContractFromCrmMutation.mutate()}
+                >
+                  <FileText className="w-4 h-4" />
+                  {generateContractFromCrmMutation.isPending ? 'Gerando...' : 'Confirmar e gerar contrato'}
+                </BrandButton>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>

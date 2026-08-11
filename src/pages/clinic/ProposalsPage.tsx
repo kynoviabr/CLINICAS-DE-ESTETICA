@@ -746,6 +746,28 @@ export default function ProposalsPage() {
       paymentConditionLabels[paymentCondition]
     );
 
+    if (proposal.status !== 'accepted') {
+      const { error: proposalStatusError } = await supabase
+        .from('proposals')
+        .update({ status: 'accepted' as ProposalStatus })
+        .eq('clinic_id', clinicId!)
+        .eq('id', proposal.id);
+      if (proposalStatusError) {
+        toast({ title: 'Erro', description: proposalStatusError.message, variant: 'destructive' });
+        return;
+      }
+
+      const { error: leadStatusError } = await supabase
+        .from('leads')
+        .update({ kanban_stage: 'closed_won' })
+        .eq('clinic_id', clinicId!)
+        .eq('proposal_id', proposal.id);
+      if (leadStatusError) {
+        toast({ title: 'Erro', description: leadStatusError.message, variant: 'destructive' });
+        return;
+      }
+    }
+
     const { data: insertedContract, error } = await supabase.from('contracts').insert({
       clinic_id: clinicId!,
       patient_id: proposal.patient_id,
@@ -763,6 +785,7 @@ export default function ProposalsPage() {
       if (insertedContract?.id) {
         await upsertContractFinancialForecast(insertedContract.id);
       }
+      qc.invalidateQueries({ queryKey: ['proposals'] });
       qc.invalidateQueries({ queryKey: ['contracts'] });
       qc.invalidateQueries({ queryKey: ['crm-leads'] });
       toast({ title: 'Contrato gerado!', description: `Nº ${num}` });
@@ -1182,6 +1205,9 @@ export default function ProposalsPage() {
                       <BrandButton size="sm" className="bg-success hover:bg-success/90" onClick={() => statusMutation.mutate({ id: viewDialog.id, status: 'accepted' })}>
                         <Check className="w-4 h-4" /> Aprovar
                       </BrandButton>
+                      <BrandButton size="sm" onClick={() => openGenerateContractDialog(viewDialog)}>
+                        <FileText className="w-4 h-4" /> Aprovar e gerar contrato
+                      </BrandButton>
                       <BrandButton size="sm" variant="outline" className="text-destructive border-destructive" onClick={() => statusMutation.mutate({ id: viewDialog.id, status: 'rejected' })}>
                         <X className="w-4 h-4" /> Reprovar
                       </BrandButton>
@@ -1216,7 +1242,7 @@ export default function ProposalsPage() {
       >
         <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Gerar contrato</DialogTitle>
+            <DialogTitle>{proposalToContract?.status === 'accepted' ? 'Gerar contrato' : 'Aprovar proposta e gerar contrato'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
