@@ -124,6 +124,33 @@ type LeadProposalRow = {
   } | null;
 };
 
+type LeadProposalItem = {
+  id?: string;
+  treatment_id: string;
+  quantity: number;
+  unit_price: number;
+  subtotal?: number | null;
+  treatments?: { name?: string | null } | null;
+};
+
+type LeadProposalView = LeadProposalRow & { items?: LeadProposalItem[] };
+
+type CrmTreatmentRow = {
+  id: string;
+  name: string;
+  price: number | null;
+  min_price?: number | null;
+  default_price?: number | null;
+};
+
+const proposalStatusLabel: Record<LeadProposalRow['status'], string> = {
+  draft: 'Rascunho',
+  sent: 'Enviada',
+  accepted: 'Aprovada',
+  rejected: 'Reprovada',
+  expired: 'Expirada',
+};
+
 const defaultStages: StageDefinition[] = [
   { code: 'new_lead', label: 'Novo Lead', accent: 'bg-slate-100 text-slate-700', surface: 'from-slate-50 to-white border-slate-200', description: 'Entradas novas sem contato.', isSystem: true },
   { code: 'contacted', label: 'Contato Iniciado', accent: 'bg-sky-100 text-sky-700', surface: 'from-sky-50 to-white border-sky-200', description: 'Primeiro contato em andamento.', isSystem: true },
@@ -373,6 +400,13 @@ export default function CrmPage() {
   const [paymentDetails, setPaymentDetails] = useState<Partial<Record<PaymentMethod, string>>>({});
   const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>({});
   const [payerData, setPayerData] = useState<PayerData>({ is_self_payer: true, payer_id: null });
+  const [proposalDialogOpen, setProposalDialogOpen] = useState(false);
+  const [proposalLead, setProposalLead] = useState<LeadRow | null>(null);
+  const [proposalPatientId, setProposalPatientId] = useState('');
+  const [proposalValidUntil, setProposalValidUntil] = useState('');
+  const [proposalNotes, setProposalNotes] = useState('');
+  const [proposalItems, setProposalItems] = useState<LeadProposalItem[]>([]);
+  const [proposalViewDialog, setProposalViewDialog] = useState<LeadProposalView | null>(null);
   const prefillLeadId = searchParams.get('leadId');
 
   const { data: leads = [], isLoading } = useQuery({
@@ -428,9 +462,9 @@ export default function CrmPage() {
   const { data: treatments = [] } = useQuery({
     queryKey: ['crm-treatments', clinicId],
     queryFn: async () => {
-      const { data, error } = await supabase.from('treatments').select('id, name').eq('clinic_id', clinicId!).eq('is_active', true).order('name');
+      const { data, error } = await supabase.from('treatments').select('id, name, price, min_price, default_price').eq('clinic_id', clinicId!).eq('is_active', true).order('name');
       if (error) throw error;
-      return data || [];
+      return (data || []) as CrmTreatmentRow[];
     },
     enabled: !!clinicId,
   });
@@ -562,22 +596,83 @@ export default function CrmPage() {
     setSearchParams(nextParams, { replace: true });
   }, [prefillLeadId, leads, leadDrawer, searchParams, setSearchParams]);
 
+  const resetProposalDialog = () => {
+    setProposalDialogOpen(false);
+    setProposalLead(null);
+    setProposalPatientId('');
+    setProposalValidUntil('');
+    setProposalNotes('');
+    setProposalItems([]);
+  };
+
+  const generateProposalNumber = () => {
+    const now = new Date();
+    return `PROP-${format(now, 'yyyyMM')}-${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}`;
+  };
+
+  const defaultProposalItemForLead = (lead: LeadRow): LeadProposalItem[] => {
+    const preferredTreatment = treatments.find((treatment) => lead.treatments_of_interest?.includes(treatment.id)) || treatments[0];
+    if (!preferredTreatment) return [];
+    return [{
+      treatment_id: preferredTreatment.id,
+      quantity: 1,
+      unit_price: Number(preferredTreatment.default_price || preferredTreatment.price || 0),
+    }];
+  };
+
+  const proposalTotal = proposalItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+
+  const addProposalItem = () => {
+    if (treatments.length === 0) return;
+    const treatment = treatments[0];
+    setProposalItems((current) => [
+      ...current,
+      {
+        treatment_id: treatment.id,
+        quantity: 1,
+        unit_price: Number(treatment.default_price || treatment.price || 0),
+      },
+    ]);
+  };
+
   const openProposalFlow = async (lead: LeadRow) => {
     try {
       const patientId = await ensurePatientForLead(lead);
-      navigate(`/clinic/proposals?patientId=${patientId}&leadId=${lead.id}&openNew=1&returnTo=crm&returnLeadId=${lead.id}`);
+      const leadWithPatient = { ...lead, patient_id: patientId };
+      setLeadDrawer((current) => current?.id === lead.id ? { ...current, patient_id: patientId } : current);
+      setProposalLead(leadWithPatient);
+      setProposalPatientId(patientId);
+      setProposalValidUntil('');
+      setProposalNotes('');
+      setProposalItems(defaultProposalItemForLead(lead));
+      setProposalDialogOpen(true);
     } catch (error) {
       toast({ title: 'Erro ao preparar proposta', description: error.message, variant: 'destructive' });
     }
   };
 
-  const openExistingProposal = (proposalId: string, leadId?: string) => {
-    const returnLeadId = leadId || leadDrawer?.id;
-    navigate(
-      returnLeadId
-        ? `/clinic/proposals?proposalId=${proposalId}&view=1&returnTo=crm&returnLeadId=${returnLeadId}`
-        : `/clinic/proposals?proposalId=${proposalId}&view=1`
-    );
+  const openExistingProposal = async (proposalId: string) => {
+    const { data: proposal, error } = await supabase
+      .from('proposals')
+      .select('id, proposal_number, status, final_amount, patient_id, notes, created_at, patients(full_name, payer_id, is_self_payer)')
+      .eq('clinic_id', clinicId!)
+      .eq('id', proposalId)
+      .single();
+    if (error) {
+      toast({ title: 'Erro ao abrir proposta', description: error.message, variant: 'destructive' });
+      return;
+    }
+
+    const { data: items, error: itemsError } = await supabase
+      .from('proposal_items')
+      .select('id, treatment_id, quantity, unit_price, subtotal, treatments(name)')
+      .eq('proposal_id', proposalId);
+    if (itemsError) {
+      toast({ title: 'Erro ao abrir itens', description: itemsError.message, variant: 'destructive' });
+      return;
+    }
+
+    setProposalViewDialog({ ...(proposal as LeadProposalRow), items: (items || []) as LeadProposalItem[] });
   };
 
   const openExistingContract = (contractId: string, leadId?: string) => {
@@ -896,6 +991,85 @@ export default function CrmPage() {
       setQuickCreateOpen(false);
       setQuickForm({ full_name: '', phone: '', cpf: '', email: '', zip_code: '', address: '', city: '', state: '', source: '', priority_level: 'medium', assigned_to: 'unassigned', treatment: 'none', notes: '' });
       toast({ title: 'Lead criado', description: `${lead.full_name} entrou em Novo Lead.` });
+    },
+    onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+  });
+
+  const createProposalFromCrmMutation = useMutation({
+    mutationFn: async () => {
+      if (!clinicId || !proposalLead || !proposalPatientId) {
+        throw new Error('Selecione um lead válido para criar a proposta.');
+      }
+      if (proposalItems.length === 0) {
+        throw new Error('Inclua ao menos um tratamento na proposta.');
+      }
+      if (proposalItems.some((item) => !item.treatment_id || item.quantity <= 0 || item.unit_price <= 0)) {
+        throw new Error('Revise tratamento, quantidade e valor dos itens.');
+      }
+
+      const proposalNumber = generateProposalNumber();
+      const { data: proposal, error } = await supabase
+        .from('proposals')
+        .insert({
+          clinic_id: clinicId,
+          patient_id: proposalPatientId,
+          proposal_number: proposalNumber,
+          total_amount: proposalTotal,
+          final_amount: proposalTotal,
+          notes: proposalNotes.trim() || null,
+          valid_until: proposalValidUntil || null,
+          created_by: user?.id || null,
+        })
+        .select('id, proposal_number, status, final_amount, patient_id, notes, created_at')
+        .single();
+      if (error) throw error;
+
+      const proposalItemPayload = proposalItems.map((item) => ({
+        proposal_id: proposal.id,
+        treatment_id: item.treatment_id,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        subtotal: item.quantity * item.unit_price,
+      }));
+      const { error: itemsError } = await supabase.from('proposal_items').insert(proposalItemPayload);
+      if (itemsError) throw itemsError;
+
+      const { error: leadError } = await supabase
+        .from('leads')
+        .update({
+          patient_id: proposalPatientId,
+          proposal_id: proposal.id,
+          kanban_stage: 'proposal_sent',
+        })
+        .eq('clinic_id', clinicId)
+        .eq('id', proposalLead.id);
+      if (leadError) throw leadError;
+
+      const itemsWithNames = proposalItems.map((item) => ({
+        ...item,
+        subtotal: item.quantity * item.unit_price,
+        treatments: { name: treatmentMap[item.treatment_id] || 'Tratamento' },
+      }));
+
+      return {
+        ...(proposal as LeadProposalRow),
+        patients: { full_name: proposalLead.full_name, payer_id: null, is_self_payer: true },
+        items: itemsWithNames,
+        leadId: proposalLead.id,
+      };
+    },
+    onSuccess: (proposal) => {
+      qc.invalidateQueries({ queryKey: ['crm-leads'] });
+      qc.invalidateQueries({ queryKey: ['crm-proposals'] });
+      qc.invalidateQueries({ queryKey: ['crm-all-proposals'] });
+      qc.invalidateQueries({ queryKey: ['proposals'] });
+      setLeadDrawer((current) => current?.id === proposal.leadId
+        ? { ...current, patient_id: proposal.patient_id, proposal_id: proposal.id, kanban_stage: 'proposal_sent' }
+        : current
+      );
+      resetProposalDialog();
+      setProposalViewDialog(proposal);
+      toast({ title: 'Proposta criada', description: `${proposal.proposal_number} aberta para negociação.` });
     },
     onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
   });
@@ -1527,6 +1701,7 @@ export default function CrmPage() {
       qc.invalidateQueries({ queryKey: ['proposals'] });
       qc.invalidateQueries({ queryKey: ['contracts'] });
       toast({ title: 'Contrato gerado!', description: `Nº ${contractNumber}` });
+      setProposalViewDialog(null);
       resetContractDialog();
     },
     onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
@@ -2949,6 +3124,219 @@ export default function CrmPage() {
                   })}>
                     Salvar alterações
                   </BrandButton>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={proposalDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) resetProposalDialog();
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Nova proposta</DialogTitle>
+            <DialogDescription>
+              Monte a proposta sem sair do CRM. Ao salvar, ela abre aqui mesmo para negociação.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              createProposalFromCrmMutation.mutate();
+            }}
+          >
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Lead / paciente</Label>
+                <Input value={proposalLead?.full_name || leadDrawer?.full_name || ''} disabled />
+              </div>
+              <div className="space-y-2">
+                <Label>Validade</Label>
+                <Input type="date" value={proposalValidUntil} onChange={(event) => setProposalValidUntil(event.target.value)} />
+              </div>
+            </div>
+
+            <section className="rounded-lg border bg-card p-4">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Tratamentos</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">Inclua os itens negociados na sala.</p>
+                </div>
+                <BrandButton type="button" size="sm" variant="outline" onClick={addProposalItem}>
+                  <Plus className="w-4 h-4" />
+                  Adicionar
+                </BrandButton>
+              </div>
+
+              <div className="space-y-3">
+                {proposalItems.length === 0 && (
+                  <div className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
+                    Nenhum tratamento incluído.
+                  </div>
+                )}
+                {proposalItems.map((item, index) => {
+                  const treatment = treatments.find((current) => current.id === item.treatment_id);
+                  const belowMinimum = treatment?.min_price && item.unit_price < Number(treatment.min_price);
+                  return (
+                    <div key={`${item.treatment_id}-${index}`} className="rounded-lg border p-3">
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_90px_130px_40px] md:items-end">
+                        <div className="space-y-2">
+                          <Label>Tratamento</Label>
+                          <Select
+                            value={item.treatment_id}
+                            onValueChange={(value) => {
+                              const nextTreatment = treatments.find((current) => current.id === value);
+                              setProposalItems((current) => current.map((row, rowIndex) => rowIndex === index
+                                ? {
+                                    ...row,
+                                    treatment_id: value,
+                                    unit_price: Number(nextTreatment?.default_price || nextTreatment?.price || row.unit_price || 0),
+                                  }
+                                : row
+                              ));
+                            }}
+                          >
+                            <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
+                            <SelectContent>
+                              {treatments.map((current) => (
+                                <SelectItem key={current.id} value={current.id}>{current.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Qtd</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={item.quantity}
+                            onChange={(event) => setProposalItems((current) => current.map((row, rowIndex) => rowIndex === index
+                              ? { ...row, quantity: parseInt(event.target.value, 10) || 1 }
+                              : row
+                            ))}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Valor unit.</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={item.unit_price}
+                            onChange={(event) => setProposalItems((current) => current.map((row, rowIndex) => rowIndex === index
+                              ? { ...row, unit_price: parseFloat(event.target.value) || 0 }
+                              : row
+                            ))}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="rounded-md p-2 text-destructive hover:bg-destructive/10"
+                          onClick={() => setProposalItems((current) => current.filter((_, rowIndex) => rowIndex !== index))}
+                          aria-label="Remover tratamento"
+                        >
+                          x
+                        </button>
+                      </div>
+                      {belowMinimum && (
+                        <p className="mt-2 text-xs text-destructive">Abaixo do mínimo: R$ {Number(treatment?.min_price || 0).toFixed(2)}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 rounded-md bg-secondary/40 px-3 py-2 text-right text-sm">
+                Total: <span className="font-semibold text-foreground">R$ {proposalTotal.toFixed(2)}</span>
+              </div>
+            </section>
+
+            <div className="space-y-2">
+              <Label>Observações</Label>
+              <Textarea value={proposalNotes} onChange={(event) => setProposalNotes(event.target.value)} rows={3} />
+            </div>
+
+            <div className="flex justify-end gap-3 border-t pt-4">
+              <BrandButton type="button" variant="outline" onClick={resetProposalDialog}>
+                Cancelar
+              </BrandButton>
+              <BrandButton type="submit" disabled={createProposalFromCrmMutation.isPending || proposalItems.length === 0}>
+                {createProposalFromCrmMutation.isPending ? 'Salvando...' : 'Salvar e visualizar'}
+              </BrandButton>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!proposalViewDialog} onOpenChange={(open) => !open && setProposalViewDialog(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          {proposalViewDialog && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center justify-between gap-3">
+                  <span>Proposta {proposalViewDialog.proposal_number}</span>
+                  <BrandBadge status={proposalViewDialog.status === 'accepted' ? 'approved' : proposalViewDialog.status === 'rejected' ? 'rejected' : proposalViewDialog.status === 'draft' ? 'draft' : 'sent'}>
+                    {proposalStatusLabel[proposalViewDialog.status] || proposalViewDialog.status}
+                  </BrandBadge>
+                </DialogTitle>
+                <DialogDescription>
+                  {proposalViewDialog.patients?.full_name || leadDrawer?.full_name || 'Paciente'} · criada {relativeDate(proposalViewDialog.created_at)}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-sm">
+                    <thead className="bg-secondary/60">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Tratamento</th>
+                        <th className="px-3 py-2 text-center">Qtd</th>
+                        <th className="px-3 py-2 text-right">Valor unit.</th>
+                        <th className="px-3 py-2 text-right">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(proposalViewDialog.items || []).map((item, index) => (
+                        <tr key={item.id || `${item.treatment_id}-${index}`} className="border-t">
+                          <td className="px-3 py-2">{item.treatments?.name || treatmentMap[item.treatment_id] || 'Tratamento'}</td>
+                          <td className="px-3 py-2 text-center">{item.quantity}</td>
+                          <td className="px-3 py-2 text-right">R$ {Number(item.unit_price || 0).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right font-medium">R$ {Number(item.subtotal || item.quantity * item.unit_price || 0).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {proposalViewDialog.notes && (
+                  <div className="rounded-lg border bg-secondary/30 p-3 text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">Observações: </span>{proposalViewDialog.notes}
+                  </div>
+                )}
+
+                <div className="rounded-lg bg-primary/5 p-4 text-right">
+                  <span className="text-sm text-muted-foreground">Valor total</span>
+                  <p className="text-2xl font-semibold text-foreground">R$ {Number(proposalViewDialog.final_amount || 0).toFixed(2)}</p>
+                </div>
+
+                <div className="flex flex-wrap justify-end gap-3 border-t pt-4">
+                  <BrandButton variant="outline" onClick={() => setProposalViewDialog(null)}>
+                    Fechar
+                  </BrandButton>
+                  {leadContracts.some((contract) => contract.proposal_id === proposalViewDialog.id) ? (
+                    <BrandBadge status="approved">Contrato já gerado</BrandBadge>
+                  ) : (
+                    <BrandButton onClick={() => openLeadContractDialog(proposalViewDialog)}>
+                      <FileText className="w-4 h-4" />
+                      {proposalViewDialog.status === 'accepted' ? 'Gerar contrato' : 'Aprovar e gerar contrato'}
+                    </BrandButton>
+                  )}
                 </div>
               </div>
             </>
