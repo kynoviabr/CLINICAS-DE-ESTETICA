@@ -183,6 +183,10 @@ function buildEvaluationScheduleLink(leadId: string, professionalId?: string | n
   return `/clinic/appointments?${params.toString()}`;
 }
 
+function isSchedulableAppointmentStatus(status?: string | null) {
+  return status === 'scheduled' || status === 'confirmed';
+}
+
 function getRiskLabel(risk?: string | null) {
   if (risk === 'high') return { label: 'Risco alto', className: 'bg-rose-100 text-rose-700' };
   if (risk === 'medium') return { label: 'Risco médio', className: 'bg-amber-100 text-amber-700' };
@@ -937,36 +941,28 @@ export default function CrmPage() {
       kanban_stage: targetStage,
     };
 
-    if (targetStage === 'scheduled' && !lead.appointment_id) {
-      const start = addDays(startOfDay(new Date()), 1);
-      start.setHours(9, 0, 0, 0);
-      const end = new Date(start.getTime() + 60 * 60000);
-      const assignedProfessionalId = lead.assigned_to || null;
+    if (targetStage === 'scheduled') {
+      if (!lead.appointment_id) {
+        throw new Error('Para mover para Agendado, primeiro confirme data, hora e profissional na Agenda.');
+      }
+
       const { data: appointment, error } = await supabase.from('appointments')
-        .insert({
-          clinic_id: lead.clinic_id,
-          lead_id: lead.id,
-          patient_id: null,
-          professional_id: assignedProfessionalId,
-          appointment_type: 'evaluation',
-          treatment_id: lead.treatments_of_interest?.[0] || null,
-          start_time: start.toISOString(),
-          end_time: end.toISOString(),
-          scheduled_at: start.toISOString(),
-          duration_minutes: 60,
-          status: 'scheduled',
-          credit_check_required: !!lead.cpf,
-          credit_check_status: lead.cpf ? 'pending' : 'not_required',
-          notes: 'Criado automaticamente pelo CRM ao mover para Agendado.',
-          created_by: user?.id || null,
-        })
-        .select('id')
-        .single();
+        .select('id, professional_id, start_time, scheduled_at, status')
+        .eq('clinic_id', lead.clinic_id)
+        .eq('lead_id', lead.id)
+        .eq('id', lead.appointment_id)
+        .maybeSingle();
+
       if (error) throw error;
-      nextAppointmentId = appointment.id;
-      patch.appointment_id = appointment.id;
-      patch.last_credit_risk_level = lead.cpf ? 'medium' : 'unknown';
-      patch.last_credit_check_at = new Date().toISOString();
+      if (!appointment) {
+        throw new Error('Agendamento vinculado não encontrado. Abra a Agenda e confirme data, hora e profissional antes de mover.');
+      }
+      if (!appointment.professional_id || !(appointment.start_time || appointment.scheduled_at)) {
+        throw new Error('O agendamento precisa ter profissional, data e hora confirmados antes de mover para Agendado.');
+      }
+      if (!isSchedulableAppointmentStatus(appointment.status)) {
+        throw new Error('O agendamento vinculado precisa estar com status Agendado ou Confirmado.');
+      }
     }
 
     if (targetStage === 'proposal_sent' && lead.appointment_id) {
@@ -1017,6 +1013,23 @@ export default function CrmPage() {
     },
     onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
   });
+
+  const requestLeadStageMove = (lead: LeadRow, targetStage: StageCode) => {
+    if (targetStage === lead.kanban_stage) return;
+    if (targetStage === 'scheduled' && !lead.appointment_id) {
+      toast({
+        title: 'Agende primeiro',
+        description: 'Confirme data, hora e profissional na Agenda antes de mover o lead para Agendado.',
+      });
+      navigate(buildEvaluationScheduleLink(lead.id, lead.assigned_to || null));
+      return;
+    }
+    if (targetStage === 'closed_lost') {
+      setLossModal({ lead, targetStage });
+      return;
+    }
+    moveLeadMutation.mutate({ lead, targetStage });
+  };
 
   const saveLeadMutation = useMutation({
     mutationFn: async (payload: Partial<LeadRow>) => {
@@ -1679,11 +1692,7 @@ export default function CrmPage() {
                 if (!dragLeadId) return;
                 const dragged = leads.find((lead) => lead.id === dragLeadId);
                 if (!dragged || dragged.kanban_stage === stage.code) return;
-                if (stage.code === 'closed_lost') {
-                  setLossModal({ lead: dragged, targetStage: stage.code });
-                } else {
-                  moveLeadMutation.mutate({ lead: dragged, targetStage: stage.code });
-                }
+                requestLeadStageMove(dragged, stage.code);
               }}
             >
               <CardHeader className="space-y-1.5 border-b border-black/5 px-2.5 py-2">
@@ -2251,12 +2260,7 @@ export default function CrmPage() {
                         value={leadDrawer.kanban_stage}
                         onValueChange={(value) => {
                           const targetStage = value as StageCode;
-                          if (targetStage === leadDrawer.kanban_stage) return;
-                          if (targetStage === 'closed_lost') {
-                            setLossModal({ lead: leadDrawer, targetStage });
-                            return;
-                          }
-                          moveLeadMutation.mutate({ lead: leadDrawer, targetStage });
+                          requestLeadStageMove(leadDrawer, targetStage);
                         }}
                       >
                         <SelectTrigger><SelectValue /></SelectTrigger>
