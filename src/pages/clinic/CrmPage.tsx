@@ -226,6 +226,71 @@ function getPriorityRank(priority?: string | null) {
   return 2;
 }
 
+function normalizeLeadSource(source?: string | null) {
+  const normalized = source?.trim().toLowerCase();
+  if (!normalized || normalized === 'sem origem' || normalized === 'nao informado' || normalized === 'não informado') return 'Sem origem';
+  if (['google ads', 'ads google'].includes(normalized)) return 'google';
+  if (['whatsapp ia', 'whatsapp-ai', 'whatsapp_ai'].includes(normalized)) return 'whatsapp_ai';
+  if (['indicação', 'indicacao'].includes(normalized)) return 'indicacao';
+  return normalized;
+}
+
+function getLeadSourceMeta(source?: string | null) {
+  const normalized = normalizeLeadSource(source);
+  if (normalized === 'whatsapp_ai') {
+    return {
+      label: 'WhatsApp IA',
+      className: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+    };
+  }
+  if (normalized === 'whatsapp') {
+    return {
+      label: 'WhatsApp',
+      className: 'bg-green-50 text-green-700 ring-1 ring-green-200',
+    };
+  }
+  if (!normalized) {
+    return {
+      label: 'Sem origem',
+      className: 'bg-slate-100 text-slate-600',
+    };
+  }
+  if (normalized === 'Sem origem') {
+    return {
+      label: 'Sem origem',
+      className: 'bg-slate-100 text-slate-600',
+    };
+  }
+  if (normalized === 'google') {
+    return {
+      label: 'Google',
+      className: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
+    };
+  }
+  if (normalized === 'instagram') {
+    return {
+      label: 'Instagram',
+      className: 'bg-pink-50 text-pink-700 ring-1 ring-pink-200',
+    };
+  }
+  if (normalized === 'site') {
+    return {
+      label: 'Site',
+      className: 'bg-sky-50 text-sky-700 ring-1 ring-sky-200',
+    };
+  }
+  if (normalized === 'indicacao') {
+    return {
+      label: 'Indicação',
+      className: 'bg-violet-50 text-violet-700 ring-1 ring-violet-200',
+    };
+  }
+  return {
+    label: normalized.charAt(0).toUpperCase() + normalized.slice(1),
+    className: 'bg-slate-100 text-slate-700',
+  };
+}
+
 export default function CrmPage() {
   const { clinicId } = useBranding();
   const { user } = useAuth();
@@ -437,7 +502,8 @@ export default function CrmPage() {
   const proposalMap = useMemo(() => Object.fromEntries(proposals.map((proposal) => [proposal.id, proposal])), [proposals]);
   const stageMap = useMemo(() => Object.fromEntries(configuredStages.map((stage) => [stage.code, stage])), [configuredStages]);
   const availableSources = useMemo(
-    () => Array.from(new Set(leads.map((lead) => lead.source?.trim() || 'Sem origem'))).sort((a, b) => a.localeCompare(b)),
+    () => Array.from(new Set(leads.map((lead) => normalizeLeadSource(lead.source))))
+      .sort((a, b) => getLeadSourceMeta(a).label.localeCompare(getLeadSourceMeta(b).label)),
     [leads]
   );
 
@@ -526,7 +592,7 @@ export default function CrmPage() {
         assignedFilter === 'all' ||
         (assignedFilter === 'unassigned' ? !lead.assigned_to : lead.assigned_to === assignedFilter);
       const matchesStage = stageFilter === 'all' || lead.kanban_stage === stageFilter;
-      const leadSource = lead.source?.trim() || 'Sem origem';
+      const leadSource = normalizeLeadSource(lead.source);
       const matchesSource = sourceFilter === 'all' || leadSource === sourceFilter;
       return matchesSearch && matchesAssignee && matchesStage && matchesSource;
     });
@@ -617,7 +683,7 @@ export default function CrmPage() {
 
     const topSources = Object.entries(
       baseFilteredLeads.reduce<Record<string, number>>((acc, lead) => {
-        const source = lead.source?.trim() || 'Sem origem';
+        const source = normalizeLeadSource(lead.source);
         acc[source] = (acc[source] || 0) + 1;
         return acc;
       }, {})
@@ -706,7 +772,7 @@ export default function CrmPage() {
         phone: quickForm.phone.trim(),
         cpf: quickForm.cpf.trim() || null,
         email: quickForm.email.trim() || null,
-        source: quickForm.source || null,
+        source: quickForm.source ? normalizeLeadSource(quickForm.source) : null,
         priority_level: quickForm.priority_level,
         assigned_to: quickForm.assigned_to === 'unassigned' ? null : quickForm.assigned_to,
         treatments_of_interest: quickForm.treatment === 'none' ? [] : [quickForm.treatment],
@@ -1250,7 +1316,7 @@ export default function CrmPage() {
                 <SelectTrigger className="h-10 rounded-lg border-slate-200 bg-slate-50/80 text-sm"><SelectValue placeholder="Origem" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas origens</SelectItem>
-                  {availableSources.map((source) => <SelectItem key={source} value={source}>{source}</SelectItem>)}
+                  {availableSources.map((source) => <SelectItem key={source} value={source}>{getLeadSourceMeta(source).label}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={viewMode} onValueChange={(value) => setViewMode(value as 'kanban' | 'list')}>
@@ -1572,7 +1638,7 @@ export default function CrmPage() {
                         <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-600">
                           {index + 1}
                         </span>
-                        <span className="text-[13px] font-medium text-slate-800">{source}</span>
+                        <span className="text-[13px] font-medium text-slate-800">{getLeadSourceMeta(source).label}</span>
                       </div>
                       <span className="text-[13px] font-semibold text-slate-900">{count}</span>
                     </button>
@@ -1590,7 +1656,7 @@ export default function CrmPage() {
           <p className="text-sm text-slate-700">
             Filtro ativo:{' '}
             <span className="font-semibold text-slate-900">
-              {[insightFilter !== 'all' ? insightFilterLabel : null, sourceFilter !== 'all' ? `Origem: ${sourceFilter}` : null]
+              {[insightFilter !== 'all' ? insightFilterLabel : null, sourceFilter !== 'all' ? `Origem: ${getLeadSourceMeta(sourceFilter).label}` : null]
                 .filter(Boolean)
                 .join(' · ')}
             </span>
@@ -1645,6 +1711,7 @@ export default function CrmPage() {
                   const isStale = Math.abs((Date.now() - new Date(lead.last_interaction_at || lead.stage_changed_at || lead.created_at).getTime()) / (1000 * 60 * 60 * 24)) > 3;
                   const followUp = getFollowUpStatus(lead.next_action_at);
                   const priority = getPriorityBadge(lead.priority_level);
+                  const source = getLeadSourceMeta(lead.source);
                   return (
                     <button
                       key={lead.id}
@@ -1692,6 +1759,13 @@ export default function CrmPage() {
                           {priority.label}
                         </span>
                       </div>
+                      {(lead.source || '').trim() && (
+                        <div className="mt-1 flex justify-start">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${source.className}`}>
+                            {source.label}
+                          </span>
+                        </div>
+                      )}
                       {canOpenWhatsApp(lead) && (
                         <div className="mt-2 flex justify-end">
                           <BrandButton
@@ -1792,6 +1866,7 @@ export default function CrmPage() {
                     />
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Lead</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Origem</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Etapa</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Responsável</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Último contato</th>
@@ -1806,6 +1881,7 @@ export default function CrmPage() {
                   const risk = getRiskLabel(lead.last_credit_risk_level);
                   const followUp = getFollowUpStatus(lead.next_action_at);
                   const priority = getPriorityBadge(lead.priority_level);
+                  const source = getLeadSourceMeta(lead.source);
                   return (
                     <tr key={lead.id} className="border-b hover:bg-secondary/20 cursor-pointer" onClick={() => setLeadDrawer(lead)}>
                       <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
@@ -1821,6 +1897,9 @@ export default function CrmPage() {
                       <td className="px-4 py-3">
                         <p className="font-medium text-sm text-foreground">{lead.full_name}</p>
                         <p className="text-xs text-muted-foreground">{lead.phone || 'Sem telefone'}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2 py-1 text-xs font-medium ${source.className}`}>{source.label}</span>
                       </td>
                       <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-medium ${stage.accent}`}>{stage.label}</span></td>
                       <td className="px-4 py-3 text-sm text-muted-foreground" onClick={(event) => event.stopPropagation()}>
@@ -1908,8 +1987,9 @@ export default function CrmPage() {
                 <Input value={quickForm.phone} onChange={(event) => setQuickForm((current) => ({ ...current, phone: event.target.value }))} required />
               </div>
               <div className="space-y-2">
-                <Label>CPF</Label>
+                <Label>CPF <span className="text-muted-foreground font-normal">(opcional)</span></Label>
                 <Input value={quickForm.cpf} onChange={(event) => setQuickForm((current) => ({ ...current, cpf: event.target.value }))} />
+                <p className="text-xs text-muted-foreground">Não é necessário pedir CPF no primeiro contato com o lead.</p>
               </div>
               <div className="space-y-2">
                 <Label>E-mail</Label>
@@ -1926,6 +2006,7 @@ export default function CrmPage() {
                     <SelectItem value="google">Google</SelectItem>
                     <SelectItem value="site">Site</SelectItem>
                     <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                    <SelectItem value="whatsapp_ai">WhatsApp IA</SelectItem>
                     <SelectItem value="outro">Outro</SelectItem>
                   </SelectContent>
                 </Select>
@@ -2061,6 +2142,9 @@ export default function CrmPage() {
                 <DialogTitle className="flex items-center gap-2 text-lg">
                   <UserRound className="w-5 h-5 text-primary" />
                   {leadDrawer.full_name}
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${getLeadSourceMeta(leadDrawer.source).className}`}>
+                    {getLeadSourceMeta(leadDrawer.source).label}
+                  </span>
                 </DialogTitle>
                 <DialogDescription>
                   {stageMap[leadDrawer.kanban_stage]?.label || leadDrawer.kanban_stage} · Responsável {leadDrawer.assigned_to ? staffMap[leadDrawer.assigned_to] || 'Equipe' : 'não atribuído'}
@@ -2250,7 +2334,7 @@ export default function CrmPage() {
                         <Input value={leadDrawer.phone || ''} onChange={(event) => setLeadDrawer({ ...leadDrawer, phone: event.target.value })} />
                       </div>
                       <div className="space-y-2">
-                        <Label>CPF</Label>
+                        <Label>CPF <span className="text-muted-foreground font-normal">(opcional)</span></Label>
                         <Input value={leadDrawer.cpf || ''} onChange={(event) => setLeadDrawer({ ...leadDrawer, cpf: event.target.value })} />
                       </div>
                       <div className="space-y-2">
@@ -2259,7 +2343,19 @@ export default function CrmPage() {
                       </div>
                       <div className="space-y-2">
                         <Label>Origem</Label>
-                        <Input value={leadDrawer.source || ''} onChange={(event) => setLeadDrawer({ ...leadDrawer, source: event.target.value })} />
+                        <Select value={leadDrawer.source ? normalizeLeadSource(leadDrawer.source) : 'none'} onValueChange={(value) => setLeadDrawer({ ...leadDrawer, source: value === 'none' ? null : value })}>
+                          <SelectTrigger><SelectValue placeholder="Origem" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Não informado</SelectItem>
+                            <SelectItem value="indicacao">Indicação</SelectItem>
+                            <SelectItem value="instagram">Instagram</SelectItem>
+                            <SelectItem value="google">Google</SelectItem>
+                            <SelectItem value="site">Site</SelectItem>
+                            <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                            <SelectItem value="whatsapp_ai">WhatsApp IA</SelectItem>
+                            <SelectItem value="outro">Outro</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-2">
                         <Label>Responsável</Label>
@@ -2446,7 +2542,7 @@ export default function CrmPage() {
                     phone: leadDrawer.phone,
                     cpf: leadDrawer.cpf,
                     email: leadDrawer.email,
-                    source: leadDrawer.source,
+                    source: leadDrawer.source ? normalizeLeadSource(leadDrawer.source) : null,
                     notes: leadDrawer.notes,
                     assigned_to: leadDrawer.assigned_to,
                     priority_level: leadDrawer.priority_level,

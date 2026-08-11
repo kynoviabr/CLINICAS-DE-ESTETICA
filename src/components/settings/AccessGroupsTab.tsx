@@ -29,6 +29,7 @@ type StaffUser = {
 const LABELS: Record<MenuPermissionKey, string> = {
   'dashboard.view': 'Dashboard',
   'crm.view': 'CRM',
+  'whatsapp_ai.view': 'WhatsApp IA',
   'patients.view': 'Pacientes',
   'treatments.view': 'Tratamentos',
   'proposals.view': 'Propostas',

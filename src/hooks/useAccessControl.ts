@@ -57,7 +57,12 @@ export function useAccessControl() {
           return;
         }
 
-        setPermissions(new Set<MenuPermissionKey>(resolved));
+        const nextPermissions = new Set<MenuPermissionKey>(resolved);
+        const fallback = LEGACY_ROLE_PERMISSIONS[role] || [];
+        if (fallback.includes('whatsapp_ai.view')) {
+          nextPermissions.add('whatsapp_ai.view');
+        }
+        setPermissions(nextPermissions);
       } catch {
         const fallback = LEGACY_ROLE_PERMISSIONS[role] || [];
         setPermissions(new Set(fallback));

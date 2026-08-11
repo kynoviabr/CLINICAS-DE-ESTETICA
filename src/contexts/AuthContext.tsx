@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useCallback, useEffect, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
@@ -19,21 +19,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+  const refreshAuthState = useCallback(async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    setSession(session);
 
-    return () => subscription.unsubscribe();
+    if (!session) {
+      setUser(null);
+      return;
+    }
+
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    setUser(error ? null : user);
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadInitialSession = async () => {
+      try {
+        await refreshAuthState();
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+
+      if (event === 'SIGNED_OUT' || !session) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(false);
+      void refreshAuthState();
+    });
+
+    void loadInitialSession();
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [refreshAuthState]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -44,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: metadata, emailRedirectTo: window.location.origin },
+      options: { data: metadata, emailRedirectTo: `${window.location.origin}/onboarding` },
     });
     if (error) throw error;
   };

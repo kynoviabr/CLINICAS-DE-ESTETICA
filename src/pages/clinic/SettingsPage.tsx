@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock } from 'lucide-react';
+import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, MessageSquare } from 'lucide-react';
 import CategoriesTab from '@/components/settings/CategoriesTab';
 import CostItemsTab from '@/components/settings/CostItemsTab';
 import ParametersTab from '@/components/settings/ParametersTab';
@@ -24,6 +24,7 @@ import DashboardAlertsTab from '@/components/settings/DashboardAlertsTab';
 import KanbanStagesTab from '@/components/settings/KanbanStagesTab';
 import PatientAppAccessTab from '@/components/settings/PatientAppAccessTab';
 import AccessGroupsTab from '@/components/settings/AccessGroupsTab';
+import WhatsAppAiSettingsTab from '@/components/settings/WhatsAppAiSettingsTab';
 import TreatmentsPage from '@/pages/clinic/TreatmentsPage';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -225,6 +226,7 @@ export default function SettingsPage() {
           <TabsTrigger value="team"><Lock className="w-4 h-4 mr-1" />Segurança e Acesso</TabsTrigger>
           <TabsTrigger value="professionals"><UserCog className="w-4 h-4 mr-1" />Profissionais</TabsTrigger>
           <TabsTrigger value="treatments"><Stethoscope className="w-4 h-4 mr-1" />Tratamentos</TabsTrigger>
+          <TabsTrigger value="whatsapp-ai"><MessageSquare className="w-4 h-4 mr-1" />WhatsApp IA</TabsTrigger>
           <TabsTrigger value="crm-kanban"><Settings className="w-4 h-4 mr-1" />CRM Kanban</TabsTrigger>
           <TabsTrigger value="goals"><Target className="w-4 h-4 mr-1" />Metas</TabsTrigger>
           <TabsTrigger value="parameters"><SlidersHorizontal className="w-4 h-4 mr-1" />Parâmetros</TabsTrigger>
@@ -491,6 +493,10 @@ export default function SettingsPage() {
         {/* ===== TREATMENTS ===== */}
         <TabsContent value="treatments">
           <TreatmentsPage embedded />
+        </TabsContent>
+
+        <TabsContent value="whatsapp-ai">
+          <WhatsAppAiSettingsTab />
         </TabsContent>
 
         {/* ===== CATEGORIES ===== */}

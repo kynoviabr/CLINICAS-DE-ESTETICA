@@ -28,6 +28,7 @@ import EvolutionPage from "./pages/clinic/EvolutionPage";
 import PhotosPage from "./pages/clinic/PhotosPage";
 import ReportsPage from "./pages/clinic/ReportsPage";
 import SettingsPage from "./pages/clinic/SettingsPage";
+import WhatsAppAiPage from "./pages/clinic/WhatsAppAiPage";
 import GoalsTrackingPage from "./pages/clinic/GoalsTrackingPage";
 import NpsPage from "./pages/clinic/NpsPage";
 import SatisfactionPage from "./pages/clinic/SatisfactionPage";
@@ -54,7 +55,11 @@ const App = () => (
               <Route path="/" element={<Navigate to="/login" replace />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
-              <Route path="/onboarding" element={<OnboardingPage />} />
+              <Route path="/onboarding" element={
+                <ProtectedRoute>
+                  <OnboardingPage />
+                </ProtectedRoute>
+              } />
 
               {/* Clinic internal — staff only */}
               <Route path="/clinic" element={
@@ -64,6 +69,7 @@ const App = () => (
               }>
                 <Route index element={<ClinicDashboard />} />
                 <Route path="crm" element={<CrmPage />} />
+                <Route path="whatsapp-ai" element={<WhatsAppAiPage />} />
                 <Route path="patients" element={<PatientsPage />} />
                 <Route path="patients/:id" element={<PatientDetailPage />} />
                 <Route path="treatments" element={<TreatmentsPage readOnly />} />

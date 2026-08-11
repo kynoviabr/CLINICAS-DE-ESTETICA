@@ -362,10 +362,6 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
           <form onSubmit={handleSubmit} className="space-y-4 mt-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Nome *</Label>
-                <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
-              </div>
-              <div className="space-y-2">
                 <Label>Categoria</Label>
                 <Select value={form.category_id} onValueChange={v => setForm({ ...form, category_id: v })}>
                   <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
@@ -375,6 +371,10 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Tratamento *</Label>
+                <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
               </div>
             </div>
 

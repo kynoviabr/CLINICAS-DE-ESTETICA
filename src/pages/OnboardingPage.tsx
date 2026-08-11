@@ -9,6 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Stethoscope, Building2, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'Tente novamente em alguns instantes.';
+
 export default function OnboardingPage() {
   const { user } = useAuth();
   const { role, loading: roleLoading } = useUserRole();
@@ -45,7 +48,7 @@ export default function OnboardingPage() {
       // Small delay to let role propagate
       setTimeout(() => navigate('/clinic', { replace: true }), 500);
     } catch (err: unknown) {
-      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+      toast({ title: 'Erro', description: getErrorMessage(err), variant: 'destructive' });
     } finally {
       setLoading(false);
     }

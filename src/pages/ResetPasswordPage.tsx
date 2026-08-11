@@ -7,6 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Stethoscope, Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'Erro ao redefinir senha';
+
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -56,7 +59,7 @@ export default function ResetPasswordPage() {
       setSuccess(true);
       toast.success('Senha definida com sucesso!');
     } catch (err: unknown) {
-      toast.error(err.message || 'Erro ao redefinir senha');
+      toast.error(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

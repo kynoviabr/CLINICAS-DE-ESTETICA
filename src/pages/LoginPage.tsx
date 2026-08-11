@@ -11,6 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Stethoscope, Eye, EyeOff, Mail, Sparkles, Shield, Activity } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'Tente novamente em alguns instantes.';
+
 /**
  * Stripe-style split-screen login.
  * Left: navy hero with marketing.   Right: form card.
@@ -60,7 +63,7 @@ export default function LoginPage() {
     try {
       await signIn(email, password);
     } catch (err: unknown) {
-      toast({ title: 'Erro ao entrar', description: err.message, variant: 'destructive' });
+      toast({ title: 'Erro ao entrar', description: getErrorMessage(err), variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -76,7 +79,7 @@ export default function LoginPage() {
         description: 'Verifique seu e-mail para confirmar o cadastro.',
       });
     } catch (err: unknown) {
-      toast({ title: 'Erro ao cadastrar', description: err.message, variant: 'destructive' });
+      toast({ title: 'Erro ao cadastrar', description: getErrorMessage(err), variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -93,7 +96,7 @@ export default function LoginPage() {
       if (error) throw error;
       setForgotSent(true);
     } catch (err: unknown) {
-      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+      toast({ title: 'Erro', description: getErrorMessage(err), variant: 'destructive' });
     } finally {
       setForgotLoading(false);
     }
