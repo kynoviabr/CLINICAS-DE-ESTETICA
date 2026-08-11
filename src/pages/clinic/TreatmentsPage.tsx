@@ -55,6 +55,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
   const { toast } = useToast();
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<TreatmentForm>(emptyForm);
@@ -64,11 +65,16 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
   const canManage = isAdmin && !readOnly;
 
   const { data: treatments = [], isLoading } = useQuery({
-    queryKey: ['treatments', clinicId, search],
+    queryKey: ['treatments', clinicId, search, categoryFilter],
     queryFn: async () => {
       if (!clinicId) return [];
       let q = supabase.from('treatments').select('*, treatment_categories(name)').eq('clinic_id', clinicId).order('name');
       if (search) q = q.ilike('name', `%${search}%`);
+      if (categoryFilter === 'uncategorized') {
+        q = q.is('category_id', null);
+      } else if (categoryFilter !== 'all') {
+        q = q.eq('category_id', categoryFilter);
+      }
       const { data } = await q;
       return data || [];
     },
@@ -263,9 +269,23 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
 
         <TabsContent value="treatments">
 
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input placeholder="Buscar tratamento..." className="pl-10" value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-[1fr_260px]">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Buscar tratamento..." className="pl-10" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger>
+            <SelectValue placeholder="Tipo de tratamento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os tipos</SelectItem>
+            {categories.map((category: unknown) => (
+              <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+            ))}
+            <SelectItem value="uncategorized">Sem categoria</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {isLoading && (
