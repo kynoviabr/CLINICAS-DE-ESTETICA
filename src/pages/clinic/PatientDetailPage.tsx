@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
 import { PageHeader } from '@/components/ui/page-header';
@@ -11,9 +11,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import {
   ArrowLeft, User, Phone, Mail, Calendar, ClipboardList, Activity, Camera,
-  MessageSquare, Star, ExternalLink, Loader2, AlertTriangle, FileSignature, Upload
+  MessageSquare, Star, ExternalLink, Loader2, AlertTriangle, FileSignature, Upload, Edit
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -52,6 +56,20 @@ const anamneseBadgeConfig: Record<string, { label: string; cls: string; hint: st
   },
 };
 
+type PatientEditForm = {
+  full_name: string;
+  email: string;
+  phone: string;
+  cpf: string;
+  date_of_birth: string;
+  gender: string;
+  zip_code: string;
+  address: string;
+  city: string;
+  state: string;
+  notes: string;
+};
+
 export default function PatientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -71,6 +89,20 @@ export default function PatientDetailPage() {
   const [viewPhoto, setViewPhoto] = useState<PhotoRow | null>(null);
   const [grantingAccess, setGrantingAccess] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState<PatientEditForm>({
+    full_name: '',
+    email: '',
+    phone: '',
+    cpf: '',
+    date_of_birth: '',
+    gender: '',
+    zip_code: '',
+    address: '',
+    city: '',
+    state: '',
+    notes: '',
+  });
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const { data: patient, isLoading } = useQuery({
@@ -227,6 +259,80 @@ export default function PatientDetailPage() {
       setUploadingAvatar(false);
     }
   };
+
+  const openEditPatient = () => {
+    if (!patient) return;
+    setEditForm({
+      full_name: patient.full_name || '',
+      email: patient.email || '',
+      phone: patient.phone || '',
+      cpf: patient.cpf || '',
+      date_of_birth: patient.date_of_birth || '',
+      gender: patient.gender || '',
+      zip_code: patient.zip_code || '',
+      address: patient.address || '',
+      city: patient.city || '',
+      state: patient.state || '',
+      notes: patient.notes || '',
+    });
+    setEditOpen(true);
+  };
+
+  const updatePatientMutation = useMutation({
+    mutationFn: async () => {
+      if (!clinicId || !id) throw new Error('Paciente não encontrado');
+      if (!editForm.full_name.trim()) throw new Error('Nome é obrigatório');
+
+      const payload = {
+        full_name: editForm.full_name.trim(),
+        email: editForm.email.trim() || null,
+        phone: editForm.phone.trim() || null,
+        cpf: editForm.cpf.trim() || null,
+        date_of_birth: editForm.date_of_birth || null,
+        gender: editForm.gender || null,
+        zip_code: editForm.zip_code.trim() || null,
+        address: editForm.address.trim() || null,
+        city: editForm.city.trim() || null,
+        state: editForm.state.trim() || null,
+        notes: editForm.notes.trim() || null,
+      };
+
+      const { error } = await supabase
+        .from('patients')
+        .update(payload)
+        .eq('id', id)
+        .eq('clinic_id', clinicId);
+      if (error) throw error;
+
+      await supabase
+        .from('leads' as unknown)
+        .update({
+          full_name: payload.full_name,
+          phone: payload.phone,
+          cpf: payload.cpf,
+          email: payload.email,
+          birth_date: payload.date_of_birth,
+          zip_code: payload.zip_code,
+          address: payload.address,
+          city: payload.city,
+          state: payload.state,
+          notes: payload.notes,
+        } as unknown)
+        .eq('clinic_id', clinicId)
+        .eq('patient_id', id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patient', id] });
+      queryClient.invalidateQueries({ queryKey: ['patients'] });
+      queryClient.invalidateQueries({ queryKey: ['crm-leads'] });
+      setEditOpen(false);
+      toast.success('Dados do paciente atualizados');
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Erro ao atualizar paciente';
+      toast.error(message);
+    },
+  });
 
   // Group metrics by type for evolution chart
   const metricTypes = [...new Set(metrics.map((m: MetricRow) => m.metric_type))];
@@ -507,7 +613,13 @@ export default function PatientDetailPage() {
         {/* Data tab */}
         <TabsContent value="data">
           <Card className="shadow-card">
-            <CardHeader><CardTitle>Informações Pessoais</CardTitle></CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-3">
+              <CardTitle>Informações Pessoais</CardTitle>
+              <BrandButton size="sm" variant="outline" onClick={openEditPatient}>
+                <Edit className="w-4 h-4" />
+                Editar dados
+              </BrandButton>
+            </CardHeader>
             <CardContent>
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 {[
@@ -891,6 +1003,96 @@ export default function PatientDetailPage() {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar dados do paciente</DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-4 mt-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              updatePatientMutation.mutate();
+            }}
+          >
+            <div className="space-y-2">
+              <Label>Nome completo *</Label>
+              <Input value={editForm.full_name} onChange={(event) => setEditForm((current) => ({ ...current, full_name: event.target.value }))} required />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>E-mail</Label>
+                <Input type="email" value={editForm.email} onChange={(event) => setEditForm((current) => ({ ...current, email: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Telefone</Label>
+                <Input value={editForm.phone} onChange={(event) => setEditForm((current) => ({ ...current, phone: event.target.value }))} placeholder="(11) 99999-9999" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>CPF</Label>
+                <Input value={editForm.cpf} onChange={(event) => setEditForm((current) => ({ ...current, cpf: event.target.value }))} placeholder="000.000.000-00" />
+              </div>
+              <div className="space-y-2">
+                <Label>Data de nascimento</Label>
+                <Input type="date" value={editForm.date_of_birth} onChange={(event) => setEditForm((current) => ({ ...current, date_of_birth: event.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Gênero</Label>
+              <Select value={editForm.gender || 'none'} onValueChange={(value) => setEditForm((current) => ({ ...current, gender: value === 'none' ? '' : value }))}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Não informado</SelectItem>
+                  <SelectItem value="female">Feminino</SelectItem>
+                  <SelectItem value="male">Masculino</SelectItem>
+                  <SelectItem value="other">Outro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="rounded-lg border p-4 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Endereço</h3>
+                <p className="text-xs text-muted-foreground mt-1">Dados complementares usados na ficha do paciente e na formalização do contrato.</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>CEP</Label>
+                  <Input value={editForm.zip_code} onChange={(event) => setEditForm((current) => ({ ...current, zip_code: event.target.value }))} placeholder="00000-000" />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Endereço completo</Label>
+                  <Input value={editForm.address} onChange={(event) => setEditForm((current) => ({ ...current, address: event.target.value }))} placeholder="Rua, número, complemento e bairro" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Cidade</Label>
+                  <Input value={editForm.city} onChange={(event) => setEditForm((current) => ({ ...current, city: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>UF</Label>
+                  <Input value={editForm.state} onChange={(event) => setEditForm((current) => ({ ...current, state: event.target.value.toUpperCase().slice(0, 2) }))} placeholder="SP" maxLength={2} />
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Observações</Label>
+              <Textarea value={editForm.notes} onChange={(event) => setEditForm((current) => ({ ...current, notes: event.target.value }))} rows={3} />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <BrandButton type="button" variant="outline" onClick={() => setEditOpen(false)} className="flex-1">
+                Cancelar
+              </BrandButton>
+              <BrandButton type="submit" className="flex-1" disabled={updatePatientMutation.isPending}>
+                {updatePatientMutation.isPending ? 'Salvando...' : 'Salvar alterações'}
+              </BrandButton>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
