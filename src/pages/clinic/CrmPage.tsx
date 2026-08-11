@@ -42,6 +42,10 @@ interface LeadRow {
   cpf: string | null;
   birth_date: string | null;
   email: string | null;
+  zip_code: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
   kanban_stage: StageCode;
   assigned_to: string | null;
   source: string | null;
@@ -326,6 +330,10 @@ export default function CrmPage() {
     phone: '',
     cpf: '',
     email: '',
+    zip_code: '',
+    address: '',
+    city: '',
+    state: '',
     source: '',
     priority_level: 'medium',
     assigned_to: 'unassigned',
@@ -776,6 +784,10 @@ export default function CrmPage() {
         phone: quickForm.phone.trim(),
         cpf: quickForm.cpf.trim() || null,
         email: quickForm.email.trim() || null,
+        zip_code: quickForm.zip_code.trim() || null,
+        address: quickForm.address.trim() || null,
+        city: quickForm.city.trim() || null,
+        state: quickForm.state.trim() || null,
         source: quickForm.source ? normalizeLeadSource(quickForm.source) : null,
         priority_level: quickForm.priority_level,
         assigned_to: quickForm.assigned_to === 'unassigned' ? null : quickForm.assigned_to,
@@ -801,7 +813,7 @@ export default function CrmPage() {
     onSuccess: (lead) => {
       qc.invalidateQueries({ queryKey: ['crm-leads'] });
       setQuickCreateOpen(false);
-      setQuickForm({ full_name: '', phone: '', cpf: '', email: '', source: '', priority_level: 'medium', assigned_to: 'unassigned', treatment: 'none', notes: '' });
+      setQuickForm({ full_name: '', phone: '', cpf: '', email: '', zip_code: '', address: '', city: '', state: '', source: '', priority_level: 'medium', assigned_to: 'unassigned', treatment: 'none', notes: '' });
       toast({ title: 'Lead criado', description: `${lead.full_name} entrou em Novo Lead.` });
     },
     onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
@@ -862,6 +874,10 @@ export default function CrmPage() {
         cpf: lead.cpf,
         email: lead.email,
         date_of_birth: lead.birth_date,
+        zip_code: lead.zip_code,
+        address: lead.address,
+        city: lead.city,
+        state: lead.state,
         notes: lead.notes,
         status: 'active',
       })
@@ -1054,6 +1070,25 @@ export default function CrmPage() {
           .eq('clinic_id', leadDrawer.clinic_id)
           .eq('id', leadDrawer.appointment_id);
         if (appointmentError) throw appointmentError;
+      }
+
+      if (leadDrawer.patient_id) {
+        const patientPayload = {
+          full_name: requestPayload.full_name ?? leadDrawer.full_name,
+          phone: requestPayload.phone ?? leadDrawer.phone,
+          cpf: requestPayload.cpf ?? leadDrawer.cpf,
+          email: requestPayload.email ?? leadDrawer.email,
+          zip_code: requestPayload.zip_code ?? leadDrawer.zip_code,
+          address: requestPayload.address ?? leadDrawer.address,
+          city: requestPayload.city ?? leadDrawer.city,
+          state: requestPayload.state ?? leadDrawer.state,
+          notes: requestPayload.notes ?? leadDrawer.notes,
+        };
+        const { error: patientError } = await supabase.from('patients')
+          .update(patientPayload)
+          .eq('clinic_id', leadDrawer.clinic_id)
+          .eq('id', leadDrawer.patient_id);
+        if (patientError) throw patientError;
       }
     },
     onSuccess: () => {
@@ -2004,6 +2039,32 @@ export default function CrmPage() {
                 <Label>E-mail</Label>
                 <Input value={quickForm.email} onChange={(event) => setQuickForm((current) => ({ ...current, email: event.target.value }))} />
               </div>
+              <div className="space-y-4 rounded-lg border p-4 sm:col-span-2">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Endereço</h3>
+                  <p className="text-xs text-muted-foreground mt-1">Mesmos campos do cadastro de paciente, úteis para formalizar contrato depois.</p>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label>CEP</Label>
+                    <Input value={quickForm.zip_code} onChange={(event) => setQuickForm((current) => ({ ...current, zip_code: event.target.value }))} placeholder="00000-000" />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label>Endereço completo</Label>
+                    <Input value={quickForm.address} onChange={(event) => setQuickForm((current) => ({ ...current, address: event.target.value }))} placeholder="Rua, número, complemento e bairro" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label>Cidade</Label>
+                    <Input value={quickForm.city} onChange={(event) => setQuickForm((current) => ({ ...current, city: event.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>UF</Label>
+                    <Input value={quickForm.state} onChange={(event) => setQuickForm((current) => ({ ...current, state: event.target.value.toUpperCase().slice(0, 2) }))} placeholder="SP" maxLength={2} />
+                  </div>
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label>Origem</Label>
                 <Select value={quickForm.source || 'none'} onValueChange={(value) => setQuickForm((current) => ({ ...current, source: value === 'none' ? '' : value }))}>
@@ -2345,6 +2406,32 @@ export default function CrmPage() {
                         <Label>E-mail</Label>
                         <Input value={leadDrawer.email || ''} onChange={(event) => setLeadDrawer({ ...leadDrawer, email: event.target.value })} />
                       </div>
+                      <div className="space-y-4 rounded-lg border p-4 md:col-span-2 xl:col-span-3">
+                        <div>
+                          <h3 className="text-sm font-semibold text-foreground">Endereço</h3>
+                          <p className="text-xs text-muted-foreground mt-1">Mesma base usada no cadastro de Novo Paciente e na formalização do contrato.</p>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                          <div className="space-y-2">
+                            <Label>CEP</Label>
+                            <Input value={leadDrawer.zip_code || ''} onChange={(event) => setLeadDrawer({ ...leadDrawer, zip_code: event.target.value })} placeholder="00000-000" />
+                          </div>
+                          <div className="space-y-2 md:col-span-2">
+                            <Label>Endereço completo</Label>
+                            <Input value={leadDrawer.address || ''} onChange={(event) => setLeadDrawer({ ...leadDrawer, address: event.target.value })} placeholder="Rua, número, complemento e bairro" />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                          <div className="space-y-2 md:col-span-2">
+                            <Label>Cidade</Label>
+                            <Input value={leadDrawer.city || ''} onChange={(event) => setLeadDrawer({ ...leadDrawer, city: event.target.value })} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>UF</Label>
+                            <Input value={leadDrawer.state || ''} onChange={(event) => setLeadDrawer({ ...leadDrawer, state: event.target.value.toUpperCase().slice(0, 2) })} placeholder="SP" maxLength={2} />
+                          </div>
+                        </div>
+                      </div>
                       <div className="space-y-2">
                         <Label>Origem</Label>
                         <Select value={leadDrawer.source ? normalizeLeadSource(leadDrawer.source) : 'none'} onValueChange={(value) => setLeadDrawer({ ...leadDrawer, source: value === 'none' ? null : value })}>
@@ -2546,6 +2633,10 @@ export default function CrmPage() {
                     phone: leadDrawer.phone,
                     cpf: leadDrawer.cpf,
                     email: leadDrawer.email,
+                    zip_code: leadDrawer.zip_code,
+                    address: leadDrawer.address,
+                    city: leadDrawer.city,
+                    state: leadDrawer.state,
                     source: leadDrawer.source ? normalizeLeadSource(leadDrawer.source) : null,
                     notes: leadDrawer.notes,
                     assigned_to: leadDrawer.assigned_to,
