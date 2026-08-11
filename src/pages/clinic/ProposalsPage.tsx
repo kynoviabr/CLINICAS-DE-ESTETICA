@@ -147,7 +147,7 @@ export default function ProposalsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewDialog, setViewDialog] = useState<(ProposalWithPatient & { items?: ProposalItemWithTreatment[] }) | null>(null);
   const [filterStatus, setFilterStatus] = useState('all');
-  const [quickFilter, setQuickFilter] = useState<'all' | 'draft' | 'sent' | 'accepted'>('all');
+  const [quickFilter, setQuickFilter] = useState<'all' | 'draft' | 'sent' | 'accepted'>('draft');
   const [search, setSearch] = useState('');
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
@@ -263,6 +263,10 @@ export default function ProposalsPage() {
   const normalizeDigits = (value?: string | null) => (value || '').replace(/\D/g, '');
   const normalizedSearch = search.trim().toLowerCase();
   const normalizedSearchDigits = normalizeDigits(search);
+  const handleStatusFilterChange = (value: string) => {
+    setFilterStatus(value);
+    setQuickFilter('all');
+  };
 
   const visibleProposals = proposals.filter((proposal) => {
     const proposalNumber = (proposal.proposal_number || '').toLowerCase();
@@ -857,7 +861,7 @@ export default function ProposalsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Buscar por nº da proposta ou CPF..." className="pl-10" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
+        <Select value={filterStatus} onValueChange={handleStatusFilterChange}>
           <SelectTrigger className="w-[180px]">
             <Filter className="w-4 h-4 mr-2" /><SelectValue placeholder="Status" />
           </SelectTrigger>
