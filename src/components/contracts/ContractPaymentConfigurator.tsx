@@ -5,8 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 export type PaymentCondition = 'cash' | 'installments';
 export type PaymentMethod = 'cash' | 'pix' | 'card' | 'boleto';
-export type CardBrand = 'visa' | 'mastercard' | 'elo' | 'amex' | 'hipercard' | 'cabal' | 'diners' | 'outro';
-export type PaymentConfig = Partial<Record<PaymentMethod, { amount: string; installments?: string; installmentAmount?: string; brand?: CardBrand; last4?: string }>>;
+export type PaymentConfig = Partial<Record<PaymentMethod, { amount: string; installments?: string; installmentAmount?: string }>>;
 
 export const paymentConditionLabels: Record<PaymentCondition, string> = {
   cash: 'À vista',
@@ -18,17 +17,6 @@ export const paymentMethodOptions: Array<{ value: PaymentMethod; label: string }
   { value: 'pix', label: 'Pix' },
   { value: 'card', label: 'Cartão' },
   { value: 'boleto', label: 'Boleto' },
-];
-
-export const cardBrandOptions: Array<{ value: CardBrand; label: string }> = [
-  { value: 'visa', label: 'Visa' },
-  { value: 'mastercard', label: 'Mastercard' },
-  { value: 'elo', label: 'Elo' },
-  { value: 'amex', label: 'Amex' },
-  { value: 'hipercard', label: 'Hipercard' },
-  { value: 'cabal', label: 'Cabal' },
-  { value: 'diners', label: 'Diners' },
-  { value: 'outro', label: 'Outro' },
 ];
 
 interface Props {
@@ -151,8 +139,6 @@ export function ContractPaymentConfigurator({
                                 amount: current[method]?.amount || '',
                                 installments: current[method]?.installments || '',
                                 installmentAmount: event.target.value,
-                                brand: current[method]?.brand,
-                                last4: current[method]?.last4,
                               },
                             }))
                           }
@@ -161,62 +147,8 @@ export function ContractPaymentConfigurator({
                     </>
                   ) : null}
                 </div>
-                {method === 'card' && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <p className="text-[11px] text-muted-foreground">Bandeira</p>
-                      <Select
-                        value={paymentConfig.card?.brand || ''}
-                        onValueChange={(value) =>
-                          setPaymentConfig((current) => ({
-                            ...current,
-                            card: {
-                              amount: current.card?.amount || '',
-                              installments: current.card?.installments || '',
-                              installmentAmount: current.card?.installmentAmount || '',
-                              brand: value as CardBrand,
-                              last4: current.card?.last4 || '',
-                            },
-                          }))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Bandeira" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {cardBrandOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[11px] text-muted-foreground">4 últimos dígitos</p>
-                      <Input
-                        inputMode="numeric"
-                        maxLength={4}
-                        placeholder="1234"
-                        value={paymentConfig.card?.last4 || ''}
-                        onChange={(event) =>
-                          setPaymentConfig((current) => ({
-                            ...current,
-                            card: {
-                              amount: current.card?.amount || '',
-                              installments: current.card?.installments || '',
-                              installmentAmount: current.card?.installmentAmount || '',
-                              brand: current.card?.brand,
-                              last4: event.target.value.replace(/\D/g, '').slice(0, 4),
-                            },
-                          }))
-                        }
-                      />
-                    </div>
-                  </div>
-                )}
                 <Input
-                  placeholder={`Ex.: parcelas, chave pix, bandeira, observações de ${option?.label?.toLowerCase()}`}
+                  placeholder={`Ex.: parcelas, chave pix, observações de ${option?.label?.toLowerCase()}`}
                   value={paymentDetails[method] || ''}
                   onChange={(event) =>
                     setPaymentDetails((current) => ({

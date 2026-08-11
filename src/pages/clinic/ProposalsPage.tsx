@@ -21,10 +21,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { Database } from '@/integrations/supabase/types';
 import {
   ContractPaymentConfigurator,
-  cardBrandOptions,
   paymentConditionLabels,
   paymentMethodOptions,
-  type CardBrand,
   type PaymentCondition,
   type PaymentConfig,
   type PaymentMethod,
@@ -85,8 +83,6 @@ const sanitizePaymentSnapshot = (snapshot?: PaymentPresetSnapshot | null): Payme
       amount: snapshot.config?.[method]?.amount || '',
       installments: snapshot.config?.[method]?.installments || '',
       installmentAmount: snapshot.config?.[method]?.installmentAmount || '',
-      brand: method === 'card' ? snapshot.config?.card?.brand : undefined,
-      last4: method === 'card' ? snapshot.config?.card?.last4 : undefined,
     };
   });
 
@@ -130,9 +126,7 @@ const buildPaymentPresetSummary = (preset?: PaymentPresetSnapshot | null) => {
       const installments = Number(preset.config?.[method]?.installments || 0);
       const installmentAmount = Number(preset.config?.[method]?.installmentAmount || 0);
       if (method === 'card') {
-        const brand = cardBrandOptions.find((item) => item.value === preset.config.card?.brand)?.label;
-        const last4 = (preset.config.card?.last4 || '').replace(/\D/g, '');
-        return `${option}: R$ ${amount.toFixed(2)} · ${installments || 1}x de R$ ${(installmentAmount || amount).toFixed(2)}${brand ? ` · ${brand}` : ''}${last4 ? ` · finais ${last4}` : ''}`;
+        return `${option}: R$ ${amount.toFixed(2)} · ${installments || 1}x de R$ ${(installmentAmount || amount).toFixed(2)}`;
       }
       if (method === 'boleto') {
         return `${option}: R$ ${amount.toFixed(2)} · ${installments || 1}x de R$ ${(installmentAmount || amount).toFixed(2)}`;
@@ -346,17 +340,6 @@ export default function ProposalsPage() {
     );
     if (invalidInstallmentAmount) {
       return { ok: false as const, message: 'Informe valor da parcela maior que zero para cartão/boleto.' };
-    }
-
-    if (proposalSelectedPaymentMethods.includes('card')) {
-      const brand = proposalPaymentConfig.card?.brand;
-      const last4 = (proposalPaymentConfig.card?.last4 || '').replace(/\D/g, '');
-      if (!brand) {
-        return { ok: false as const, message: 'Selecione a bandeira do cartão.' };
-      }
-      if (last4.length !== 4) {
-        return { ok: false as const, message: 'Informe os 4 últimos dígitos do cartão.' };
-      }
     }
 
     if (totalInformed < targetTotal) {
@@ -710,14 +693,6 @@ export default function ProposalsPage() {
       toast({ title: 'Erro', description: 'Cartão e boleto exigem valor da parcela.', variant: 'destructive' });
       return;
     }
-    if (selectedPaymentMethods.includes('card')) {
-      const brand = paymentConfig.card?.brand;
-      const last4 = (paymentConfig.card?.last4 || '').replace(/\D/g, '');
-      if (!brand || last4.length !== 4) {
-        toast({ title: 'Erro', description: 'Cartão exige bandeira e 4 últimos dígitos.', variant: 'destructive' });
-        return;
-      }
-    }
     if (totalInformed + 0.0001 < proposalAmount) {
       toast({
         title: 'Erro',
@@ -768,8 +743,7 @@ export default function ProposalsPage() {
       selectedPaymentMethods,
       paymentConfig,
       paymentDetails,
-      paymentConditionLabels[paymentCondition],
-      (brand) => cardBrandOptions.find((item) => item.value === brand)?.label
+      paymentConditionLabels[paymentCondition]
     );
 
     const { data: insertedContract, error } = await supabase.from('contracts').insert({
@@ -1293,8 +1267,6 @@ export default function ProposalsPage() {
                         Number(paymentConfig[method]?.installments || 0) <= 0 ||
                         Number(paymentConfig[method]?.installmentAmount || 0) <= 0
                     ) ||
-                  (selectedPaymentMethods.includes('card') &&
-                    (!paymentConfig.card?.brand || (paymentConfig.card?.last4 || '').replace(/\D/g, '').length !== 4)) ||
                   (!payerData.is_self_payer &&
                     !payerData.payer_id &&
                     (!payerData.new_payer?.name?.trim() || !payerData.new_payer?.cpf?.trim()))

@@ -12,8 +12,7 @@ export function buildContractPaymentNotes(
   selectedPaymentMethods: PaymentMethod[],
   paymentConfig: PaymentConfig,
   paymentDetails: Partial<Record<PaymentMethod, string>>,
-  paymentConditionLabel: string,
-  cardBrandLabelResolver: (brand: string | undefined) => string | undefined
+  paymentConditionLabel: string
 ) {
   const methodsDescription = selectedPaymentMethods
     .map((method) => {
@@ -23,10 +22,7 @@ export function buildContractPaymentNotes(
       const installmentAmount = Number(paymentConfig[method]?.installmentAmount || 0);
       const details = paymentDetails[method]?.trim();
       if (method === 'card' || method === 'boleto') {
-        const brandLabel = method === 'card' ? cardBrandLabelResolver(paymentConfig.card?.brand) : '';
-        const last4 = method === 'card' ? (paymentConfig.card?.last4 || '').replace(/\D/g, '') : '';
-        const trace = method === 'card' ? ` · ${brandLabel || 'Bandeira'} · finais ${last4}` : '';
-        const base = `${label}: valor R$ ${amount.toFixed(2)} | ${installments}x de R$ ${installmentAmount.toFixed(2)}${trace}`;
+        const base = `${label}: valor R$ ${amount.toFixed(2)} | ${installments}x de R$ ${installmentAmount.toFixed(2)}`;
         return details ? `${base} (${details})` : base;
       }
 
@@ -49,4 +45,3 @@ export async function upsertContractFinancialForecast(contractId: string) {
   if (error) throw error;
   return data;
 }
-

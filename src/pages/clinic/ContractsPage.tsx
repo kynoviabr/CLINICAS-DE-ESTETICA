@@ -22,9 +22,7 @@ import type { Database } from '@/integrations/supabase/types';
 import PayerSection, { type PayerData } from '@/components/patient/PayerSection';
 import {
   ContractPaymentConfigurator,
-  cardBrandOptions,
   paymentConditionLabels,
-  type CardBrand,
   type PaymentCondition,
   type PaymentConfig,
   type PaymentMethod,
@@ -250,13 +248,6 @@ export default function ContractsPage() {
       if (hasInvalidInstallments) throw new Error('Cartão e boleto exigem quantidade de parcelas maior que zero.');
       const hasInvalidInstallmentAmount = requiresInstallments.some((method) => Number(paymentConfig[method]?.installmentAmount || 0) <= 0);
       if (hasInvalidInstallmentAmount) throw new Error('Cartão e boleto exigem valor da parcela maior que zero.');
-      if (selectedPaymentMethods.includes('card')) {
-        const brand = paymentConfig.card?.brand;
-        const last4 = (paymentConfig.card?.last4 || '').replace(/\D/g, '');
-        if (!brand) throw new Error('Selecione a bandeira do cartão.');
-        if (last4.length !== 4) throw new Error('Informe os 4 últimos dígitos do cartão.');
-      }
-
       const totalInformed = amounts.reduce((sum, value) => sum + value, 0);
       if (totalInformed + 0.0001 < proposalAmount) {
         throw new Error(
@@ -268,8 +259,7 @@ export default function ContractsPage() {
         selectedPaymentMethods,
         paymentConfig,
         paymentDetails,
-        paymentConditionLabels[paymentCondition],
-        (brand) => cardBrandOptions.find((option) => option.value === brand)?.label
+        paymentConditionLabels[paymentCondition]
       );
 
       const patient = proposal.patients;
@@ -503,8 +493,6 @@ export default function ContractsPage() {
     selectedPaymentMethods
       .filter((method) => method === 'card' || method === 'boleto')
       .every((method) => Number(paymentConfig[method]?.installments || 0) > 0 && Number(paymentConfig[method]?.installmentAmount || 0) > 0) &&
-    (!selectedPaymentMethods.includes('card') ||
-      (!!paymentConfig.card?.brand && (paymentConfig.card?.last4 || '').replace(/\D/g, '').length === 4)) &&
     selectedAmountSum + 0.0001 >= selectedProposalAmount;
 
   useEffect(() => {
