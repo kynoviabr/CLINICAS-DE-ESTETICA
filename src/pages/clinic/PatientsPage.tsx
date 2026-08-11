@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { AnamneseBadge, getAnamneseStatus, type AnamneseStatus } from '@/components/patient/AnamneseSection';
 import PayerSection, { type PayerData } from '@/components/patient/PayerSection';
+import { formatCep, lookupCepAddress } from '@/lib/cep';
 
 interface PatientForm {
   full_name: string;
@@ -361,6 +362,34 @@ export default function PatientsPage() {
     saveMutation.mutate(form);
   };
 
+  const handleCepChange = async (value: string) => {
+    const zipCode = formatCep(value);
+    setForm((current) => ({ ...current, zip_code: zipCode }));
+
+    if (zipCode.replace(/\D/g, '').length !== 8) return;
+
+    try {
+      const address = await lookupCepAddress(zipCode);
+      if (!address) {
+        toast({ title: 'CEP não encontrado', variant: 'destructive' });
+        return;
+      }
+      setForm((current) => {
+        if (current.zip_code.replace(/\D/g, '') !== zipCode.replace(/\D/g, '')) return current;
+        return {
+          ...current,
+          zip_code: address.zip_code,
+          address: address.address || current.address,
+          city: address.city || current.city,
+          state: address.state || current.state,
+        };
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Não foi possível consultar o CEP.';
+      toast({ title: 'Erro ao consultar CEP', description: message, variant: 'destructive' });
+    }
+  };
+
   const initials = (name: string) =>
     name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
 
@@ -651,7 +680,7 @@ export default function PatientsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>CEP</Label>
-                  <Input value={form.zip_code} onChange={e => setForm({ ...form, zip_code: e.target.value })} placeholder="00000-000" />
+                  <Input value={form.zip_code} onChange={e => handleCepChange(e.target.value)} placeholder="00000-000" />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label>Endereço completo</Label>

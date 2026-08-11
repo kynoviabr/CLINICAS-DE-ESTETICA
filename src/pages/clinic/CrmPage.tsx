@@ -22,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { BrandBadge } from '@/components/ui/brand-badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getRenewalAlertLevel, getSnoozeLimitDays } from '@/lib/renewal/rules';
+import { formatCep, lookupCepAddress } from '@/lib/cep';
 
 type StageCode = string;
 
@@ -1047,6 +1048,63 @@ export default function CrmPage() {
     moveLeadMutation.mutate({ lead, targetStage });
   };
 
+  const handleQuickCepChange = async (value: string) => {
+    const zipCode = formatCep(value);
+    setQuickForm((current) => ({ ...current, zip_code: zipCode }));
+
+    if (zipCode.replace(/\D/g, '').length !== 8) return;
+
+    try {
+      const address = await lookupCepAddress(zipCode);
+      if (!address) {
+        toast({ title: 'CEP não encontrado', variant: 'destructive' });
+        return;
+      }
+      setQuickForm((current) => {
+        if (current.zip_code.replace(/\D/g, '') !== zipCode.replace(/\D/g, '')) return current;
+        return {
+          ...current,
+          zip_code: address.zip_code,
+          address: address.address || current.address,
+          city: address.city || current.city,
+          state: address.state || current.state,
+        };
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Não foi possível consultar o CEP.';
+      toast({ title: 'Erro ao consultar CEP', description: message, variant: 'destructive' });
+    }
+  };
+
+  const handleLeadCepChange = async (value: string) => {
+    if (!leadDrawer) return;
+    const zipCode = formatCep(value);
+    setLeadDrawer({ ...leadDrawer, zip_code: zipCode });
+
+    if (zipCode.replace(/\D/g, '').length !== 8) return;
+
+    try {
+      const address = await lookupCepAddress(zipCode);
+      if (!address) {
+        toast({ title: 'CEP não encontrado', variant: 'destructive' });
+        return;
+      }
+      setLeadDrawer((current) => {
+        if (!current || current.zip_code?.replace(/\D/g, '') !== zipCode.replace(/\D/g, '')) return current;
+        return {
+          ...current,
+          zip_code: address.zip_code,
+          address: address.address || current.address,
+          city: address.city || current.city,
+          state: address.state || current.state,
+        };
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Não foi possível consultar o CEP.';
+      toast({ title: 'Erro ao consultar CEP', description: message, variant: 'destructive' });
+    }
+  };
+
   const saveLeadMutation = useMutation({
     mutationFn: async (payload: Partial<LeadRow>) => {
       if (!leadDrawer) return;
@@ -2047,7 +2105,7 @@ export default function CrmPage() {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
                     <Label>CEP</Label>
-                    <Input value={quickForm.zip_code} onChange={(event) => setQuickForm((current) => ({ ...current, zip_code: event.target.value }))} placeholder="00000-000" />
+                    <Input value={quickForm.zip_code} onChange={(event) => handleQuickCepChange(event.target.value)} placeholder="00000-000" />
                   </div>
                   <div className="space-y-2 sm:col-span-2">
                     <Label>Endereço completo</Label>
@@ -2414,7 +2472,7 @@ export default function CrmPage() {
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                           <div className="space-y-2">
                             <Label>CEP</Label>
-                            <Input value={leadDrawer.zip_code || ''} onChange={(event) => setLeadDrawer({ ...leadDrawer, zip_code: event.target.value })} placeholder="00000-000" />
+                            <Input value={leadDrawer.zip_code || ''} onChange={(event) => handleLeadCepChange(event.target.value)} placeholder="00000-000" />
                           </div>
                           <div className="space-y-2 md:col-span-2">
                             <Label>Endereço completo</Label>

@@ -30,6 +30,7 @@ import PatientAnamneseTab from '@/components/anamnese/PatientAnamneseTab';
 import { FileText as FileTextIcon } from 'lucide-react';
 import { ContractStatusBadge } from '@/components/contracts/ContractStatusBadge';
 import type { Database } from '@/integrations/supabase/types';
+import { formatCep, lookupCepAddress } from '@/lib/cep';
 
 const typeLabels: Record<string, string> = { before: 'Antes', during: 'Durante', after: 'Depois', progress: 'Progresso' };
 const typeColors: Record<string, string> = { before: 'bg-blue-100 text-blue-700', during: 'bg-yellow-100 text-yellow-700', after: 'bg-green-100 text-green-700', progress: 'bg-purple-100 text-purple-700' };
@@ -333,6 +334,34 @@ export default function PatientDetailPage() {
       toast.error(message);
     },
   });
+
+  const handleEditCepChange = async (value: string) => {
+    const zipCode = formatCep(value);
+    setEditForm((current) => ({ ...current, zip_code: zipCode }));
+
+    if (zipCode.replace(/\D/g, '').length !== 8) return;
+
+    try {
+      const address = await lookupCepAddress(zipCode);
+      if (!address) {
+        toast.error('CEP não encontrado');
+        return;
+      }
+      setEditForm((current) => {
+        if (current.zip_code.replace(/\D/g, '') !== zipCode.replace(/\D/g, '')) return current;
+        return {
+          ...current,
+          zip_code: address.zip_code,
+          address: address.address || current.address,
+          city: address.city || current.city,
+          state: address.state || current.state,
+        };
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Não foi possível consultar o CEP.';
+      toast.error(message);
+    }
+  };
 
   // Group metrics by type for evolution chart
   const metricTypes = [...new Set(metrics.map((m: MetricRow) => m.metric_type))];
@@ -1062,7 +1091,7 @@ export default function PatientDetailPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>CEP</Label>
-                  <Input value={editForm.zip_code} onChange={(event) => setEditForm((current) => ({ ...current, zip_code: event.target.value }))} placeholder="00000-000" />
+                  <Input value={editForm.zip_code} onChange={(event) => handleEditCepChange(event.target.value)} placeholder="00000-000" />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label>Endereço completo</Label>
