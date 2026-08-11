@@ -517,6 +517,7 @@ export default function PatientDetailPage() {
                   ['CPF', patient.cpf],
                   ['Nascimento', patient.date_of_birth ? new Date(patient.date_of_birth).toLocaleDateString('pt-BR') : null],
                   ['Gênero', patient.gender === 'female' ? 'Feminino' : patient.gender === 'male' ? 'Masculino' : patient.gender],
+                  ['CEP', patient.zip_code],
                   ['Endereço', patient.address],
                   ['Cidade/UF', [patient.city, patient.state].filter(Boolean).join(' / ') || null],
                 ].map(([label, value], i) => (

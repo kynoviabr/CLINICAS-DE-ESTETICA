@@ -26,12 +26,16 @@ interface PatientForm {
   cpf: string;
   date_of_birth: string;
   gender: string;
+  zip_code: string;
+  address: string;
+  city: string;
+  state: string;
   notes: string;
 }
 
 const emptyForm: PatientForm = {
   full_name: '', email: '', phone: '', cpf: '',
-  date_of_birth: '', gender: '', notes: '',
+  date_of_birth: '', gender: '', zip_code: '', address: '', city: '', state: '', notes: '',
 };
 
 const defaultPayerData: PayerData = {
@@ -271,6 +275,10 @@ export default function PatientsPage() {
         phone: data.phone || null,
         cpf: data.cpf || null,
         gender: data.gender || null,
+        zip_code: data.zip_code || null,
+        address: data.address || null,
+        city: data.city || null,
+        state: data.state || null,
         notes: data.notes || null,
         is_self_payer: payerData.is_self_payer,
         payer_id: payerId,
@@ -324,6 +332,10 @@ export default function PatientsPage() {
       cpf: patient.cpf || '',
       date_of_birth: patient.date_of_birth || '',
       gender: patient.gender || '',
+      zip_code: patient.zip_code || '',
+      address: patient.address || '',
+      city: patient.city || '',
+      state: patient.state || '',
       notes: patient.notes || '',
     });
     setPayerData({
@@ -631,6 +643,32 @@ export default function PatientsPage() {
               </Select>
             </div>
             <PayerSection value={payerData} onChange={setPayerData} patientName={form.full_name} />
+            <div className="rounded-lg border p-4 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Endereço</h3>
+                <p className="text-xs text-muted-foreground mt-1">Dados complementares usados na ficha do paciente e na formalização do contrato.</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>CEP</Label>
+                  <Input value={form.zip_code} onChange={e => setForm({ ...form, zip_code: e.target.value })} placeholder="00000-000" />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Endereço completo</Label>
+                  <Input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="Rua, número, complemento e bairro" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Cidade</Label>
+                  <Input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>UF</Label>
+                  <Input value={form.state} onChange={e => setForm({ ...form, state: e.target.value.toUpperCase().slice(0, 2) })} placeholder="SP" maxLength={2} />
+                </div>
+              </div>
+            </div>
             <div className="space-y-2">
               <Label>Observações</Label>
               <Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={3} />
