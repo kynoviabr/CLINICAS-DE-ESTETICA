@@ -620,6 +620,9 @@ export default function PatientDetailPage() {
     : latestProposal
       ? `Status: ${latestProposal.status} • R$ ${Number(latestProposal.final_amount || 0).toLocaleString('pt-BR')}`
       : 'Depois da avaliação, a proposta passa a aparecer aqui.';
+  const openPatientAgenda = () => {
+    navigate(`/clinic/appointments?patientId=${id}&appointmentType=session&openNew=1`);
+  };
 
   return (
     <div>
@@ -803,7 +806,7 @@ export default function PatientDetailPage() {
         <TabsList className="w-full flex overflow-x-auto gap-1 mb-6">
           <TabsTrigger value="data" className="flex items-center gap-1"><User className="w-3.5 h-3.5" />Dados</TabsTrigger>
           <TabsTrigger value="anamnese" className="flex items-center gap-1"><FileTextIcon className="w-3.5 h-3.5" />Anamnese</TabsTrigger>
-          <TabsTrigger value="appointments" className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />Agenda</TabsTrigger>
+          <TabsTrigger value="appointments" className="flex items-center gap-1" onClick={openPatientAgenda}><Calendar className="w-3.5 h-3.5" />Agenda</TabsTrigger>
           <TabsTrigger value="proposals" className="flex items-center gap-1"><FileTextIcon className="w-3.5 h-3.5" />Propostas</TabsTrigger>
           <TabsTrigger value="contracts" className="flex items-center gap-1"><FileSignature className="w-3.5 h-3.5" />Contratos</TabsTrigger>
           <TabsTrigger value="sessions" className="flex items-center gap-1"><ClipboardList className="w-3.5 h-3.5" />Sessões</TabsTrigger>
@@ -874,7 +877,7 @@ export default function PatientDetailPage() {
                     Avaliações e sessões previstas para este paciente.
                   </p>
                 </div>
-                <BrandButton variant="outline" onClick={() => navigate('/clinic/appointments')}>
+                <BrandButton variant="outline" onClick={openPatientAgenda}>
                   Ir para agenda
                 </BrandButton>
               </div>
