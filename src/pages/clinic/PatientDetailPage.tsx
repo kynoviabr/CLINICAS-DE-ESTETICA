@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -42,6 +42,7 @@ import type { Database } from '@/integrations/supabase/types';
 import { formatCep, lookupCepAddress } from '@/lib/cep';
 import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
 
+const PATIENT_FILES_BUCKET = 'patient-files';
 const typeLabels: Record<string, string> = { before: 'Antes', during: 'Durante', after: 'Depois', progress: 'Progresso' };
 const typeColors: Record<string, string> = { before: 'bg-blue-100 text-blue-700', during: 'bg-yellow-100 text-yellow-700', after: 'bg-green-100 text-green-700', progress: 'bg-purple-100 text-purple-700' };
 const anamneseBadgeConfig: Record<string, { label: string; cls: string; hint: string }> = {
@@ -80,6 +81,21 @@ type PatientEditForm = {
   state: string;
   notes: string;
 };
+
+function getPatientFilePath(value?: string | null) {
+  if (!value) return null;
+  if (!value.startsWith('http')) return value.replace(/^patient-files:/, '');
+
+  try {
+    const marker = `/storage/v1/object/public/${PATIENT_FILES_BUCKET}/`;
+    const url = new URL(value);
+    const markerIndex = url.pathname.indexOf(marker);
+    if (markerIndex === -1) return value;
+    return decodeURIComponent(url.pathname.slice(markerIndex + marker.length));
+  } catch {
+    return value;
+  }
+}
 
 export default function PatientDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -121,6 +137,7 @@ export default function PatientDetailPage() {
   const [paymentDetails, setPaymentDetails] = useState<Record<string, string>>({});
   const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>({});
   const [payerData, setPayerData] = useState<PayerData>({ is_self_payer: true, payer_id: null });
+  const [avatarDisplayUrl, setAvatarDisplayUrl] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const { data: patient, isLoading } = useQuery({
@@ -219,6 +236,41 @@ export default function PatientDetailPage() {
     enabled: !!id,
   });
 
+  useEffect(() => {
+    let active = true;
+
+    const resolveAvatar = async () => {
+      if (!patient?.avatar_url) {
+        setAvatarDisplayUrl(null);
+        return;
+      }
+
+      const filePath = getPatientFilePath(patient.avatar_url);
+      if (!filePath) {
+        setAvatarDisplayUrl(null);
+        return;
+      }
+
+      if (filePath.startsWith('http') && !filePath.includes(`/storage/v1/object/public/${PATIENT_FILES_BUCKET}/`)) {
+        setAvatarDisplayUrl(filePath);
+        return;
+      }
+
+      const { data, error } = await supabase.storage
+        .from(PATIENT_FILES_BUCKET)
+        .createSignedUrl(filePath, 60 * 60);
+
+      if (!active) return;
+      setAvatarDisplayUrl(error ? null : data?.signedUrl || null);
+    };
+
+    void resolveAvatar();
+
+    return () => {
+      active = false;
+    };
+  }, [patient?.avatar_url]);
+
   const handleGrantPortalAccess = async () => {
     if (!patient?.email || !clinicId || !id) {
       toast.error('Paciente precisa ter um e-mail cadastrado');
@@ -252,22 +304,23 @@ export default function PatientDetailPage() {
     try {
       const extension = file.name.split('.').pop() || 'jpg';
       const filePath = `${clinicId}/${id}/avatar-${Date.now()}.${extension}`;
-      const { error: uploadError } = await supabase.storage.from('patient-files').upload(filePath, file, {
+      const { error: uploadError } = await supabase.storage.from(PATIENT_FILES_BUCKET).upload(filePath, file, {
         contentType: file.type,
         upsert: true,
       });
       if (uploadError) throw uploadError;
 
-      const { data: publicData } = supabase.storage.from('patient-files').getPublicUrl(filePath);
-      const avatarUrl = publicData.publicUrl;
-
       const { error: updateError } = await supabase
         .from('patients')
-        .update({ avatar_url: avatarUrl })
+        .update({ avatar_url: filePath })
         .eq('id', id)
         .eq('clinic_id', clinicId);
       if (updateError) throw updateError;
 
+      const { data: signedData } = await supabase.storage
+        .from(PATIENT_FILES_BUCKET)
+        .createSignedUrl(filePath, 60 * 60);
+      setAvatarDisplayUrl(signedData?.signedUrl || null);
       queryClient.invalidateQueries({ queryKey: ['patient', id] });
       toast.success('Foto do paciente atualizada');
     } catch (err: unknown) {
@@ -643,8 +696,8 @@ export default function PatientDetailPage() {
                 className="group relative w-16 h-16 rounded-full overflow-hidden border border-border"
                 disabled={uploadingAvatar}
               >
-                {patient.avatar_url ? (
-                  <img src={patient.avatar_url} alt={patient.full_name} className="w-full h-full object-cover" />
+                {avatarDisplayUrl ? (
+                  <img src={avatarDisplayUrl} alt={patient.full_name} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-xl">
                     {initials}
