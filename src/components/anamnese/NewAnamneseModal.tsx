@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -18,6 +18,19 @@ interface Props {
   clinicId: string;
 }
 
+type AnamneseTemplate = {
+  id: string;
+  name: string;
+  category_id: string;
+  category_name: string;
+  active: boolean;
+  basic_questions: string[];
+  specific_questions: string[];
+  notes: string;
+};
+
+const SETTINGS_KEY = 'anamnese_templates';
+
 const sourceOptions = [
   { value: 'digital', label: 'Digital' },
   { value: 'portal', label: 'Portal do paciente' },
@@ -29,6 +42,8 @@ export default function NewAnamneseModal({ open, onOpenChange, patientId, clinic
   const { user } = useAuth();
   const qc = useQueryClient();
   const [form, setForm] = useState({
+    category_id: '',
+    template_id: '',
     title: '',
     description: '',
     source_type: 'digital',
@@ -37,20 +52,123 @@ export default function NewAnamneseModal({ open, onOpenChange, patientId, clinic
     notes: '',
   });
 
+  const { data: templates = [], isLoading: isLoadingTemplates } = useQuery({
+    queryKey: ['clinic-settings', clinicId, SETTINGS_KEY],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('clinic_settings' as unknown)
+        .select('value')
+        .eq('clinic_id', clinicId)
+        .eq('key', SETTINGS_KEY)
+        .maybeSingle();
+      if (error) throw error;
+      if (!(data as { value?: string } | null)?.value) return [];
+      try {
+        const parsed = JSON.parse((data as { value: string }).value);
+        return Array.isArray(parsed) ? parsed.filter((template: AnamneseTemplate) => template.active) as AnamneseTemplate[] : [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: open && !!clinicId,
+  });
+
+  const categories = useMemo(() => {
+    const byId = new Map<string, { id: string; name: string }>();
+    templates.forEach((template) => {
+      if (template.category_id && !byId.has(template.category_id)) {
+        byId.set(template.category_id, { id: template.category_id, name: template.category_name || 'Tipo sem nome' });
+      }
+    });
+    return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [templates]);
+
+  const filteredTemplates = useMemo(
+    () => templates.filter((template) => template.category_id === form.category_id),
+    [form.category_id, templates],
+  );
+
+  const selectedTemplate = useMemo(
+    () => templates.find((template) => template.id === form.template_id) || null,
+    [form.template_id, templates],
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    if (form.category_id || categories.length === 0) return;
+    setForm((current) => ({ ...current, category_id: categories[0].id }));
+  }, [categories, form.category_id, open]);
+
+  useEffect(() => {
+    if (!open || form.template_id || filteredTemplates.length === 0) return;
+    const firstTemplate = filteredTemplates[0];
+    setForm((current) => ({
+      ...current,
+      template_id: firstTemplate.id,
+      title: current.title || firstTemplate.name,
+      description: current.description || `Modelo ${firstTemplate.category_name}`,
+    }));
+  }, [filteredTemplates, form.template_id, open]);
+
+  const handleCategoryChange = (categoryId: string) => {
+    const firstTemplate = templates.find((template) => template.category_id === categoryId) || null;
+    setForm((current) => ({
+      ...current,
+      category_id: categoryId,
+      template_id: firstTemplate?.id || '',
+      title: firstTemplate?.name || '',
+      description: firstTemplate ? `Modelo ${firstTemplate.category_name}` : '',
+    }));
+  };
+
+  const handleTemplateChange = (templateId: string) => {
+    const template = templates.find((item) => item.id === templateId);
+    setForm((current) => ({
+      ...current,
+      template_id: templateId,
+      title: template?.name || current.title,
+      description: template ? `Modelo ${template.category_name}` : current.description,
+    }));
+  };
+
+  const resetForm = () => {
+    setForm({
+      category_id: '',
+      template_id: '',
+      title: '',
+      description: '',
+      source_type: 'digital',
+      filled_at: '',
+      validity_days: '180',
+      notes: '',
+    });
+  };
+
   const mutation = useMutation({
     mutationFn: async () => {
       const validityDays = parseInt(form.validity_days);
       if (!validityDays || validityDays < 1) throw new Error('Validade deve ser no mínimo 1 dia');
+      if (templates.length > 0 && !form.category_id) throw new Error('Selecione o tipo de tratamento.');
+      if (templates.length > 0 && !form.template_id) throw new Error('Selecione o modelo de anamnese.');
       const payload: Record<string, unknown> = {
         clinic_id: clinicId,
         patient_id: patientId,
-        title: form.title.trim() || null,
-        description: form.description.trim() || null,
+        title: form.title.trim() || selectedTemplate?.name || null,
+        description: form.description.trim() || (selectedTemplate ? `Modelo ${selectedTemplate.category_name}` : null),
         source_type: form.source_type,
         validity_days: validityDays,
         notes: form.notes.trim() || null,
         status: 'pending',
         created_by: user?.id,
+        form_data: selectedTemplate ? {
+          template_id: selectedTemplate.id,
+          template_name: selectedTemplate.name,
+          category_id: selectedTemplate.category_id,
+          category_name: selectedTemplate.category_name,
+          basic_questions: selectedTemplate.basic_questions,
+          specific_questions: selectedTemplate.specific_questions,
+          template_notes: selectedTemplate.notes,
+        } : null,
       };
       if (form.filled_at) {
         payload.filled_at = new Date(form.filled_at).toISOString();
@@ -63,16 +181,59 @@ export default function NewAnamneseModal({ open, onOpenChange, patientId, clinic
       qc.invalidateQueries({ queryKey: ['patient', patientId] });
       toast.success('Anamnese criada com sucesso!');
       onOpenChange(false);
-      setForm({ title: '', description: '', source_type: 'digital', filled_at: '', validity_days: '180', notes: '' });
+      resetForm();
     },
     onError: (err: any) => toast.error(err.message || 'Erro ao criar anamnese'),
   });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Nova Anamnese</DialogTitle></DialogHeader>
         <form onSubmit={e => { e.preventDefault(); mutation.mutate(); }} className="space-y-4 mt-2">
+          {templates.length > 0 ? (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Tipo de tratamento *</Label>
+                <Select value={form.category_id} onValueChange={handleCategoryChange} disabled={isLoadingTemplates}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
+                  <SelectContent>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Modelo de anamnese *</Label>
+                <Select value={form.template_id} onValueChange={handleTemplateChange} disabled={!form.category_id || filteredTemplates.length === 0}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o modelo" /></SelectTrigger>
+                  <SelectContent>
+                    {filteredTemplates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed bg-secondary/30 p-3 text-sm text-muted-foreground">
+              Nenhum modelo ativo configurado. Cadastre modelos em Configurações &gt; Anamnese para selecionar por tipo de tratamento.
+            </div>
+          )}
+
+          {selectedTemplate && (
+            <div className="rounded-lg border bg-secondary/30 p-3 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-medium text-foreground">{selectedTemplate.name}</p>
+                <span className="text-xs text-muted-foreground">{selectedTemplate.category_name}</span>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {selectedTemplate.basic_questions.length} perguntas básicas + {selectedTemplate.specific_questions.length} perguntas específicas.
+              </p>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label>Título</Label>
             <Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Ex: Anamnese inicial" />

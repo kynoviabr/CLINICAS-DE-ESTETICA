@@ -19,7 +19,12 @@ export function buildContractPaymentNotes(
       const label = PAYMENT_METHOD_LABELS[method] || method;
       const amount = Number(paymentConfig[method]?.amount || 0);
       const installments = Number(paymentConfig[method]?.installments || 0);
-      const installmentAmount = Number(paymentConfig[method]?.installmentAmount || 0);
+      const configuredInstallmentAmount = Number(paymentConfig[method]?.installmentAmount || 0);
+      const installmentAmount = configuredInstallmentAmount > 0
+        ? configuredInstallmentAmount
+        : installments > 0
+          ? amount / installments
+          : 0;
       const details = paymentDetails[method]?.trim();
       if (method === 'card' || method === 'boleto') {
         const base = `${label}: valor R$ ${amount.toFixed(2)} | ${installments}x de R$ ${installmentAmount.toFixed(2)}`;

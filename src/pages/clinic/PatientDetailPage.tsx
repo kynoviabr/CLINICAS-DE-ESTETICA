@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { useUserRole } from '@/hooks/useUserRole';
 import { PageHeader } from '@/components/ui/page-header';
 import { BrandButton } from '@/components/ui/brand-button';
@@ -9,7 +10,7 @@ import { BrandBadge, type BadgeStatus } from '@/components/ui/brand-badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,8 +30,17 @@ import {
 import PatientAnamneseTab from '@/components/anamnese/PatientAnamneseTab';
 import { FileText as FileTextIcon } from 'lucide-react';
 import { ContractStatusBadge } from '@/components/contracts/ContractStatusBadge';
+import PayerSection, { type PayerData } from '@/components/patient/PayerSection';
+import {
+  ContractPaymentConfigurator,
+  paymentConditionLabels,
+  type PaymentCondition,
+  type PaymentConfig,
+  type PaymentMethod,
+} from '@/components/contracts/ContractPaymentConfigurator';
 import type { Database } from '@/integrations/supabase/types';
 import { formatCep, lookupCepAddress } from '@/lib/cep';
+import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
 
 const typeLabels: Record<string, string> = { before: 'Antes', during: 'Durante', after: 'Depois', progress: 'Progresso' };
 const typeColors: Record<string, string> = { before: 'bg-blue-100 text-blue-700', during: 'bg-yellow-100 text-yellow-700', after: 'bg-green-100 text-green-700', progress: 'bg-purple-100 text-purple-700' };
@@ -74,6 +84,7 @@ type PatientEditForm = {
 export default function PatientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { clinicId } = useUserRole();
   const queryClient = useQueryClient();
   type AppointmentRow = Database['public']['Tables']['appointments']['Row'] & { treatments?: { name?: string | null } | null };
@@ -83,7 +94,7 @@ export default function PatientDetailPage() {
   type FeedbackRow = Database['public']['Tables']['session_feedback']['Row'] & {
     session_records?: { performed_at?: string | null; treatments?: { name?: string | null } | null } | null;
   };
-  type ProposalRow = Pick<Database['public']['Tables']['proposals']['Row'], 'id' | 'proposal_number' | 'status' | 'final_amount' | 'created_at' | 'valid_until'>;
+  type ProposalRow = Pick<Database['public']['Tables']['proposals']['Row'], 'id' | 'proposal_number' | 'status' | 'final_amount' | 'created_at' | 'valid_until' | 'patient_id'>;
   type ContractRow = Database['public']['Tables']['contracts']['Row'] & {
     proposals?: { proposal_number?: string | null; final_amount?: number | null } | null;
   };
@@ -104,6 +115,12 @@ export default function PatientDetailPage() {
     state: '',
     notes: '',
   });
+  const [contractDialogProposal, setContractDialogProposal] = useState<ProposalRow | null>(null);
+  const [paymentCondition, setPaymentCondition] = useState<PaymentCondition>('cash');
+  const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [paymentDetails, setPaymentDetails] = useState<Record<string, string>>({});
+  const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>({});
+  const [payerData, setPayerData] = useState<PayerData>({ is_self_payer: true, payer_id: null });
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const { data: patient, isLoading } = useQuery({
@@ -171,7 +188,7 @@ export default function PatientDetailPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('proposals')
-        .select('id, proposal_number, status, final_amount, created_at, valid_until')
+        .select('id, proposal_number, status, final_amount, created_at, valid_until, patient_id')
         .eq('patient_id', id!)
         .order('created_at', { ascending: false });
       return data || [];
@@ -184,7 +201,7 @@ export default function PatientDetailPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('contracts')
-        .select('id, contract_number, process_status, status, created_at, signed_pdf_url, proposals(proposal_number, final_amount)')
+        .select('id, proposal_id, contract_number, process_status, status, created_at, signed_pdf_url, proposals(proposal_number, final_amount)')
         .eq('patient_id', id!)
         .order('created_at', { ascending: false });
       return data || [];
@@ -331,6 +348,162 @@ export default function PatientDetailPage() {
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : 'Erro ao atualizar paciente';
+      toast.error(message);
+    },
+  });
+
+  const resetContractDialog = () => {
+    setContractDialogProposal(null);
+    setPaymentCondition('cash');
+    setSelectedPaymentMethods([]);
+    setPaymentDetails({});
+    setPaymentConfig({});
+    setPayerData({ is_self_payer: true, payer_id: null });
+  };
+
+  const openContractDialog = (proposal: ProposalRow) => {
+    setContractDialogProposal(proposal);
+    setPayerData({
+      is_self_payer: patient?.is_self_payer ?? true,
+      payer_id: patient?.payer_id || null,
+      new_payer: patient?.is_self_payer === false ? { name: '', cpf: '', birth_date: '' } : undefined,
+    });
+    setPaymentCondition('cash');
+    setSelectedPaymentMethods([]);
+    setPaymentDetails({});
+    setPaymentConfig({});
+  };
+
+  const togglePaymentMethod = (method: PaymentMethod, checked: boolean) => {
+    if (checked) {
+      if (selectedPaymentMethods.includes(method)) return;
+      if (selectedPaymentMethods.length >= 2) {
+        toast.error('Você pode selecionar no máximo 2 formas de pagamento.');
+        return;
+      }
+      setSelectedPaymentMethods((current) => [...current, method]);
+      return;
+    }
+
+    setSelectedPaymentMethods((current) => current.filter((item) => item !== method));
+    setPaymentDetails((current) => {
+      const next = { ...current };
+      delete next[method];
+      return next;
+    });
+    setPaymentConfig((current) => {
+      const next = { ...current };
+      delete next[method];
+      return next;
+    });
+  };
+
+  const generateContractMutation = useMutation({
+    mutationFn: async () => {
+      if (!clinicId || !id || !contractDialogProposal) throw new Error('Selecione uma proposta aprovada.');
+      if (selectedPaymentMethods.length === 0) throw new Error('Selecione ao menos uma forma de pagamento.');
+
+      const proposalAmount = Number(contractDialogProposal.final_amount || 0);
+      const amounts = selectedPaymentMethods.map((method) => Number(paymentConfig[method]?.amount || 0));
+      if (amounts.some((value) => !Number.isFinite(value) || value <= 0)) {
+        throw new Error('Informe um valor válido para cada forma selecionada.');
+      }
+
+      const installmentMethods = selectedPaymentMethods.filter((method) => method === 'card' || method === 'boleto');
+      if (installmentMethods.some((method) => Number(paymentConfig[method]?.installments || 0) <= 0)) {
+        throw new Error('Cartão e boleto exigem quantidade de parcelas maior que zero.');
+      }
+
+      const totalInformed = amounts.reduce((sum, value) => sum + value, 0);
+      if (totalInformed + 0.0001 < proposalAmount) {
+        throw new Error(
+          `A soma das formas de pagamento (R$ ${totalInformed.toFixed(2)}) deve ser igual ou maior ao valor da proposta (R$ ${proposalAmount.toFixed(2)}).`
+        );
+      }
+
+      const existingContract = contracts.find((contract: ContractRow) => contract.proposal_id === contractDialogProposal.id);
+      if (existingContract) {
+        throw new Error('Esta proposta já possui contrato vinculado.');
+      }
+
+      let resolvedPayerId: string | null = null;
+      if (!payerData.is_self_payer) {
+        if (payerData.payer_id) {
+          resolvedPayerId = payerData.payer_id;
+        } else if (payerData.new_payer) {
+          if (!payerData.new_payer.name.trim()) throw new Error('Nome do pagador é obrigatório.');
+          if (!payerData.new_payer.cpf.trim()) throw new Error('CPF do pagador é obrigatório.');
+          const { data: newPayer, error: payerError } = await supabase
+            .from('payers' as unknown)
+            .insert({
+              clinic_id: clinicId,
+              patient_id: id,
+              name: payerData.new_payer.name.trim(),
+              cpf: payerData.new_payer.cpf.trim(),
+              birth_date: payerData.new_payer.birth_date || null,
+            } as unknown)
+            .select('id')
+            .single();
+          if (payerError) throw payerError;
+          resolvedPayerId = (newPayer as { id: string }).id;
+        } else {
+          throw new Error('Selecione ou cadastre um pagador.');
+        }
+      }
+
+      const now = new Date();
+      const contractNumber = `CONT-${format(now, 'yyyyMM')}-${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}`;
+      const paymentNotes = buildContractPaymentNotes(
+        selectedPaymentMethods,
+        paymentConfig,
+        paymentDetails,
+        paymentConditionLabels[paymentCondition]
+      );
+
+      const { data: insertedContract, error } = await supabase
+        .from('contracts')
+        .insert({
+          clinic_id: clinicId,
+          patient_id: id,
+          proposal_id: contractDialogProposal.id,
+          contract_number: contractNumber,
+          status: 'draft',
+          created_by: user?.id || null,
+          start_date: format(now, 'yyyy-MM-dd'),
+          notes: paymentNotes,
+          payer_id: payerData.is_self_payer ? null : resolvedPayerId,
+        })
+        .select('id')
+        .single();
+      if (error) throw error;
+
+      if (insertedContract?.id) {
+        await upsertContractFinancialForecast(insertedContract.id);
+      }
+
+      const { error: patientError } = await supabase
+        .from('patients')
+        .update({
+          is_self_payer: payerData.is_self_payer,
+          payer_id: payerData.is_self_payer ? null : resolvedPayerId,
+        })
+        .eq('id', id)
+        .eq('clinic_id', clinicId);
+      if (patientError) throw patientError;
+
+      return contractNumber;
+    },
+    onSuccess: (contractNumber) => {
+      queryClient.invalidateQueries({ queryKey: ['patient', id] });
+      queryClient.invalidateQueries({ queryKey: ['patient-contracts', id] });
+      queryClient.invalidateQueries({ queryKey: ['patient-proposals', id] });
+      queryClient.invalidateQueries({ queryKey: ['contracts'] });
+      queryClient.invalidateQueries({ queryKey: ['finance-contracts'] });
+      toast.success(`Contrato ${contractNumber} gerado`);
+      resetContractDialog();
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Erro ao gerar contrato';
       toast.error(message);
     },
   });
@@ -760,31 +933,49 @@ export default function PatientDetailPage() {
                 <p className="text-sm text-muted-foreground text-center py-8">Nenhuma proposta encontrada</p>
               ) : (
                 <div className="space-y-3">
-                  {proposals.map((proposal: ProposalRow) => (
-                    <div key={proposal.id} className="flex flex-col gap-3 rounded-lg bg-secondary/50 p-3 md:flex-row md:items-center md:justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <button
-                            type="button"
-                            className="text-sm font-medium text-foreground underline-offset-4 hover:underline"
-                            onClick={() => navigate(`/clinic/proposals?proposalId=${proposal.id}&view=1`)}
-                          >
-                            {proposal.proposal_number || 'Proposta sem número'}
-                          </button>
-                          <BrandBadge status={proposal.status === 'accepted' ? 'approved' : proposal.status === 'rejected' ? 'rejected' : proposal.status === 'draft' ? 'draft' : 'sent'}>
-                            {proposal.status}
-                          </BrandBadge>
+                  {proposals.map((proposal: ProposalRow) => {
+                    const linkedContract = contracts.find((contract: ContractRow) => contract.proposal_id === proposal.id);
+                    const canGenerateContract = proposal.status === 'accepted' && !linkedContract;
+
+                    return (
+                      <div key={proposal.id} className="flex flex-col gap-3 rounded-lg bg-secondary/50 p-3 md:flex-row md:items-center md:justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                              type="button"
+                              className="text-sm font-medium text-foreground underline-offset-4 hover:underline"
+                              onClick={() => navigate(`/clinic/proposals?proposalId=${proposal.id}&view=1`)}
+                            >
+                              {proposal.proposal_number || 'Proposta sem número'}
+                            </button>
+                            <BrandBadge status={proposal.status === 'accepted' ? 'approved' : proposal.status === 'rejected' ? 'rejected' : proposal.status === 'draft' ? 'draft' : 'sent'}>
+                              {proposal.status}
+                            </BrandBadge>
+                            {linkedContract && (
+                              <Badge variant="outline" className="bg-white">
+                                Contrato {linkedContract.contract_number || 'gerado'}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Valor final: R$ {Number(proposal.final_amount || 0).toLocaleString('pt-BR')}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Criada em {format(new Date(proposal.created_at), "dd 'de' MMM 'de' yyyy", { locale: ptBR })}
+                            {proposal.valid_until ? ` • válida até ${format(new Date(`${proposal.valid_until}T12:00:00`), "dd/MM/yyyy", { locale: ptBR })}` : ''}
+                          </p>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          Valor final: R$ {Number(proposal.final_amount || 0).toLocaleString('pt-BR')}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Criada em {format(new Date(proposal.created_at), "dd 'de' MMM 'de' yyyy", { locale: ptBR })}
-                          {proposal.valid_until ? ` • válida até ${format(new Date(`${proposal.valid_until}T12:00:00`), "dd/MM/yyyy", { locale: ptBR })}` : ''}
-                        </p>
+                        <div className="flex items-center gap-2 self-start md:self-center">
+                          {canGenerateContract && (
+                            <BrandButton size="sm" onClick={() => openContractDialog(proposal)}>
+                              <FileSignature className="h-4 w-4" />
+                              Gerar contrato
+                            </BrandButton>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -1031,6 +1222,80 @@ export default function PatientDetailPage() {
                 <span className="text-sm text-muted-foreground">{format(new Date(viewPhoto.taken_at), 'dd/MM/yyyy', { locale: ptBR })}</span>
               </div>
             </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!contractDialogProposal}
+        onOpenChange={(open) => {
+          if (!open) resetContractDialog();
+        }}
+      >
+        <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Gerar contrato</DialogTitle>
+            <DialogDescription>
+              Configure pagamento e pagador sem sair do prontuário do paciente.
+            </DialogDescription>
+          </DialogHeader>
+
+          {contractDialogProposal && (
+            <div className="space-y-4">
+              <div className="rounded-lg border bg-amber-50/60 p-4">
+                <p className="text-sm font-semibold text-foreground">
+                  {contractDialogProposal.proposal_number || 'Proposta sem número'}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {patient.full_name} · R$ {Number(contractDialogProposal.final_amount || 0).toFixed(2)}
+                </p>
+                <p className="mt-2 text-xs text-amber-800">
+                  A proposta já está aprovada. Ao confirmar, o contrato será criado em rascunho e vinculado a este paciente.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <ContractPaymentConfigurator
+                  paymentCondition={paymentCondition}
+                  setPaymentCondition={setPaymentCondition}
+                  selectedPaymentMethods={selectedPaymentMethods}
+                  togglePaymentMethod={togglePaymentMethod}
+                  paymentConfig={paymentConfig}
+                  setPaymentConfig={setPaymentConfig}
+                  paymentDetails={paymentDetails}
+                  setPaymentDetails={setPaymentDetails}
+                />
+                <div className="space-y-4">
+                  <PayerSection
+                    value={payerData}
+                    onChange={setPayerData}
+                    patientName={patient.full_name || undefined}
+                  />
+                  <div className="rounded-md border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
+                    Valor da proposta: <span className="font-semibold text-foreground">R$ {Number(contractDialogProposal.final_amount || 0).toFixed(2)}</span> ·
+                    Soma informada: <span className="font-semibold text-foreground">R$ {selectedPaymentMethods.reduce((sum, method) => sum + Number(paymentConfig[method]?.amount || 0), 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 border-t pt-4">
+                <BrandButton type="button" variant="outline" onClick={resetContractDialog}>
+                  Cancelar
+                </BrandButton>
+                <BrandButton
+                  type="button"
+                  disabled={generateContractMutation.isPending}
+                  onClick={() => generateContractMutation.mutate()}
+                >
+                  {generateContractMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileTextIcon className="h-4 w-4" />
+                  )}
+                  {generateContractMutation.isPending ? 'Gerando...' : 'Confirmar e gerar contrato'}
+                </BrandButton>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>

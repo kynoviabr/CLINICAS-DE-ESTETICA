@@ -1598,9 +1598,6 @@ export default function CrmPage() {
       if (installmentMethods.some((method) => Number(paymentConfig[method]?.installments || 0) <= 0)) {
         throw new Error('Cartão e boleto exigem quantidade de parcelas maior que zero.');
       }
-      if (installmentMethods.some((method) => Number(paymentConfig[method]?.installmentAmount || 0) <= 0)) {
-        throw new Error('Cartão e boleto exigem valor da parcela maior que zero.');
-      }
 
       const totalInformed = amounts.reduce((sum, value) => sum + value, 0);
       if (totalInformed + 0.0001 < proposalAmount) {
@@ -2723,54 +2720,6 @@ export default function CrmPage() {
                       Contrato {latestLeadContract.contract_number} · {latestLeadContract.process_status}
                     </button>
                   )}
-                </div>
-
-                <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
-                  <div className="mb-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Registrar interação rápida</p>
-                    <p className="mt-0.5 text-xs text-slate-600">Esses atalhos apenas registram o contato no CRM. Nenhuma ação é enviada automaticamente ao lead.</p>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                  <BrandButton
-                    size="sm"
-                    variant="outline"
-                    className="h-8 px-3 text-xs"
-                    onClick={() => quickInteractionMutation.mutate({
-                      lead: leadDrawer,
-                      type: 'call_made',
-                      notes: 'Ligação registrada pelo atalho do CRM.',
-                      autoAdvance: true,
-                    })}
-                  >
-                    Registrar ligação
-                  </BrandButton>
-                  <BrandButton
-                    size="sm"
-                    variant="outline"
-                    className="h-8 px-3 text-xs"
-                    onClick={() => quickInteractionMutation.mutate({
-                      lead: leadDrawer,
-                      type: 'whatsapp',
-                      notes: 'WhatsApp registrado pelo atalho do CRM.',
-                      autoAdvance: true,
-                    })}
-                  >
-                    Registrar WhatsApp
-                  </BrandButton>
-                  <BrandButton
-                    size="sm"
-                    variant="outline"
-                    className="h-8 px-3 text-xs"
-                    onClick={() => quickInteractionMutation.mutate({
-                      lead: leadDrawer,
-                      type: 'email',
-                      notes: 'E-mail registrado pelo atalho do CRM.',
-                      autoAdvance: true,
-                    })}
-                  >
-                    Registrar e-mail
-                  </BrandButton>
-                </div>
                 </div>
 
                 <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">

@@ -125,12 +125,12 @@ export function ContractPaymentConfigurator({
                         />
                       </div>
                       <div className="space-y-1">
-                        <p className="text-[11px] text-muted-foreground">Valor da parcela</p>
+                        <p className="text-[11px] text-muted-foreground">Valor da parcela opcional</p>
                         <Input
                           type="number"
                           min={0}
                           step="0.01"
-                          placeholder="Valor da parcela"
+                          placeholder="Calculado se vazio"
                           value={paymentConfig[method]?.installmentAmount || ''}
                           onChange={(event) =>
                             setPaymentConfig((current) => ({

@@ -339,13 +339,6 @@ export default function ProposalsPage() {
       return { ok: false as const, message: 'Informe número de parcelas válido para cartão/boleto.' };
     }
 
-    const invalidInstallmentAmount = installmentMethods.some(
-      (method) => Number(proposalPaymentConfig[method]?.installmentAmount || 0) <= 0
-    );
-    if (invalidInstallmentAmount) {
-      return { ok: false as const, message: 'Informe valor da parcela maior que zero para cartão/boleto.' };
-    }
-
     if (totalInformed < targetTotal) {
       return {
         ok: false as const,
@@ -690,11 +683,6 @@ export default function ProposalsPage() {
     const invalidInstallments = installmentMethods.some((method) => Number(paymentConfig[method]?.installments || 0) <= 0);
     if (invalidInstallments) {
       toast({ title: 'Erro', description: 'Cartão e boleto exigem número de parcelas.', variant: 'destructive' });
-      return;
-    }
-    const invalidInstallmentAmount = installmentMethods.some((method) => Number(paymentConfig[method]?.installmentAmount || 0) <= 0);
-    if (invalidInstallmentAmount) {
-      toast({ title: 'Erro', description: 'Cartão e boleto exigem valor da parcela.', variant: 'destructive' });
       return;
     }
     if (totalInformed + 0.0001 < proposalAmount) {
@@ -1294,8 +1282,7 @@ export default function ProposalsPage() {
                     .filter((method) => method === 'card' || method === 'boleto')
                     .some(
                       (method) =>
-                        Number(paymentConfig[method]?.installments || 0) <= 0 ||
-                        Number(paymentConfig[method]?.installmentAmount || 0) <= 0
+                        Number(paymentConfig[method]?.installments || 0) <= 0
                     ) ||
                   (!payerData.is_self_payer &&
                     !payerData.payer_id &&

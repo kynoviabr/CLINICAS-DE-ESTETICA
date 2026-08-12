@@ -307,13 +307,6 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
       toast({ title: 'Cartão e boleto exigem número de parcelas', variant: 'destructive' });
       return;
     }
-    const hasInvalidInstallmentAmount = reviewMethods
-      .filter((method) => method === 'card' || method === 'boleto')
-      .some((method) => Number(reviewConfig[method]?.installmentAmount || 0) <= 0);
-    if (hasInvalidInstallmentAmount) {
-      toast({ title: 'Cartão e boleto exigem valor da parcela', variant: 'destructive' });
-      return;
-    }
     if (reviewMethods.includes('card')) {
       const brand = reviewConfig.card?.brand;
       const last4 = (reviewConfig.card?.last4 || '').replace(/\D/g, '');
@@ -332,7 +325,12 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
         const label = paymentMethodOptions.find((item) => item.value === method)?.label || method;
         const amount = Number(reviewConfig[method]?.amount || 0);
         const installments = Number(reviewConfig[method]?.installments || 0);
-        const installmentAmount = Number(reviewConfig[method]?.installmentAmount || 0);
+        const configuredInstallmentAmount = Number(reviewConfig[method]?.installmentAmount || 0);
+        const installmentAmount = configuredInstallmentAmount > 0
+          ? configuredInstallmentAmount
+          : installments > 0
+            ? amount / installments
+            : 0;
         const details = reviewDetails[method]?.trim();
         if (method === 'card' || method === 'boleto') {
           const brandLabel = method === 'card'

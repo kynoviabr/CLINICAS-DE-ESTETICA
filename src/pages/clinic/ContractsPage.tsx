@@ -246,8 +246,6 @@ export default function ContractsPage() {
       const requiresInstallments = selectedPaymentMethods.filter((method) => method === 'card' || method === 'boleto');
       const hasInvalidInstallments = requiresInstallments.some((method) => Number(paymentConfig[method]?.installments || 0) <= 0);
       if (hasInvalidInstallments) throw new Error('Cartão e boleto exigem quantidade de parcelas maior que zero.');
-      const hasInvalidInstallmentAmount = requiresInstallments.some((method) => Number(paymentConfig[method]?.installmentAmount || 0) <= 0);
-      if (hasInvalidInstallmentAmount) throw new Error('Cartão e boleto exigem valor da parcela maior que zero.');
       const totalInformed = amounts.reduce((sum, value) => sum + value, 0);
       if (totalInformed + 0.0001 < proposalAmount) {
         throw new Error(
@@ -492,7 +490,7 @@ export default function ContractsPage() {
     selectedPaymentMethods.every((method) => Number(paymentConfig[method]?.amount || 0) > 0) &&
     selectedPaymentMethods
       .filter((method) => method === 'card' || method === 'boleto')
-      .every((method) => Number(paymentConfig[method]?.installments || 0) > 0 && Number(paymentConfig[method]?.installmentAmount || 0) > 0) &&
+      .every((method) => Number(paymentConfig[method]?.installments || 0) > 0) &&
     selectedAmountSum + 0.0001 >= selectedProposalAmount;
 
   useEffect(() => {
