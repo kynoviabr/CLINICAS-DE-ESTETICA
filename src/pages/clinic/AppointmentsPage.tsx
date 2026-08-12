@@ -242,10 +242,19 @@ export default function AppointmentsPage() {
     enabled: !!clinicId,
   });
 
+  const selectedPatientLookupId = selectedPatient || prefillPatientId || '';
   const { data: patients = [] } = useQuery({
-    queryKey: ['patients-select', clinicId],
+    queryKey: ['patients-select', clinicId, selectedPatientLookupId],
     queryFn: async () => {
-      const { data } = await supabase.from('patients').select('id, full_name, current_anamnese_status, current_anamnese_expires_at').eq('clinic_id', clinicId!).eq('status', 'active').order('full_name');
+      let query = supabase
+        .from('patients')
+        .select('id, full_name, current_anamnese_status, current_anamnese_expires_at')
+        .eq('clinic_id', clinicId!)
+        .order('full_name');
+      query = selectedPatientLookupId
+        ? query.or(`status.eq.active,id.eq.${selectedPatientLookupId}`)
+        : query.eq('status', 'active');
+      const { data } = await query;
       return data || [];
     },
     enabled: !!clinicId,
@@ -538,13 +547,14 @@ export default function AppointmentsPage() {
   }, [viewAppt]);
 
   useEffect(() => {
+    if (!shouldOpenNewFromQuery) return;
     resetForm();
     if (prefillLeadId && leads.some((lead) => lead.id === prefillLeadId)) {
       setAppointmentType('evaluation');
       setSelectedLead(prefillLeadId);
       setSelectedPatient('');
-    } else if (prefillPatientId && patients.some((patient) => patient.id === prefillPatientId)) {
-      setAppointmentType(prefillAppointmentType === 'return' ? 'session' : 'session');
+    } else if (prefillPatientId) {
+      setAppointmentType('session');
       setSelectedPatient(prefillPatientId);
       setSelectedLead('');
     } else {
@@ -1942,17 +1952,6 @@ export default function AppointmentsPage() {
                 <AlertDescription>{createFormError}</AlertDescription>
               </Alert>
             )}
-            <div className="space-y-2">
-              <Label>Tipo de agendamento</Label>
-              <Select value={appointmentType} onValueChange={value => setAppointmentType(value as 'session' | 'evaluation')}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="session">Sessão de paciente</SelectItem>
-                  <SelectItem value="evaluation">Avaliação de lead</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             {appointmentType === 'session' ? (
               <>
                 <div className="space-y-2">
@@ -2003,6 +2002,17 @@ export default function AppointmentsPage() {
                 )}
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label>Tipo de agendamento</Label>
+              <Select value={appointmentType} onValueChange={value => setAppointmentType(value as 'session' | 'evaluation')}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="session">Sessão de paciente</SelectItem>
+                  <SelectItem value="evaluation">Avaliação de lead</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
             <div className="space-y-2">
               <Label>{appointmentType === 'evaluation' ? 'Tratamento de interesse' : 'Tratamento'}</Label>
