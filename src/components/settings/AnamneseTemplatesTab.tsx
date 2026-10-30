@@ -187,7 +187,7 @@ export default function AnamneseTemplatesTab() {
     queryFn: async () => {
       if (!clinicId) return [];
       const { data, error } = await supabase
-        .from('treatment_categories' as unknown)
+        .from('treatment_categories')
         .select('id,name,description')
         .eq('clinic_id', clinicId)
         .eq('status', 'active')
@@ -203,7 +203,7 @@ export default function AnamneseTemplatesTab() {
     queryFn: async () => {
       if (!clinicId) return [];
       const { data, error } = await supabase
-        .from('clinic_settings' as unknown)
+        .from('clinic_settings')
         .select('*')
         .eq('clinic_id', clinicId)
         .eq('key', SETTINGS_KEY);
@@ -232,7 +232,7 @@ export default function AnamneseTemplatesTab() {
       if (!clinicId) throw new Error('Clínica não encontrada.');
       const value = JSON.stringify(nextTemplates);
       const { data: existing, error: lookupError } = await supabase
-        .from('clinic_settings' as unknown)
+        .from('clinic_settings')
         .select('id')
         .eq('clinic_id', clinicId)
         .eq('key', SETTINGS_KEY)
@@ -240,17 +240,17 @@ export default function AnamneseTemplatesTab() {
       if (lookupError) throw lookupError;
       if (existing) {
         const { error } = await supabase
-          .from('clinic_settings' as unknown)
-          .update({ value } as unknown)
+          .from('clinic_settings')
+          .update({ value })
           .eq('id', existing.id);
         if (error) throw error;
         return;
       }
-      const { error } = await supabase.from('clinic_settings' as unknown).insert({
+      const { error } = await supabase.from('clinic_settings').insert({
         clinic_id: clinicId,
         key: SETTINGS_KEY,
         value,
-      } as unknown);
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -258,7 +258,7 @@ export default function AnamneseTemplatesTab() {
       qc.invalidateQueries({ queryKey: ['clinic-settings', clinicId, SETTINGS_KEY] });
       toast({ title: 'Modelos de anamnese salvos!' });
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   const visibleTemplates = useMemo(() => {

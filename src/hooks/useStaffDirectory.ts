@@ -31,7 +31,7 @@ export function useStaffDirectory(clinicId?: string | null, roles?: StaffRole[])
     queryFn: async () => {
       if (!clinicId) return [];
 
-      let rolesQuery = (supabase.from('user_roles') as unknown)
+      let rolesQuery = (supabase.from('user_roles'))
         .select('user_id, role')
         .eq('clinic_id', clinicId)
         .eq('is_active', true);

@@ -21,6 +21,7 @@ import {
   MessageSquare, Star, ExternalLink, Loader2, AlertTriangle, FileSignature, Upload, Edit
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { getSignedContractUrl } from '@/lib/storageHelper';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import {
@@ -229,7 +230,7 @@ export default function PatientDetailPage() {
   const { data: portalAccess } = useQuery({
     queryKey: ['patient-portal-access', id],
     queryFn: async () => {
-      const { data } = await supabase.from('patient_users' as unknown).select('*')
+      const { data } = await supabase.from('patient_users').select('*')
         .eq('patient_id', id!).limit(1).maybeSingle();
       return data;
     },
@@ -376,7 +377,7 @@ export default function PatientDetailPage() {
       if (error) throw error;
 
       await supabase
-        .from('leads' as unknown)
+        .from('leads')
         .update({
           full_name: payload.full_name,
           phone: payload.phone,
@@ -388,7 +389,7 @@ export default function PatientDetailPage() {
           city: payload.city,
           state: payload.state,
           notes: payload.notes,
-        } as unknown)
+        })
         .eq('clinic_id', clinicId)
         .eq('patient_id', id);
     },
@@ -487,14 +488,14 @@ export default function PatientDetailPage() {
           if (!payerData.new_payer.name.trim()) throw new Error('Nome do pagador é obrigatório.');
           if (!payerData.new_payer.cpf.trim()) throw new Error('CPF do pagador é obrigatório.');
           const { data: newPayer, error: payerError } = await supabase
-            .from('payers' as unknown)
+            .from('payers')
             .insert({
               clinic_id: clinicId,
               patient_id: id,
               name: payerData.new_payer.name.trim(),
               cpf: payerData.new_payer.cpf.trim(),
               birth_date: payerData.new_payer.birth_date || null,
-            } as unknown)
+            })
             .select('id')
             .single();
           if (payerError) throw payerError;
@@ -1089,7 +1090,14 @@ export default function PatientDetailPage() {
                           <BrandButton
                             size="sm"
                             variant="outline"
-                            onClick={() => window.open(contract.signed_pdf_url, '_blank', 'noopener,noreferrer')}
+                            onClick={async () => {
+                              try {
+                                const url = await getSignedContractUrl(contract.pdf_storage_path || contract.signed_pdf_url);
+                                window.open(url, '_blank', 'noopener,noreferrer');
+                              } catch (e) {
+                                toast({ title: 'Erro de acesso', description: 'Não foi possível carregar o arquivo.', variant: 'destructive' });
+                              }
+                            }}
                           >
                             Ver PDF
                           </BrandButton>

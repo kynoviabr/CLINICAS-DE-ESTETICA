@@ -12,9 +12,15 @@ import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, Copy, ExternalLink, FileUp, Printer, TriangleAlert } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import type { Database } from '@/integrations/supabase/types';
+
+type ContractDialogData = Database['public']['Tables']['contracts']['Row'] & {
+  patients?: { full_name?: string | null } | null;
+  proposals?: { proposal_number?: string | null; final_amount?: number | null } | null;
+};
 
 interface Props {
-  contract: unknown;
+  contract: ContractDialogData;
   clinicName: string;
   onClose: () => void;
 }
@@ -32,6 +38,7 @@ type PaymentCondition = 'cash' | 'installments';
 type PaymentMethod = 'cash' | 'pix' | 'card' | 'boleto';
 type CardBrand = 'visa' | 'mastercard' | 'elo' | 'amex' | 'hipercard' | 'cabal' | 'diners' | 'outro';
 type ReviewPaymentConfig = Partial<Record<PaymentMethod, { amount: string; installments?: string; installmentAmount?: string; brand?: CardBrand; last4?: string }>>;
+type TimelineEvent = { key: string; label: string; date: Date; tone: string };
 
 const paymentConditionLabels: Record<PaymentCondition, string> = {
   cash: 'À vista',
@@ -194,11 +201,11 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
       const { error: uploadError } = await supabase.storage.from('contracts').upload(path, file, { upsert: true });
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage.from('contracts').getPublicUrl(path);
+
       const { error } = await supabase
         .from('contracts')
         .update({
-          signed_pdf_url: urlData.publicUrl,
+          signed_pdf_url: path,
           signed_at: new Date().toISOString(),
           process_status: 'pending_confirmation',
         })
@@ -209,7 +216,7 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
       toast({ title: 'Documento assinado arquivado!' });
       refreshContracts();
     } catch (err: unknown) {
-      toast({ title: 'Erro no upload', description: err.message, variant: 'destructive' });
+      toast({ title: 'Erro no upload', description: err instanceof Error ? err.message : 'Falha inesperada', variant: 'destructive' });
     } finally {
       setUploading(false);
     }
@@ -432,9 +439,10 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
         }
       : null,
   ]
-    .filter(Boolean)
-    .sort((a: unknown, b: unknown) => a.date.getTime() - b.date.getTime());
+    .filter((event): event is TimelineEvent => event !== null)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
 
+  const displayHtml = contract?.template_snapshot_html || contract?.template_html;
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-lg">
@@ -457,17 +465,17 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
             <div>
               <span className="text-muted-foreground">Paciente:</span>
               <br />
-              <span className="font-medium">{(c.patients as unknown)?.full_name}</span>
+              <span className="font-medium">{c.patients?.full_name}</span>
             </div>
             <div>
               <span className="text-muted-foreground">Proposta:</span>
               <br />
-              <span className="font-medium">{(c.proposals as unknown)?.proposal_number || '—'}</span>
+              <span className="font-medium">{c.proposals?.proposal_number || '—'}</span>
             </div>
             <div>
               <span className="text-muted-foreground">Valor:</span>
               <br />
-              <span className="font-bold">R$ {Number((c.proposals as unknown)?.final_amount || 0).toFixed(2)}</span>
+              <span className="font-bold">R$ {Number(c.proposals?.final_amount || 0).toFixed(2)}</span>
             </div>
             <div>
               <span className="text-muted-foreground">Criado em:</span>
@@ -507,7 +515,7 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
               <p className="text-xs text-muted-foreground">Sem eventos registrados.</p>
             ) : (
               <div className="space-y-2">
-                {timelineEvents.map((event: unknown) => (
+                {timelineEvents.map((event) => (
                   <div key={event.key} className="flex items-center justify-between gap-2 rounded-md bg-secondary/30 px-2.5 py-2">
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${event.tone}`}>{event.label}</span>
                     <span className="text-xs text-muted-foreground">
@@ -762,30 +770,14 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
           </div>
 
           <div className="flex flex-wrap gap-2 pt-4 border-t">
-            {c.template_html && (
+            {displayHtml && (
               <BrandButton variant="outline" size="sm" onClick={handlePrint}>
                 <Printer className="w-4 h-4" />
                 Imprimir minuta
               </BrandButton>
             )}
 
-            {hasSignedFile && (
-              <BrandButton variant="outline" size="sm" onClick={() => window.open(c.signed_pdf_url, '_blank')}>
-                <ExternalLink className="w-4 h-4" />
-                Ver arquivo
-              </BrandButton>
-            )}
 
-            {hasSignedFile && (
-              <BrandButton
-                variant="outline"
-                size="sm"
-                onClick={() => copyToClipboard(c.signed_pdf_url, 'Link do contrato copiado!')}
-              >
-                <Copy className="w-4 h-4" />
-                Copiar link
-              </BrandButton>
-            )}
 
             <BrandButton
               variant="outline"

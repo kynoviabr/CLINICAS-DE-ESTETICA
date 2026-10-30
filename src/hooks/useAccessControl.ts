@@ -28,7 +28,7 @@ export function useAccessControl() {
       setLoading(true);
       try {
         const { data: assignments } = await supabase
-          .from('user_access_groups' as unknown)
+          .from('user_access_groups')
           .select('group_id, is_active')
           .eq('clinic_id', clinicId)
           .eq('user_id', user.id)
@@ -42,7 +42,7 @@ export function useAccessControl() {
         }
 
         const { data: perms } = await supabase
-          .from('access_group_permissions' as unknown)
+          .from('access_group_permissions')
           .select('permission_key, can_view')
           .eq('clinic_id', clinicId)
           .in('group_id', groupIds)

@@ -62,7 +62,7 @@ export default function PatientAppAccessTab() {
     try {
       const [accessRes, portalRes, patientsRes] = await Promise.all([
         supabase
-          .from('patient_users' as unknown)
+          .from('patient_users')
           .select('id, clinic_id, patient_id, auth_user_id, status, created_at, updated_at, patients(full_name,email,phone)')
           .eq('clinic_id', clinicId)
           .order('created_at', { ascending: false }),
@@ -127,8 +127,8 @@ export default function PatientAppAccessTab() {
   const handleSetStatus = async (row: PatientAppAccessRow, nextStatus: 'active' | 'blocked') => {
     try {
       const { error } = await supabase
-        .from('patient_users' as unknown)
-        .update({ status: nextStatus } as unknown)
+        .from('patient_users')
+        .update({ status: nextStatus })
         .eq('id', row.id);
       if (error) throw error;
 

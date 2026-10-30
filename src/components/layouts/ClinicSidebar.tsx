@@ -36,9 +36,7 @@ const navItems: NavItem[] = [
   { to: '/clinic/sessions', icon: ClipboardList, label: 'Sessões', roles: ['admin', 'professional'], permissionKey: 'sessions.view' },
   { to: '/clinic/evolution', icon: Activity, label: 'Evolução', roles: ['admin', 'professional'], permissionKey: 'evolution.view' },
   { to: '/clinic/photos', icon: Camera, label: 'Fotos', roles: ['admin', 'professional'], permissionKey: 'photos.view' },
-  { to: '/clinic/feedback', icon: Star, label: 'Feedbacks', roles: ['admin', 'receptionist', 'professional'], permissionKey: 'feedback.view' },
-  { to: '/clinic/nps', icon: TrendingUp, label: 'NPS', roles: ['admin', 'receptionist', 'professional'], permissionKey: 'nps.view' },
-  { to: '/clinic/satisfaction', icon: BarChart3, label: 'Satisfação', roles: ['admin'], permissionKey: 'satisfaction.view' },
+  { to: '/clinic/feedback', icon: Star, label: 'Avaliações', roles: ['admin', 'receptionist', 'professional'], permissionKey: 'feedback.view' },
   { to: '/clinic/reports', icon: MessageSquare, label: 'Relatórios', roles: ['admin', 'sales'], permissionKey: 'reports.view' },
   { to: '/clinic/settings', icon: Settings, label: 'Configurações', roles: ['admin'], permissionKey: 'settings.view' },
 ];

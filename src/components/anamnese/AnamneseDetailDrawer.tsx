@@ -8,11 +8,14 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Eye, Hash, Calendar, Clock, User as UserIcon, FileText, Paperclip } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import type { Database } from '@/integrations/supabase/types';
+
+type AnamneseRow = Database['public']['Tables']['patient_anamneses']['Row'];
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  anamnese: any;
+  anamnese: AnamneseRow;
 }
 
 const sourceLabels: Record<string, string> = {
@@ -115,7 +118,7 @@ function fmtDateShort(d: string | null) {
   return format(new Date(d), 'dd/MM/yyyy', { locale: ptBR });
 }
 
-function formatValue(value: any): string {
+function formatValue(value: unknown): string {
   if (value === true) return 'Sim';
   if (value === false) return 'Não';
   if (value === null || value === undefined || value === '') return '—';

@@ -56,7 +56,7 @@ export default function NewAnamneseModal({ open, onOpenChange, patientId, clinic
     queryKey: ['clinic-settings', clinicId, SETTINGS_KEY],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('clinic_settings' as unknown)
+        .from('clinic_settings')
         .select('value')
         .eq('clinic_id', clinicId)
         .eq('key', SETTINGS_KEY)
@@ -173,7 +173,7 @@ export default function NewAnamneseModal({ open, onOpenChange, patientId, clinic
       if (form.filled_at) {
         payload.filled_at = new Date(form.filled_at).toISOString();
       }
-      const { error } = await supabase.from('patient_anamneses').insert(payload as any);
+      const { error } = await supabase.from('patient_anamneses').insert(payload);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -183,7 +183,7 @@ export default function NewAnamneseModal({ open, onOpenChange, patientId, clinic
       onOpenChange(false);
       resetForm();
     },
-    onError: (err: any) => toast.error(err.message || 'Erro ao criar anamnese'),
+    onError: (err: Error) => toast.error(err.message || 'Erro ao criar anamnese'),
   });
 
   return (

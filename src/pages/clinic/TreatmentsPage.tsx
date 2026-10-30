@@ -85,8 +85,8 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
     queryKey: ['treatment-categories-active', clinicId],
     queryFn: async () => {
       if (!clinicId) return [];
-      const { data } = await supabase.from('treatment_categories' as unknown).select('*').eq('clinic_id', clinicId).eq('status', 'active').order('name');
-      return (data as unknown[]) || [];
+      const { data } = await supabase.from('treatment_categories').select('*').eq('clinic_id', clinicId).eq('status', 'active').order('name');
+      return data || [];
     },
     enabled: !!clinicId,
   });
@@ -95,15 +95,15 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
     queryKey: ['cost-items-active', clinicId],
     queryFn: async () => {
       if (!clinicId || !canManage) return [];
-      const { data } = await supabase.from('cost_items' as unknown).select('*').eq('clinic_id', clinicId).eq('status', 'active').order('name');
-      return (data as unknown[]) || [];
+      const { data } = await supabase.from('cost_items').select('*').eq('clinic_id', clinicId).eq('status', 'active').order('name');
+      return data || [];
     },
     enabled: !!clinicId && canManage,
   });
 
   const saveMutation = useMutation({
     mutationFn: async (data: TreatmentForm) => {
-      const payload: unknown = {
+      const payload = {
         name: data.name,
         category_id: data.category_id || null,
         description: data.description || null,
@@ -131,7 +131,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
       // Save cost composition (admin only)
       if (canManage && treatmentId) {
         // Delete existing
-        await supabase.from('treatment_cost_items' as unknown).delete().eq('treatment_id', treatmentId);
+        await supabase.from('treatment_cost_items').delete().eq('treatment_id', treatmentId);
         // Insert new
         if (costLines.length > 0) {
           const items = costLines.filter(l => l.cost_item_id && parseFloat(l.quantity) > 0).map(l => ({
@@ -140,7 +140,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
             quantity: parseFloat(l.quantity) || 1,
           }));
           if (items.length > 0) {
-            const { error } = await supabase.from('treatment_cost_items' as unknown).insert(items as unknown);
+            const { error } = await supabase.from('treatment_cost_items').insert(items);
             if (error) throw error;
           }
         }
@@ -173,8 +173,8 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
     });
 
     if (canManage) {
-      const { data } = await supabase.from('treatment_cost_items' as unknown).select('*').eq('treatment_id', t.id);
-      setCostLines((data as unknown[] || []).map((d: unknown) => ({
+      const { data } = await supabase.from('treatment_cost_items').select('*').eq('treatment_id', t.id);
+      setCostLines((data || []).map((d) => ({
         id: d.id,
         cost_item_id: d.cost_item_id,
         quantity: String(d.quantity),
@@ -206,7 +206,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
   const removeCostLine = (idx: number) => setCostLines(costLines.filter((_, i) => i !== idx));
   const updateCostLine = (idx: number, field: string, value: string) => {
     const updated = [...costLines];
-    (updated[idx] as unknown)[field] = value;
+    (updated[idx])[field] = value;
     setCostLines(updated);
   };
 

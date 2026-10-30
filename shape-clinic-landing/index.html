@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Projeto Clínicas - Kynovia | Software para clínicas de estética</title>
+    <meta
+      name="description"
+      content="Projeto Clínicas - Kynovia organiza CRM, agenda, propostas, contratos e atendimento com IA para clínicas de estética que querem vender mais com menos atrito."
+    />
+    <style>
+      :root {
+        --navy: #0f2846;
+        --ink: #102033;
+        --muted: #64748b;
+        --blue: #2563eb;
+        --blue-dark: #174ea6;
+        --sky: #dbeafe;
+        --gold: #d8a85d;
+        --paper: #f6f9fb;
+        --card: #ffffff;
+        --line: #dce6ee;
+        --shadow: 0 24px 70px rgba(15, 40, 70, 0.18);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: var(--paper);
+        letter-spacing: 0;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .page {
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+
+      .nav {
+        position: fixed;
+        inset: 0 0 auto;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 72px;
+        padding: 0 clamp(20px, 5vw, 72px);
+        background: rgba(255, 255, 255, 0.82);
+        border-bottom: 1px solid rgba(220, 230, 238, 0.76);
+        backdrop-filter: blur(18px);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 800;
+        color: var(--navy);
+      }
+
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        color: #fff;
+        background: linear-gradient(135deg, var(--blue), var(--navy));
+        box-shadow: 0 12px 30px rgba(37, 99, 235, 0.28);
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        font-size: 14px;
+        color: #36506b;
+      }
+
+      .nav-cta,
+      .button-primary,
+      .button-secondary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        border-radius: 8px;
+        font-weight: 750;
+        border: 1px solid transparent;
+        transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+      }
+
+      .nav-cta,
+      .button-primary {
+        color: #fff;
+        background: var(--blue);
+        box-shadow: 0 14px 32px rgba(37, 99, 235, 0.25);
+      }
+
+      .nav-cta {
+        padding: 0 18px;
+      }
+
+      .button-primary,
+      .button-secondary {
+        padding: 0 22px;
+      }
+
+      .button-secondary {
+        color: var(--navy);
+        background: rgba(255, 255, 255, 0.88);
+        border-color: rgba(15, 40, 70, 0.14);
+      }
+
+      .nav-cta:hover,
+      .button-primary:hover,
+      .button-secondary:hover {
+        transform: translateY(-1px);
+      }
+
+      .hero {
+        position: relative;
+        display: grid;
+        grid-template-columns: minmax(320px, 0.86fr) minmax(420px, 1.14fr);
+        min-height: 88vh;
+        padding: 118px clamp(20px, 5vw, 72px) 58px;
+        background: linear-gradient(90deg, #f7fbff 0%, #f7fbff 42%, #eef5ff 100%);
+      }
+
+      .hero-copy {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        max-width: 620px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        gap: 8px;
+        padding: 7px 11px;
+        border: 1px solid rgba(37, 99, 235, 0.18);
+        border-radius: 999px;
+        color: var(--blue-dark);
+        background: rgba(219, 234, 254, 0.72);
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .eyebrow::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: var(--blue);
+      }
+
+      h1 {
+        margin: 22px 0 18px;
+        color: var(--navy);
+        font-size: clamp(44px, 6vw, 82px);
+        line-height: 0.96;
+        letter-spacing: 0;
+      }
+
+      .subtitle {
+        max-width: 560px;
+        margin: 0;
+        color: #435872;
+        font-size: clamp(18px, 2vw, 22px);
+        line-height: 1.52;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 30px;
+      }
+
+      .proof-row {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 38px;
+        max-width: 620px;
+      }
+
+      .proof {
+        padding: 16px;
+        border: 1px solid rgba(15, 40, 70, 0.1);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.78);
+      }
+
+      .proof strong {
+        display: block;
+        color: var(--navy);
+        font-size: 24px;
+      }
+
+      .proof span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.35;
+      }
+
+      .hero-media {
+        position: relative;
+        min-height: 560px;
+      }
+
+      .hero-photo {
+        position: absolute;
+        inset: 0 -72px -22px -40px;
+        border-bottom-left-radius: 34px;
+        overflow: hidden;
+        box-shadow: var(--shadow);
+      }
+
+      .hero-photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .hero-photo::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, rgba(246, 249, 251, 0.8) 0%, rgba(246, 249, 251, 0.08) 34%, rgba(15, 40, 70, 0.02) 100%);
+      }
+
+      .floating-panel {
+        position: absolute;
+        left: -34px;
+        bottom: 38px;
+        z-index: 3;
+        width: min(390px, 74%);
+        padding: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.7);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.86);
+        box-shadow: 0 22px 55px rgba(15, 40, 70, 0.18);
+        backdrop-filter: blur(18px);
+      }
+
+      .panel-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+      }
+
+      .panel-top strong {
+        color: var(--navy);
+      }
+
+      .status {
+        padding: 5px 9px;
+        border-radius: 999px;
+        color: var(--blue-dark);
+        background: rgba(219, 234, 254, 0.78);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .mini-bars {
+        display: grid;
+        gap: 9px;
+      }
+
+      .bar {
+        height: 9px;
+        border-radius: 999px;
+        background: #e8eef4;
+        overflow: hidden;
+      }
+
+      .bar span {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--blue), var(--gold));
+      }
+
+      .section {
+        padding: 76px clamp(20px, 5vw, 72px);
+      }
+
+      .section-header {
+        max-width: 760px;
+        margin-bottom: 28px;
+      }
+
+      .section-kicker {
+        color: var(--blue-dark);
+        font-size: 13px;
+        font-weight: 850;
+        text-transform: uppercase;
+      }
+
+      h2 {
+        margin: 10px 0 12px;
+        color: var(--navy);
+        font-size: clamp(30px, 4vw, 48px);
+        line-height: 1.04;
+        letter-spacing: 0;
+      }
+
+      .section-header p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 17px;
+        line-height: 1.55;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .feature {
+        min-height: 210px;
+        padding: 24px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--card);
+        box-shadow: 0 14px 34px rgba(15, 40, 70, 0.06);
+      }
+
+      .feature-icon {
+        display: grid;
+        place-items: center;
+        width: 42px;
+        height: 42px;
+        margin-bottom: 18px;
+        border-radius: 10px;
+        color: var(--blue-dark);
+        background: rgba(219, 234, 254, 0.78);
+      }
+
+      .feature h3 {
+        margin: 0 0 9px;
+        color: var(--navy);
+        font-size: 18px;
+      }
+
+      .feature p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+
+      .workflow {
+        display: grid;
+        grid-template-columns: 0.9fr 1.1fr;
+        gap: 34px;
+        align-items: center;
+        background: #fff;
+      }
+
+      .timeline {
+        display: grid;
+        gap: 12px;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: 46px 1fr;
+        gap: 14px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fbfdfe;
+      }
+
+      .step-number {
+        display: grid;
+        place-items: center;
+        width: 46px;
+        height: 46px;
+        border-radius: 12px;
+        color: #fff;
+        background: var(--navy);
+        font-weight: 850;
+      }
+
+      .step h3 {
+        margin: 0 0 5px;
+        color: var(--navy);
+        font-size: 17px;
+      }
+
+      .step p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .dashboard-card {
+        padding: 18px;
+        border: 1px solid rgba(15, 40, 70, 0.1);
+        border-radius: 18px;
+        background: linear-gradient(180deg, #ffffff, #f4f8ff);
+        box-shadow: var(--shadow);
+      }
+
+      .dashboard-shell {
+        min-height: 380px;
+        border-radius: 12px;
+        overflow: hidden;
+        background: #edf4ff;
+      }
+
+      .dash-top {
+        display: flex;
+        justify-content: space-between;
+        padding: 18px;
+        background: var(--navy);
+        color: #fff;
+      }
+
+      .dash-body {
+        display: grid;
+        grid-template-columns: 0.72fr 1.28fr;
+        gap: 14px;
+        padding: 16px;
+      }
+
+      .side-list,
+      .kanban {
+        display: grid;
+        gap: 10px;
+      }
+
+      .line-item,
+      .deal-card {
+        border-radius: 8px;
+        background: #fff;
+        border: 1px solid var(--line);
+      }
+
+      .line-item {
+        height: 48px;
+      }
+
+      .kanban {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .column {
+        min-height: 290px;
+        padding: 10px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.76);
+      }
+
+      .column-title {
+        margin: 0 0 10px;
+        color: #50657c;
+        font-size: 12px;
+        font-weight: 850;
+        text-transform: uppercase;
+      }
+
+      .deal-card {
+        height: 72px;
+        margin-bottom: 10px;
+      }
+
+      .cta-band {
+        margin: 0 clamp(20px, 5vw, 72px) 72px;
+        padding: clamp(28px, 5vw, 54px);
+        border-radius: 18px;
+        color: #fff;
+        background: linear-gradient(135deg, var(--navy), var(--blue-dark));
+        box-shadow: var(--shadow);
+      }
+
+      .cta-band h2 {
+        color: #fff;
+        max-width: 760px;
+      }
+
+      .cta-band p {
+        max-width: 680px;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 17px;
+        line-height: 1.55;
+      }
+
+      .cta-band .button-secondary {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.26);
+      }
+
+      @media (max-width: 980px) {
+        .nav-links {
+          display: none;
+        }
+
+        .hero,
+        .workflow {
+          grid-template-columns: 1fr;
+        }
+
+        .hero {
+          padding-top: 104px;
+        }
+
+        .hero-media {
+          min-height: 430px;
+        }
+
+        .hero-photo {
+          inset: 0;
+          border-radius: 18px;
+        }
+
+        .floating-panel {
+          left: 18px;
+          bottom: 18px;
+        }
+
+        .feature-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 620px) {
+        .hero {
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+
+        .proof-row,
+        .feature-grid,
+        .dash-body,
+        .kanban {
+          grid-template-columns: 1fr;
+        }
+
+        .hero-media {
+          min-height: 360px;
+        }
+
+        .floating-panel {
+          width: calc(100% - 36px);
+        }
+
+        .section {
+          padding: 54px 16px;
+        }
+
+        .cta-band {
+          margin-left: 16px;
+          margin-right: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <nav class="nav" aria-label="Navegação principal">
+        <a href="#" class="brand" aria-label="Projeto Clínicas - Kynovia">
+          <span class="brand-mark">K</span>
+          <span>Projeto Clínicas - Kynovia</span>
+        </a>
+        <div class="nav-links">
+          <a href="#produto">Produto</a>
+          <a href="#fluxo">Fluxo comercial</a>
+          <a href="#demo" class="nav-cta">Solicitar demonstração</a>
+        </div>
+      </nav>
+
+      <section class="hero">
+        <div class="hero-copy">
+          <span class="eyebrow">Gestão comercial para estética</span>
+          <h1>Projeto Clínicas - Kynovia</h1>
+          <p class="subtitle">
+            CRM, agenda, propostas, contratos, pagamentos e atendimento inteligente em uma experiência feita para clínicas de estética venderem mais sem perder o cuidado com o paciente.
+          </p>
+          <div class="actions">
+            <a class="button-primary" href="#demo">Agendar apresentação</a>
+            <a class="button-secondary" href="#produto">Ver recursos</a>
+          </div>
+          <div class="proof-row" aria-label="Indicadores do produto">
+            <div class="proof">
+              <strong>1 tela</strong>
+              <span>do lead ao contrato aprovado</span>
+            </div>
+            <div class="proof">
+              <strong>IA</strong>
+              <span>para responder leads no WhatsApp</span>
+            </div>
+            <div class="proof">
+              <strong>360°</strong>
+              <span>visão completa do paciente</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-media" aria-label="Mockup do Projeto Clínicas - Kynovia em tablet e celular">
+          <div class="hero-photo">
+            <img src="assets/shape-clinic-hero.png" alt="Profissional de estética usando o Projeto Clínicas - Kynovia em um tablet, com mockup mobile ao lado" />
+          </div>
+          <div class="floating-panel" aria-hidden="true">
+            <div class="panel-top">
+              <strong>Pipeline da clínica</strong>
+              <span class="status">Ao vivo</span>
+            </div>
+            <div class="mini-bars">
+              <div class="bar"><span style="width: 86%"></span></div>
+              <div class="bar"><span style="width: 68%"></span></div>
+              <div class="bar"><span style="width: 52%"></span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="produto">
+        <div class="section-header">
+          <span class="section-kicker">Produto completo</span>
+          <h2>O sistema que organiza a jornada comercial da clínica.</h2>
+          <p>
+            Do primeiro contato no WhatsApp à assinatura do contrato, o Projeto Clínicas - Kynovia reduz cliques, centraliza informações e dá clareza para recepção, vendas, profissionais e gestores.
+          </p>
+        </div>
+
+        <div class="feature-grid">
+          <article class="feature">
+            <div class="feature-icon">01</div>
+            <h3>CRM para leads</h3>
+            <p>Kanban comercial com origem do lead, etapa, prioridade, propostas e histórico em uma visão prática para negociação.</p>
+          </article>
+          <article class="feature">
+            <div class="feature-icon">02</div>
+            <h3>WhatsApp IA</h3>
+            <p>Base preparada para atendimento inicial, captura de dados e entrada automática do lead no CRM com sinalização da origem.</p>
+          </article>
+          <article class="feature">
+            <div class="feature-icon">03</div>
+            <h3>Propostas e contratos</h3>
+            <p>Crie proposta, aprove na sala de negociação e gere contrato sem obrigar o time a trocar de módulo.</p>
+          </article>
+          <article class="feature">
+            <div class="feature-icon">04</div>
+            <h3>Paciente 360°</h3>
+            <p>Dados cadastrais, endereço, anamnese, agenda, contratos, sessões, evolução, fotos e feedback conectados.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section workflow" id="fluxo">
+        <div>
+          <span class="section-kicker">Menos atrito</span>
+          <h2>Uma rotina comercial pensada para fechar no momento certo.</h2>
+          <p class="subtitle">
+            A equipe acompanha a oportunidade, agenda a avaliação, monta a proposta e transforma a aprovação em contrato na mesma experiência.
+          </p>
+          <div class="timeline">
+            <div class="step">
+              <div class="step-number">1</div>
+              <div>
+                <h3>Lead entra no CRM</h3>
+                <p>Origem identificada, dados principais registrados e próximo passo claro para atendimento.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-number">2</div>
+              <div>
+                <h3>Avaliação vira proposta</h3>
+                <p>Tratamentos, valores e condições de pagamento são organizados sem dispersar a conversa.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-number">3</div>
+              <div>
+                <h3>Contrato sai na hora</h3>
+                <p>Com a proposta aprovada, o contrato é gerado ali mesmo para acelerar o fechamento.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-card" aria-label="Representação visual do dashboard Projeto Clínicas - Kynovia">
+          <div class="dashboard-shell">
+            <div class="dash-top">
+              <strong>Projeto Clínicas</strong>
+              <span>Hoje</span>
+            </div>
+            <div class="dash-body">
+              <div class="side-list">
+                <div class="line-item"></div>
+                <div class="line-item"></div>
+                <div class="line-item"></div>
+                <div class="line-item"></div>
+                <div class="line-item"></div>
+              </div>
+              <div class="kanban">
+                <div class="column">
+                  <p class="column-title">Novo lead</p>
+                  <div class="deal-card"></div>
+                  <div class="deal-card"></div>
+                </div>
+                <div class="column">
+                  <p class="column-title">Avaliação</p>
+                  <div class="deal-card"></div>
+                  <div class="deal-card"></div>
+                </div>
+                <div class="column">
+                  <p class="column-title">Contrato</p>
+                  <div class="deal-card"></div>
+                  <div class="deal-card"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="cta-band" id="demo">
+        <span class="section-kicker">Projeto Clínicas - Kynovia</span>
+        <h2>Pronto para transformar atendimento em venda com uma operação mais elegante.</h2>
+        <p>
+          Use esta landing como primeira versão comercial do produto. O próximo passo natural é conectar o formulário de demonstração ao CRM e automatizar a entrada de oportunidades.
+        </p>
+        <div class="actions">
+          <a class="button-primary" href="mailto:comercial@kynovia.com.br">Quero uma demonstração</a>
+          <a class="button-secondary" href="#produto">Explorar recursos</a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

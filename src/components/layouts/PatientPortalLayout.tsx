@@ -14,7 +14,7 @@ const portalNav = [
   { to: '/portal/sessions', icon: CalendarDays, label: 'Sessões' },
   { to: '/portal/evolution', icon: Activity, label: 'Evolução' },
   { to: '/portal/photos', icon: Camera, label: 'Fotos' },
-  { to: '/portal/feedback', icon: MessageSquare, label: 'Avaliação' },
+  { to: '/portal/feedback', icon: MessageSquare, label: 'Avaliar sessão' },
 ];
 
 /**

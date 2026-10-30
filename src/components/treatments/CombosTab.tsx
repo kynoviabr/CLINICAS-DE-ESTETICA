@@ -48,10 +48,10 @@ export default function CombosTab({ readOnly = false }: CombosTabProps = {}) {
     queryKey: ['treatment-combos', clinicId],
     queryFn: async () => {
       if (!clinicId) return [];
-      const { data } = await supabase.from('treatment_combos' as unknown)
+      const { data } = await supabase.from('treatment_combos')
         .select('*, treatment_combo_items(*, treatments(id, name, price, default_price, min_price))')
         .eq('clinic_id', clinicId).order('name');
-      return (data as unknown[]) || [];
+      return data || [];
     },
     enabled: !!clinicId,
   });
@@ -116,31 +116,31 @@ export default function CombosTab({ readOnly = false }: CombosTabProps = {}) {
 
       let comboId = editingId;
       if (editingId) {
-        const { error } = await supabase.from('treatment_combos' as unknown).update({
+        const { error } = await supabase.from('treatment_combos').update({
           name: form.name,
           promotional_price: promoPrice || null,
           active: form.active,
-        } as unknown).eq('id', editingId);
+        }).eq('id', editingId);
         if (error) throw error;
-        await supabase.from('treatment_combo_items' as unknown).delete().eq('combo_id', editingId);
+        await supabase.from('treatment_combo_items').delete().eq('combo_id', editingId);
       } else {
-        const { data: inserted, error } = await supabase.from('treatment_combos' as unknown).insert({
+        const { data: inserted, error } = await supabase.from('treatment_combos').insert({
           clinic_id: clinicId,
           name: form.name,
           promotional_price: promoPrice || null,
           active: form.active,
-        } as unknown).select('id').single();
+        }).select('id').single();
         if (error) throw error;
-        comboId = (inserted as unknown).id;
+        comboId = (inserted).id;
       }
 
       if (form.items.length > 0 && comboId) {
-        const { error } = await supabase.from('treatment_combo_items' as unknown).insert(
+        const { error } = await supabase.from('treatment_combo_items').insert(
           form.items.filter(i => i.treatment_id).map(i => ({
             combo_id: comboId,
             treatment_id: i.treatment_id,
             quantity: i.quantity,
-          })) as unknown
+          }))
         );
         if (error) throw error;
       }

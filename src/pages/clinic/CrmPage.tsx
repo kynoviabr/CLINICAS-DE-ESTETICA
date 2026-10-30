@@ -487,7 +487,7 @@ export default function CrmPage() {
     queryKey: ['crm-renewal-tasks', clinicId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('v_renewal_tasks_active' as unknown)
+        .from('v_renewal_tasks_active')
         .select('*')
         .eq('clinic_id', clinicId!)
         .order('created_at', { ascending: true });
@@ -501,7 +501,7 @@ export default function CrmPage() {
     queryKey: ['crm-renewal-interactions', clinicId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('renewal_interactions' as unknown)
+        .from('renewal_interactions')
         .select('id, renewal_task_id, type, notes, performed_at')
         .eq('clinic_id', clinicId!)
         .order('performed_at', { ascending: false });
@@ -1093,12 +1093,12 @@ export default function CrmPage() {
       };
 
       const { error: updateError } = await supabase
-        .from('renewal_tasks' as unknown)
+        .from('renewal_tasks')
         .update(updatePayload)
         .eq('id', task.id);
       if (updateError) throw updateError;
 
-      const { error: interactionError } = await supabase.from('renewal_interactions' as unknown).insert({
+      const { error: interactionError } = await supabase.from('renewal_interactions').insert({
         clinic_id: task.clinic_id,
         renewal_task_id: task.id,
         patient_id: task.patient_id,
@@ -1207,7 +1207,7 @@ export default function CrmPage() {
     }
 
     let nextPatientId = lead.patient_id;
-    let nextAppointmentId = lead.appointment_id;
+    const nextAppointmentId = lead.appointment_id;
     const patch: Record<string, unknown> = {
       kanban_stage: targetStage,
     };
@@ -1614,14 +1614,14 @@ export default function CrmPage() {
           if (!payerData.new_payer.name.trim()) throw new Error('Nome do pagador é obrigatório.');
           if (!payerData.new_payer.cpf.trim()) throw new Error('CPF do pagador é obrigatório.');
           const { data: newPayer, error: payerError } = await supabase
-            .from('payers' as unknown)
+            .from('payers')
             .insert({
               clinic_id: clinicId,
               patient_id: contractDialogProposal.patient_id,
               name: payerData.new_payer.name.trim(),
               cpf: payerData.new_payer.cpf.trim(),
               birth_date: payerData.new_payer.birth_date || null,
-            } as unknown)
+            })
             .select('id')
             .single();
           if (payerError) throw payerError;

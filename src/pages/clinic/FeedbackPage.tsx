@@ -45,11 +45,7 @@ export default function FeedbackPage() {
 
   return (
     <div>
-      <PageHeader title="Feedbacks" description="Avaliações dos pacientes por sessão">
-        <BrandButton variant="outline" onClick={() => navigate('/clinic/satisfaction')}>
-          <BarChart3 className="w-4 h-4" /> Análise completa
-        </BrandButton>
-      </PageHeader>
+      <PageHeader title="Avaliações pós-sessão" description="Acompanhe as avaliações enviadas pelos pacientes após cada sessão" />
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
@@ -109,10 +105,10 @@ export default function FeedbackPage() {
                     <div>
                       <div className="flex items-center gap-2">
                         {negative && <AlertTriangle className="w-4 h-4 text-destructive" />}
-                        <p className="font-semibold text-foreground">{(f.patients as unknown)?.full_name}</p>
+                        <p className="font-semibold text-foreground">{(f.patients)?.full_name}</p>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {(f.session_records as unknown)?.treatments?.name || '—'}
+                        {(f.session_records)?.treatments?.name || '—'}
                       </p>
                       <div className="flex items-center gap-1 mt-1">
                         {[1, 2, 3, 4, 5].map(s => (

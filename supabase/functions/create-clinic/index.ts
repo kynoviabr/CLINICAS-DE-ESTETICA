@@ -114,6 +114,19 @@ serve(async (req) => {
       });
     }
 
+    // The admin membership must exist before the provisioning RPC authorizes the caller.
+    const { error: provisionError } = await adminClient.rpc('provision_initial_contract_template', {
+      p_clinic_id: clinic.id
+    });
+    if (provisionError) {
+      // Deleting the clinic cascades its role and any partially provisioned template.
+      await adminClient.from("clinics").delete().eq("id", clinic.id);
+      return new Response(JSON.stringify({ error: `Falha ao provisionar contrato padrão: ${provisionError.message}` }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(
       JSON.stringify({ clinicId: clinic.id, slug, message: "Clínica criada com sucesso!" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

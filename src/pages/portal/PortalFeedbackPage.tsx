@@ -31,7 +31,7 @@ export default function PortalFeedbackPage() {
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      const { data: portal } = await supabase.from('patient_users' as unknown)
+      const { data: portal } = await supabase.from('patient_users')
         .select('patient_id, clinic_id').eq('auth_user_id', user.id).eq('status', 'active').limit(1).maybeSingle();
       if (!portal) { setLoading(false); return; }
       setPatientId(portal.patient_id);
@@ -41,8 +41,12 @@ export default function PortalFeedbackPage() {
         supabase.from('session_feedback').select('*, session_records(performed_at, treatments(name))').eq('patient_id', portal.patient_id).order('created_at', { ascending: false }),
         supabase.from('session_records').select('id, session_number, total_sessions, performed_at, treatment_id, professional_id, treatments(name)').eq('patient_id', portal.patient_id).order('performed_at', { ascending: false }),
       ]);
-      setFeedbacks(fb.data || []);
-      setSessions(sess.data || []);
+      const feedbacksData = fb.data || [];
+      const evaluatedSessionIds = feedbacksData.map(f => f.session_record_id);
+      const availableSessions = (sess.data || []).filter(s => !evaluatedSessionIds.includes(s.id));
+
+      setFeedbacks(feedbacksData);
+      setSessions(availableSessions);
       setLoading(false);
     };
     load();
@@ -77,7 +81,10 @@ export default function PortalFeedbackPage() {
     toast({ title: 'Avaliação enviada!' });
     setComment(''); setRating(5); setServiceAttention(5); setWaitingTime(5); setSelectedSession('');
     const { data } = await supabase.from('session_feedback').select('*, session_records(performed_at, treatments(name))').eq('patient_id', patientId).order('created_at', { ascending: false });
-    setFeedbacks(data || []);
+    const feedbacksData = data || [];
+    const evaluatedIds = feedbacksData.map(f => f.session_record_id);
+    setSessions(prev => prev.filter(s => !evaluatedIds.includes((s as { id: string }).id)));
+    setFeedbacks(feedbacksData);
   };
 
   const RatingSelector = ({ value, onChange, label, icon: Icon }: { value: number; onChange: (v: number) => void; label: string; icon: unknown }) => (
@@ -108,7 +115,7 @@ export default function PortalFeedbackPage() {
                 <SelectTrigger><SelectValue placeholder="Selecione a sessão" /></SelectTrigger>
                 <SelectContent>{sessions.map(s => (
                   <SelectItem key={s.id} value={s.id}>
-                    {(s as unknown).treatments?.name || 'Sessão'} #{s.session_number} — {format(new Date(s.performed_at), 'dd/MM', { locale: ptBR })}
+                    {(s).treatments?.name || 'Sessão'} #{s.session_number} — {format(new Date(s.performed_at), 'dd/MM', { locale: ptBR })}
                   </SelectItem>
                 ))}</SelectContent>
               </Select>

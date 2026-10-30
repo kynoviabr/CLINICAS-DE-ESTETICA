@@ -42,8 +42,6 @@ const LABELS: Record<MenuPermissionKey, string> = {
   'evolution.view': 'Evolução',
   'photos.view': 'Fotos',
   'feedback.view': 'Feedbacks',
-  'nps.view': 'NPS',
-  'satisfaction.view': 'Satisfação',
   'reports.view': 'Relatórios',
   'settings.view': 'Configurações',
 };
@@ -112,9 +110,9 @@ export default function AccessGroupsTab() {
   const loadAll = async () => {
     if (!clinicId) return;
     const [groupsRes, staffRes, assignRes] = await Promise.all([
-      supabase.from('access_groups' as unknown).select('*').eq('clinic_id', clinicId).order('name'),
+      supabase.from('access_groups').select('*').eq('clinic_id', clinicId).order('name'),
       supabase.from('user_roles').select('user_id, role').eq('clinic_id', clinicId).eq('is_active', true),
-      supabase.from('user_access_groups' as unknown).select('user_id, group_id, is_active').eq('clinic_id', clinicId).eq('is_active', true),
+      supabase.from('user_access_groups').select('user_id, group_id, is_active').eq('clinic_id', clinicId).eq('is_active', true),
     ]);
 
     if (groupsRes.error || staffRes.error || assignRes.error) {
@@ -141,7 +139,7 @@ export default function AccessGroupsTab() {
     const loadPermissions = async () => {
       if (!clinicId || !selectedGroupId) return;
       const { data, error } = await supabase
-        .from('access_group_permissions' as unknown)
+        .from('access_group_permissions')
         .select('permission_key, can_view')
         .eq('clinic_id', clinicId)
         .eq('group_id', selectedGroupId)
@@ -174,7 +172,7 @@ export default function AccessGroupsTab() {
   const savePermissions = async () => {
     if (!clinicId || !selectedGroupId || !canManage) return;
     const { error: delError } = await supabase
-      .from('access_group_permissions' as unknown)
+      .from('access_group_permissions')
       .delete()
       .eq('clinic_id', clinicId)
       .eq('group_id', selectedGroupId);
@@ -190,7 +188,7 @@ export default function AccessGroupsTab() {
         permission_key: permissionKey,
         can_view: true,
       }));
-      const { error: insError } = await supabase.from('access_group_permissions' as unknown).insert(payload as unknown);
+      const { error: insError } = await supabase.from('access_group_permissions').insert(payload);
       if (insError) {
         toast({ title: 'Erro', description: insError.message, variant: 'destructive' });
         return;
@@ -201,13 +199,13 @@ export default function AccessGroupsTab() {
 
   const createGroup = async () => {
     if (!clinicId || !newGroupName.trim() || !newGroupCode.trim() || !canManage) return;
-    const { error } = await supabase.from('access_groups' as unknown).insert({
+    const { error } = await supabase.from('access_groups').insert({
       clinic_id: clinicId,
       name: newGroupName.trim(),
       code: newGroupCode.trim().toLowerCase().replace(/\s+/g, '_'),
       status: 'active',
       is_system: false,
-    } as unknown);
+    });
     if (error) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
       return;
@@ -220,12 +218,12 @@ export default function AccessGroupsTab() {
 
   const assignUserToGroup = async () => {
     if (!clinicId || !targetUserId || !targetGroupId || !canManage) return;
-    const { error } = await supabase.from('user_access_groups' as unknown).upsert({
+    const { error } = await supabase.from('user_access_groups').upsert({
       clinic_id: clinicId,
       user_id: targetUserId,
       group_id: targetGroupId,
       is_active: true,
-    } as unknown, { onConflict: 'clinic_id,user_id,group_id' });
+    }, { onConflict: 'clinic_id,user_id,group_id' });
     if (error) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
       return;
@@ -366,8 +364,8 @@ export default function AccessGroupsTab() {
                           disabled={!canManage}
                           onClick={async () => {
                             const { error } = await supabase
-                              .from('user_access_groups' as unknown)
-                              .update({ is_active: false } as unknown)
+                              .from('user_access_groups')
+                              .update({ is_active: false })
                               .eq('clinic_id', clinicId as string)
                               .eq('user_id', item.user_id)
                               .eq('group_id', item.group_id);

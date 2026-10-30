@@ -30,8 +30,6 @@ import ReportsPage from "./pages/clinic/ReportsPage";
 import SettingsPage from "./pages/clinic/SettingsPage";
 import WhatsAppAiPage from "./pages/clinic/WhatsAppAiPage";
 import GoalsTrackingPage from "./pages/clinic/GoalsTrackingPage";
-import NpsPage from "./pages/clinic/NpsPage";
-import SatisfactionPage from "./pages/clinic/SatisfactionPage";
 import PortalHomePage from "./pages/portal/PortalHomePage";
 import PortalContractPage from "./pages/portal/PortalContractPage";
 import PortalPaymentsPage from "./pages/portal/PortalPaymentsPage";
@@ -82,8 +80,6 @@ const App = () => (
                 <Route path="evolution" element={<EvolutionPage />} />
                 <Route path="photos" element={<PhotosPage />} />
                 <Route path="feedback" element={<FeedbackPage />} />
-                <Route path="nps" element={<NpsPage />} />
-                <Route path="satisfaction" element={<SatisfactionPage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="metas/acompanhamento" element={<GoalsTrackingPage />} />

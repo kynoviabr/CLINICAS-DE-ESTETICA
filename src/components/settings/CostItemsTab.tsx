@@ -131,10 +131,10 @@ export default function CostItemsTab() {
     queryFn: async () => {
       if (!clinicId) return [];
       const columns = isAdmin ? '*' : 'id,clinic_id,name,type,unit,status,created_at';
-      let q = supabase.from('cost_items' as unknown).select(columns).eq('clinic_id', clinicId).order('name');
+      let q = supabase.from('cost_items').select(columns).eq('clinic_id', clinicId).order('name');
       if (search) q = q.ilike('name', `%${search}%`);
       const { data } = await q;
-      return (data as unknown[]) || [];
+      return data || [];
     },
     enabled: !!clinicId,
   });
@@ -150,10 +150,10 @@ export default function CostItemsTab() {
         clinic_id: clinicId!,
       };
       if (editingId) {
-        const { error } = await supabase.from('cost_items' as unknown).update(payload as unknown).eq('id', editingId);
+        const { error } = await supabase.from('cost_items').update(payload).eq('id', editingId);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('cost_items' as unknown).insert(payload as unknown);
+        const { error } = await supabase.from('cost_items').insert(payload);
         if (error) throw error;
       }
     },

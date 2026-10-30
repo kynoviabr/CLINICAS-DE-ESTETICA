@@ -52,7 +52,7 @@ export default function DashboardAlertsTab() {
         .eq('clinic_id', clinicId)
         .in('key', Object.values(SETTINGS_KEYS));
       if (error) throw error;
-      return ((data ?? []) as unknown) as ClinicSettingRow[];
+      return ((data ?? [])) as ClinicSettingRow[];
     },
     enabled: !!clinicId,
   });
@@ -86,7 +86,7 @@ export default function DashboardAlertsTab() {
         const existing = settingsByKey.get(key);
         const value = String(form[field]);
         if (existing) {
-          const payload = { value } as unknown;
+          const payload = { value };
           const { error } = await supabase
             .from('clinic_settings' as never)
             .update(payload as never)
@@ -98,7 +98,7 @@ export default function DashboardAlertsTab() {
           clinic_id: clinicId,
           key,
           value,
-        } as unknown) as never);
+        }) as never);
         if (error) throw error;
       }
     },

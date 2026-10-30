@@ -117,13 +117,13 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
       // If not staff, try patient app access
       if (!clinicId) {
         const { data: portalData } = await supabase
-          .from('patient_users' as unknown)
+          .from('patient_users')
           .select('clinic_id')
           .eq('auth_user_id', user.id)
           .eq('status', 'active')
           .limit(1)
           .maybeSingle();
-        clinicId = (portalData as unknown)?.clinic_id;
+        clinicId = (portalData)?.clinic_id;
       }
 
       if (!clinicId) {

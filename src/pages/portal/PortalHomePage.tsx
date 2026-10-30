@@ -22,7 +22,7 @@ export default function PortalHomePage() {
     const load = async () => {
       // Get patient record via patient app access
       const { data: portal } = await supabase
-        .from('patient_users' as unknown)
+        .from('patient_users')
         .select('patient_id, clinic_id')
         .eq('auth_user_id', user.id)
         .eq('status', 'active')
@@ -99,7 +99,7 @@ export default function PortalHomePage() {
               </div>
               <div className="flex-1">
                 <p className="font-medium text-sm text-foreground">
-                  {(nextSession as unknown).treatments?.name || 'Sessão'}
+                  {(nextSession).treatments?.name || 'Sessão'}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {format(new Date(nextSession.start_time), "EEEE, dd MMM '•' HH:mm", { locale: ptBR })}

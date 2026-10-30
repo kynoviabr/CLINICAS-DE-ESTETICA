@@ -62,10 +62,10 @@ export default function CategoriesTab() {
     queryKey: ['treatment-categories', clinicId, search],
     queryFn: async () => {
       if (!clinicId) return [];
-      let q = supabase.from('treatment_categories' as unknown).select('*').eq('clinic_id', clinicId).order('name');
+      let q = supabase.from('treatment_categories').select('*').eq('clinic_id', clinicId).order('name');
       if (search) q = q.ilike('name', `%${search}%`);
       const { data } = await q;
-      return (data as unknown[]) || [];
+      return data || [];
     },
     enabled: !!clinicId,
   });
@@ -80,10 +80,10 @@ export default function CategoriesTab() {
     mutationFn: async (data: CategoryForm) => {
       const payload = { name: data.name, description: data.description || null, status: data.status, clinic_id: clinicId! };
       if (editingId) {
-        const { error } = await supabase.from('treatment_categories' as unknown).update(payload as unknown).eq('id', editingId);
+        const { error } = await supabase.from('treatment_categories').update(payload).eq('id', editingId);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('treatment_categories' as unknown).insert(payload as unknown);
+        const { error } = await supabase.from('treatment_categories').insert(payload);
         if (error) throw error;
       }
     },

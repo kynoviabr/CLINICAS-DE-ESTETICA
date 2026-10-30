@@ -79,7 +79,7 @@ export default function ReportsPage() {
       let query = supabase.from('proposals')
         .select('id, final_amount, created_by, created_at, updated_at, status')
         .eq('clinic_id', clinicId!)
-        .eq('status', 'accepted' as unknown)
+        .eq('status', 'accepted')
         .gte('updated_at', startDate)
         .lte('updated_at', endDate + 'T23:59:59');
 
@@ -102,7 +102,7 @@ export default function ReportsPage() {
       if (isAdmin) {
         const { data: costItems } = await supabase.from('treatment_cost_items')
           .select('treatment_id, quantity, cost_items(unit_cost)');
-        const ci = (costItems as unknown[]) || [];
+        const ci = costItems || [];
         ci.forEach((c: unknown) => {
           const tid = c.treatment_id;
           const cost = Number(c.quantity) * Number(c.cost_items?.unit_cost || 0);
@@ -112,10 +112,10 @@ export default function ReportsPage() {
 
       // Goals
       const currentMonth = format(now, 'yyyy-MM');
-      const { data: goals } = await supabase.from('sales_goals' as unknown)
+      const { data: goals } = await supabase.from('sales_goals')
         .select('*').eq('clinic_id', clinicId!);
 
-      return { proposals: proposals || [], items, costMap, goals: (goals as unknown[]) || [] };
+      return { proposals: proposals || [], items, costMap, goals: goals || [] };
     },
     enabled: !!clinicId,
   });
@@ -253,8 +253,8 @@ export default function ReportsPage() {
         const overdueAmount = overdueInsts.reduce((s: number, i: unknown) => s + Number(i.amount), 0);
         totalRevenue += totalAmount; totalPaid += paidAmount; totalPending += pendingAmount; totalOverdue += overdueAmount;
         rows.push({
-          patient: (plan as unknown).patients?.full_name || '—',
-          contractNumber: (plan as unknown).contracts?.contract_number || '—',
+          patient: (plan).patients?.full_name || '—',
+          contractNumber: (plan).contracts?.contract_number || '—',
           totalAmount, numInstallments: insts.length, paidCount: paidInsts.length, paidAmount, pendingAmount,
           method: paymentMethodLabels[plan.payment_method] || plan.payment_method,
         });
@@ -277,7 +277,7 @@ export default function ReportsPage() {
       const uniquePatients = new Set(sessions.map(s => s.patient_id)).size;
       const uniqueTreatments = new Set(sessions.filter(s => s.treatment_id).map(s => s.treatment_id)).size;
       const rows: SessionRow[] = sessions.map(s => ({
-        patient: (s as unknown).patients?.full_name || '—', treatment: (s as unknown).treatments?.name || '—',
+        patient: (s).patients?.full_name || '—', treatment: (s).treatments?.name || '—',
         sessionNumber: `${s.session_number}/${s.total_sessions}`,
         performedAt: format(new Date(s.performed_at), 'dd/MM/yyyy', { locale: ptBR }),
         professional: '—', observations: s.observations?.slice(0, 80) || '—',

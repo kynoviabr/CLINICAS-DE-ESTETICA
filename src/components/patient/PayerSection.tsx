@@ -34,11 +34,11 @@ export default function PayerSection({ value, onChange, patientName, payerOption
     queryFn: async () => {
       if (!clinicId) return [];
       const { data } = await supabase
-        .from('payers' as unknown)
+        .from('payers')
         .select('id, name, cpf')
         .eq('clinic_id', clinicId)
         .order('name');
-      return (data as unknown[]) || [];
+      return data || [];
     },
     enabled: !!clinicId && !value.is_self_payer && !payerOptionsOverride,
   });

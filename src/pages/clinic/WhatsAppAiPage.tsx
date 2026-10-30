@@ -71,7 +71,7 @@ export default function WhatsAppAiPage() {
     queryKey: ['whatsapp-ai-conversations', clinicId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('whatsapp_ai_conversations' as unknown)
+        .from('whatsapp_ai_conversations')
         .select('*, leads(id, full_name, phone, kanban_stage, source)')
         .eq('clinic_id', clinicId!)
         .order('last_message_at', { ascending: false, nullsFirst: false });
@@ -91,7 +91,7 @@ export default function WhatsAppAiPage() {
     queryKey: ['whatsapp-ai-messages', selectedConversation?.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('whatsapp_ai_messages' as unknown)
+        .from('whatsapp_ai_messages')
         .select('id, direction, role, body, ai_model, created_at')
         .eq('conversation_id', selectedConversation!.id)
         .order('created_at', { ascending: true });
@@ -106,8 +106,8 @@ export default function WhatsAppAiPage() {
     mutationFn: async (patch: Partial<Pick<Conversation, 'status' | 'ai_enabled'>>) => {
       if (!selectedConversation) return;
       const { error } = await supabase
-        .from('whatsapp_ai_conversations' as unknown)
-        .update(patch as unknown)
+        .from('whatsapp_ai_conversations')
+        .update(patch)
         .eq('id', selectedConversation.id);
       if (error) throw error;
     },

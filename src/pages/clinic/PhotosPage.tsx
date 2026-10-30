@@ -47,7 +47,7 @@ export default function PhotosPage() {
     if (!clinicId || !selectedPatient) { setPhotos([]); setLoading(false); return; }
     setLoading(true);
     let q = supabase.from('patient_photos').select('*').eq('clinic_id', clinicId).eq('patient_id', selectedPatient).order('taken_at', { ascending: false });
-    if (filterType !== 'all') q = q.eq('photo_type', filterType as unknown);
+    if (filterType !== 'all') q = q.eq('photo_type', filterType);
     const { data } = await q;
     setPhotos(data || []);
     setLoading(false);
@@ -78,7 +78,7 @@ export default function PhotosPage() {
           clinic_id: clinicId,
           patient_id: selectedPatient,
           photo_url: publicUrl,
-          photo_type: uploadType as unknown,
+          photo_type: uploadType,
           description: uploadDesc || null,
           uploaded_by: user.id,
         });

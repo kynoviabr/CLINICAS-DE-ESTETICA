@@ -26,6 +26,7 @@ import PatientAppAccessTab from '@/components/settings/PatientAppAccessTab';
 import AccessGroupsTab from '@/components/settings/AccessGroupsTab';
 import WhatsAppAiSettingsTab from '@/components/settings/WhatsAppAiSettingsTab';
 import AnamneseTemplatesTab from '@/components/settings/AnamneseTemplatesTab';
+import ContractTemplatesTab from '@/components/settings/ContractTemplatesTab';
 import TreatmentsPage from '@/pages/clinic/TreatmentsPage';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -95,10 +96,10 @@ export default function SettingsPage() {
     if (!clinicId) return;
     const [staffRes, invRes] = await Promise.all([
       supabase.from('user_roles').select('id, user_id, role, is_active, created_at').eq('clinic_id', clinicId),
-      supabase.from('team_invitations' as unknown).select('*').eq('clinic_id', clinicId).order('created_at', { ascending: false }),
+      supabase.from('team_invitations').select('*').eq('clinic_id', clinicId).order('created_at', { ascending: false }),
     ]);
     if (staffRes.data) setStaff(staffRes.data);
-    if (invRes.data) setInvitations(invRes.data as unknown[]);
+    if (invRes.data) setInvitations(invRes.data);
   }, [clinicId]);
 
   useEffect(() => {
@@ -203,7 +204,7 @@ export default function SettingsPage() {
   };
 
   const handleCancelInvitation = async (invId: string) => {
-    const { error } = await supabase.from('team_invitations' as unknown).update({ status: 'cancelled' } as unknown).eq('id', invId);
+    const { error } = await supabase.from('team_invitations').update({ status: 'cancelled' }).eq('id', invId);
     if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); return; }
     toast({ title: 'Convite cancelado' });
     loadTeam();
@@ -217,8 +218,9 @@ export default function SettingsPage() {
       <PageHeader title="Configurações" description="Gerencie sua clínica" />
 
       <Tabs defaultValue="general" className="space-y-4">
-        <TabsList className="flex-wrap">
+        <TabsList className="!h-auto min-h-10 w-full flex-wrap justify-start gap-1">
           <TabsTrigger value="general"><Settings className="w-4 h-4 mr-1" />Geral</TabsTrigger>
+          <TabsTrigger value="whatsapp-ai"><MessageSquare className="w-4 h-4 mr-1" />WhatsApp IA</TabsTrigger>
           <TabsTrigger value="branding"><Palette className="w-4 h-4 mr-1" />Branding</TabsTrigger>
           <TabsTrigger value="roles"><Briefcase className="w-4 h-4 mr-1" />Cargos</TabsTrigger>
           <TabsTrigger value="entities"><Building2 className="w-4 h-4 mr-1" />Conselhos</TabsTrigger>
@@ -227,8 +229,8 @@ export default function SettingsPage() {
           <TabsTrigger value="team"><Lock className="w-4 h-4 mr-1" />Segurança e Acesso</TabsTrigger>
           <TabsTrigger value="professionals"><UserCog className="w-4 h-4 mr-1" />Profissionais</TabsTrigger>
           <TabsTrigger value="treatments"><Stethoscope className="w-4 h-4 mr-1" />Tratamentos</TabsTrigger>
+          {role === 'admin' && <TabsTrigger value="contract-template"><FileText className="w-4 h-4 mr-1" />Contrato Padrão</TabsTrigger>}
           <TabsTrigger value="anamnese"><ClipboardList className="w-4 h-4 mr-1" />Anamnese</TabsTrigger>
-          <TabsTrigger value="whatsapp-ai"><MessageSquare className="w-4 h-4 mr-1" />WhatsApp IA</TabsTrigger>
           <TabsTrigger value="crm-kanban"><Settings className="w-4 h-4 mr-1" />CRM Kanban</TabsTrigger>
           <TabsTrigger value="goals"><Target className="w-4 h-4 mr-1" />Metas</TabsTrigger>
           <TabsTrigger value="parameters"><SlidersHorizontal className="w-4 h-4 mr-1" />Parâmetros</TabsTrigger>
@@ -500,6 +502,12 @@ export default function SettingsPage() {
         <TabsContent value="anamnese">
           <AnamneseTemplatesTab />
         </TabsContent>
+
+        {role === 'admin' && (
+          <TabsContent value="contract-template">
+            <ContractTemplatesTab />
+          </TabsContent>
+        )}
 
         <TabsContent value="whatsapp-ai">
           <WhatsAppAiSettingsTab />

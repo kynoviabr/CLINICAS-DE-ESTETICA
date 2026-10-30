@@ -85,7 +85,7 @@ export default function PatientsPage() {
         .order('created_at', { ascending: false });
 
       if (statusFilter !== 'all') {
-        q = q.eq('status', statusFilter as unknown);
+        q = q.eq('status', statusFilter);
       }
 
       const { data, error } = await q.limit(100);
@@ -100,11 +100,11 @@ export default function PatientsPage() {
     queryFn: async () => {
       if (!clinicId) return [];
       const { data, error } = await supabase
-        .from('contract_items' as unknown)
+        .from('contract_items')
         .select('treatment_id, treatments(name), contracts!inner(patient_id, created_at, clinic_id)')
         .eq('contracts.clinic_id', clinicId);
       if (error) throw error;
-      return (data as unknown[]) || [];
+      return data || [];
     },
     enabled: !!clinicId,
   });
@@ -115,11 +115,11 @@ export default function PatientsPage() {
     queryFn: async () => {
       if (!clinicId) return [];
       const { data } = await supabase
-        .from('patient_anamneses' as unknown)
+        .from('patient_anamneses')
         .select('patient_id, uploaded_at')
         .eq('clinic_id', clinicId)
         .order('uploaded_at', { ascending: false });
-      return (data as unknown[]) || [];
+      return data || [];
     },
     enabled: !!clinicId,
   });
@@ -128,12 +128,12 @@ export default function PatientsPage() {
     queryKey: ['anamnese-validity', clinicId],
     queryFn: async () => {
       const { data } = await supabase
-        .from('clinic_settings' as unknown)
+        .from('clinic_settings')
         .select('value')
         .eq('clinic_id', clinicId)
         .eq('key', 'anamnese_validity_days')
         .maybeSingle();
-      return data ? parseInt((data as unknown).value) || 45 : 45;
+      return data ? parseInt((data).value) || 45 : 45;
     },
     enabled: !!clinicId,
   });
@@ -254,7 +254,7 @@ export default function PatientsPage() {
           if (!payerData.new_payer.name.trim()) throw new Error('Nome do pagador é obrigatório');
           if (!payerData.new_payer.cpf.trim()) throw new Error('CPF do pagador é obrigatório');
           const { data: newPayer, error: payerError } = await supabase
-            .from('payers' as unknown)
+            .from('payers')
             .insert({
               clinic_id: clinicId,
               name: payerData.new_payer.name.trim(),
@@ -264,11 +264,11 @@ export default function PatientsPage() {
             .select('id')
             .single();
           if (payerError) throw payerError;
-          payerId = (newPayer as unknown).id;
+          payerId = (newPayer).id;
         }
       }
 
-      const payload: unknown = {
+      const payload = {
         ...data,
         clinic_id: clinicId,
         date_of_birth: data.date_of_birth || null,
@@ -292,7 +292,7 @@ export default function PatientsPage() {
         // Auto-create payer from patient data if self-payer
         if (payerData.is_self_payer) {
           const { data: autoPayer, error: autoErr } = await supabase
-            .from('payers' as unknown)
+            .from('payers')
             .insert({
               clinic_id: clinicId,
               name: data.full_name.trim(),
@@ -304,7 +304,7 @@ export default function PatientsPage() {
             .select('id')
             .single();
           if (!autoErr && autoPayer) {
-            payload.payer_id = (autoPayer as unknown).id;
+            payload.payer_id = (autoPayer).id;
           }
         }
         const { error } = await supabase.from('patients').insert(payload);

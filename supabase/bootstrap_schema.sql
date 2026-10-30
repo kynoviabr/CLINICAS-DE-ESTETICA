@@ -549,13 +549,29 @@ CREATE POLICY "Staff manages notifications"
 CREATE POLICY "Patient views own notifications"
   ON public.notifications FOR SELECT
   TO authenticated
-  USING (patient_id IN (SELECT get_patient_ids_for_user(auth.uid())));
+  USING (EXISTS (
+    SELECT 1 FROM public.patient_portal_access ppa
+    WHERE ppa.auth_user_id = auth.uid()
+      AND ppa.patient_id = notifications.patient_id
+      AND ppa.clinic_id = notifications.clinic_id
+  ));
 
 -- Patient can mark own notifications as read
 CREATE POLICY "Patient updates own notifications"
   ON public.notifications FOR UPDATE
   TO authenticated
-  USING (patient_id IN (SELECT get_patient_ids_for_user(auth.uid())));
+  USING (EXISTS (
+    SELECT 1 FROM public.patient_portal_access ppa
+    WHERE ppa.auth_user_id = auth.uid()
+      AND ppa.patient_id = notifications.patient_id
+      AND ppa.clinic_id = notifications.clinic_id
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM public.patient_portal_access ppa
+    WHERE ppa.auth_user_id = auth.uid()
+      AND ppa.patient_id = notifications.patient_id
+      AND ppa.clinic_id = notifications.clinic_id
+  ));
 
 -- Indexes
 CREATE INDEX idx_patient_portal_access_clinic ON public.patient_portal_access(clinic_id);
@@ -913,7 +929,8 @@ CREATE POLICY "Admin creates combos" ON treatment_combos FOR INSERT TO authentic
   WITH CHECK (has_clinic_role(auth.uid(), clinic_id, 'admin'));
 
 CREATE POLICY "Admin updates combos" ON treatment_combos FOR UPDATE TO authenticated
-  USING (has_clinic_role(auth.uid(), clinic_id, 'admin'));
+  USING (has_clinic_role(auth.uid(), clinic_id, 'admin'))
+  WITH CHECK (has_clinic_role(auth.uid(), clinic_id, 'admin'));
 
 CREATE POLICY "Admin deletes combos" ON treatment_combos FOR DELETE TO authenticated
   USING (has_clinic_role(auth.uid(), clinic_id, 'admin'));
@@ -926,47 +943,13 @@ CREATE POLICY "Admin creates combo items" ON treatment_combo_items FOR INSERT TO
   WITH CHECK (combo_id IN (SELECT id FROM treatment_combos WHERE has_clinic_role(auth.uid(), clinic_id, 'admin')));
 
 CREATE POLICY "Admin updates combo items" ON treatment_combo_items FOR UPDATE TO authenticated
-  USING (combo_id IN (SELECT id FROM treatment_combos WHERE has_clinic_role(auth.uid(), clinic_id, 'admin')));
+  USING (combo_id IN (SELECT id FROM treatment_combos WHERE has_clinic_role(auth.uid(), clinic_id, 'admin')))
+  WITH CHECK (combo_id IN (SELECT id FROM treatment_combos WHERE has_clinic_role(auth.uid(), clinic_id, 'admin')));
 
 CREATE POLICY "Admin deletes combo items" ON treatment_combo_items FOR DELETE TO authenticated
   USING (combo_id IN (SELECT id FROM treatment_combos WHERE has_clinic_role(auth.uid(), clinic_id, 'admin')));
 
 -- ==== 20260405030357_e2c2e4c3-0c8e-4b58-b61b-2333850d3ca2.sql ====
-
--- NPS responses table
-CREATE TABLE nps_responses (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  clinic_id UUID REFERENCES clinics NOT NULL,
-  patient_id UUID REFERENCES patients NOT NULL,
-  professional_user_id UUID,
-  treatment_id UUID REFERENCES treatments,
-  appointment_id UUID REFERENCES appointments,
-  score INTEGER NOT NULL CHECK (score BETWEEN 0 AND 10),
-  comment TEXT,
-  submitted_at TIMESTAMPTZ DEFAULT now(),
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
-ALTER TABLE nps_responses ENABLE ROW LEVEL SECURITY;
-
--- Admin: full CRUD
-CREATE POLICY "Admin manages NPS" ON nps_responses FOR ALL TO authenticated
-  USING (has_clinic_role(auth.uid(), clinic_id, 'admin'))
-  WITH CHECK (has_clinic_role(auth.uid(), clinic_id, 'admin'));
-
--- Staff (receptionist/professional): SELECT + INSERT
-CREATE POLICY "Staff views NPS" ON nps_responses FOR SELECT TO authenticated
-  USING (is_clinic_staff(auth.uid(), clinic_id));
-
-CREATE POLICY "Staff creates NPS" ON nps_responses FOR INSERT TO authenticated
-  WITH CHECK (is_clinic_staff(auth.uid(), clinic_id));
-
--- Patient: INSERT + SELECT own
-CREATE POLICY "Patient creates own NPS" ON nps_responses FOR INSERT TO authenticated
-  WITH CHECK (patient_id IN (SELECT get_patient_ids_for_user(auth.uid())));
-
-CREATE POLICY "Patient views own NPS" ON nps_responses FOR SELECT TO authenticated
-  USING (patient_id IN (SELECT get_patient_ids_for_user(auth.uid())));
 
 -- ==== 20260405031037_418f5dbe-3d56-45f1-ad82-21ea031e0c69.sql ====
 
@@ -1030,14 +1013,11 @@ CREATE TABLE public.payers (
 
 ALTER TABLE public.payers ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Staff views payers" ON public.payers FOR SELECT TO authenticated
-  USING (is_clinic_staff(auth.uid(), clinic_id));
+CREATE POLICY "Staff views payers" ON public.payers FOR SELECT TO authenticated USING (clinic_id IN (SELECT user_roles.clinic_id FROM public.user_roles WHERE user_roles.user_id = auth.uid() AND user_roles.is_active = true));
 
-CREATE POLICY "Staff creates payers" ON public.payers FOR INSERT TO authenticated
-  WITH CHECK (is_clinic_staff(auth.uid(), clinic_id));
+CREATE POLICY "Staff creates payers" ON public.payers FOR INSERT TO authenticated WITH CHECK (clinic_id IN (SELECT user_roles.clinic_id FROM public.user_roles WHERE user_roles.user_id = auth.uid() AND user_roles.is_active = true));
 
-CREATE POLICY "Staff updates payers" ON public.payers FOR UPDATE TO authenticated
-  USING (is_clinic_staff(auth.uid(), clinic_id));
+CREATE POLICY "Staff updates payers" ON public.payers FOR UPDATE TO authenticated USING (clinic_id IN (SELECT user_roles.clinic_id FROM public.user_roles WHERE user_roles.user_id = auth.uid() AND user_roles.is_active = true)) WITH CHECK (clinic_id IN (SELECT user_roles.clinic_id FROM public.user_roles WHERE user_roles.user_id = auth.uid() AND user_roles.is_active = true));
 
 CREATE POLICY "Admin deletes payers" ON public.payers FOR DELETE TO authenticated
   USING (has_clinic_role(auth.uid(), clinic_id, 'admin'));
@@ -1088,10 +1068,6 @@ ALTER TABLE public.session_feedback
   ADD COLUMN IF NOT EXISTS treatment_id UUID REFERENCES public.treatments(id),
   ADD COLUMN IF NOT EXISTS professional_id UUID,
   ADD COLUMN IF NOT EXISTS is_negative BOOLEAN NOT NULL DEFAULT false;
-
--- Add professional_id and treatment_id to nps_responses if not exists  
-ALTER TABLE public.nps_responses
-  ADD COLUMN IF NOT EXISTS classification TEXT;
 
 -- ==== 20260410145810_a912afd6-05c2-4e51-9e73-cdc4e5f9c3df.sql ====
 
@@ -1504,22 +1480,23 @@ DROP POLICY IF EXISTS "Staff views anamneses" ON public.patient_anamneses;
 CREATE POLICY "Staff views anamneses"
   ON public.patient_anamneses FOR SELECT
   TO authenticated
-  USING (is_clinic_staff(auth.uid(), clinic_id));
+  USING (public.is_clinic_staff(auth.uid(), clinic_id));
 
 CREATE POLICY "Staff creates anamneses"
   ON public.patient_anamneses FOR INSERT
   TO authenticated
-  WITH CHECK (is_clinic_staff(auth.uid(), clinic_id));
+  WITH CHECK (public.is_clinic_staff(auth.uid(), clinic_id));
 
 CREATE POLICY "Staff updates anamneses"
   ON public.patient_anamneses FOR UPDATE
   TO authenticated
-  USING (is_clinic_staff(auth.uid(), clinic_id));
+  USING (public.is_clinic_staff(auth.uid(), clinic_id))
+  WITH CHECK (public.is_clinic_staff(auth.uid(), clinic_id));
 
 CREATE POLICY "Patient views own anamneses"
   ON public.patient_anamneses FOR SELECT
   TO authenticated
-  USING (patient_id IN (SELECT get_patient_ids_for_user(auth.uid())));
+  USING (patient_id IN (SELECT public.get_patient_ids_for_user(auth.uid())));
 
 -- =============================================
 -- 9. STORAGE BUCKET
@@ -1532,12 +1509,18 @@ ON CONFLICT (id) DO NOTHING;
 CREATE POLICY "Staff uploads anamnese docs"
   ON storage.objects FOR INSERT
   TO authenticated
-  WITH CHECK (bucket_id = 'patient-anamneses');
+  WITH CHECK (
+    bucket_id = 'patient-anamneses'
+    AND EXISTS (SELECT 1 FROM public.patients p WHERE p.id::text = (storage.foldername(name))[1] AND public.is_clinic_staff(auth.uid(), p.clinic_id))
+  );
 
 CREATE POLICY "Staff views anamnese docs"
   ON storage.objects FOR SELECT
   TO authenticated
-  USING (bucket_id = 'patient-anamneses');
+  USING (
+    bucket_id = 'patient-anamneses'
+    AND EXISTS (SELECT 1 FROM public.patients p WHERE p.id::text = (storage.foldername(name))[1] AND public.is_clinic_staff(auth.uid(), p.clinic_id))
+  );
 
 CREATE POLICY "Patient views own anamnese docs"
   ON storage.objects FOR SELECT

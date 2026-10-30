@@ -14,6 +14,9 @@ import AnamneseDetailDrawer from './AnamneseDetailDrawer';
 import AnamnesisFormModal from '@/components/patient/AnamnesisFormModal';
 import { toast } from 'sonner';
 import { Plus, FileText, ClipboardEdit } from 'lucide-react';
+import type { Database } from '@/integrations/supabase/types';
+
+type AnamneseRow = Database['public']['Tables']['patient_anamneses']['Row'];
 
 interface Props {
   patientId: string;
@@ -26,8 +29,8 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
   const qc = useQueryClient();
   const [newOpen, setNewOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
-  const [editAnamnese, setEditAnamnese] = useState<unknown>(null);
-  const [detailAnamnese, setDetailAnamnese] = useState<unknown>(null);
+  const [editAnamnese, setEditAnamnese] = useState<AnamneseRow | null>(null);
+  const [detailAnamnese, setDetailAnamnese] = useState<AnamneseRow | null>(null);
 
   const { data: anamneses = [], isLoading } = useQuery({
     queryKey: ['patient-anamneses', patientId],
@@ -38,7 +41,7 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
         .eq('patient_id', patientId)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return (data as any[]) || [];
+      return data || [];
     },
     enabled: !!patientId,
   });
@@ -52,13 +55,13 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
         .eq('clinic_id', clinicId)
         .eq('key', 'anamnese_validity_days')
         .maybeSingle();
-      return data ? parseInt((data as any).value) || 180 : 180;
+      return data && (typeof data.value === 'string' || typeof data.value === 'number') ? parseInt(String(data.value), 10) || 180 : 180;
     },
     enabled: !!clinicId,
   });
 
-  const current = anamneses.find((a: any) => a.is_current);
-  const history = anamneses.filter((a: any) => !a.is_current);
+  const current = anamneses.find((a) => a.is_current);
+  const history = anamneses.filter((a) => !a.is_current);
 
   const validateMut = useMutation({
     mutationFn: async (id: string) => {
@@ -69,7 +72,7 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
         validated_at: now,
         updated_by: user?.id,
         filled_at: now,
-      } as any).eq('id', id);
+      }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -77,7 +80,7 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
       qc.invalidateQueries({ queryKey: ['patient', patientId] });
       toast.success('Anamnese validada!');
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const archiveMut = useMutation({
@@ -87,7 +90,7 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
         archived_at: new Date().toISOString(),
         is_current: false,
         updated_by: user?.id,
-      } as any).eq('id', id);
+      }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -95,7 +98,7 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
       qc.invalidateQueries({ queryKey: ['patient', patientId] });
       toast.success('Anamnese arquivada!');
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: Error) => toast.error(err.message),
   });
 
   if (isLoading) {

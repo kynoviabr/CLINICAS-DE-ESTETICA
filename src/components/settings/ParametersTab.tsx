@@ -19,8 +19,8 @@ export default function ParametersTab() {
     queryKey: ['clinic-settings', clinicId],
     queryFn: async () => {
       if (!clinicId) return [];
-      const { data } = await supabase.from('clinic_settings' as unknown).select('*').eq('clinic_id', clinicId);
-      return (data as unknown[]) || [];
+      const { data } = await supabase.from('clinic_settings').select('*').eq('clinic_id', clinicId);
+      return data || [];
     },
     enabled: !!clinicId,
   });
@@ -37,14 +37,14 @@ export default function ParametersTab() {
       if (!clinicId) throw new Error('Clínica não encontrada');
       const existing = settings?.find((s: unknown) => s.key === 'anamnese_validity_days');
       if (existing) {
-        const { error } = await supabase.from('clinic_settings' as unknown).update({ value: anamneseDays } as unknown).eq('id', existing.id);
+        const { error } = await supabase.from('clinic_settings').update({ value: anamneseDays }).eq('id', existing.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('clinic_settings' as unknown).insert({
+        const { error } = await supabase.from('clinic_settings').insert({
           clinic_id: clinicId,
           key: 'anamnese_validity_days',
           value: anamneseDays,
-        } as unknown);
+        });
         if (error) throw error;
       }
     },

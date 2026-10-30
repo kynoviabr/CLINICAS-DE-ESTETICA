@@ -5,6 +5,9 @@ import DocumentUploadAction from './DocumentUploadAction';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { FileText, Eye, CheckCircle, Archive, Calendar, Hash, Clock, User as UserIcon, Paperclip, Pencil } from 'lucide-react';
+import type { Database } from '@/integrations/supabase/types';
+
+type AnamneseRow = Database['public']['Tables']['patient_anamneses']['Row'];
 
 const sourceLabels: Record<string, string> = {
   digital: 'Digital',
@@ -14,12 +17,12 @@ const sourceLabels: Record<string, string> = {
 };
 
 interface Props {
-  anamnese: any;
+  anamnese: AnamneseRow;
   patientId: string;
   onValidate: (id: string) => void;
   onArchive: (id: string) => void;
-  onEdit?: (anamnese: any) => void;
-  onView?: (anamnese: any) => void;
+  onEdit?: (anamnese: AnamneseRow) => void;
+  onView?: (anamnese: AnamneseRow) => void;
   validating?: boolean;
   archiving?: boolean;
 }

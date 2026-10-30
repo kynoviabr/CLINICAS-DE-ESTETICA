@@ -59,7 +59,7 @@ export default function WhatsAppAiSettingsTab() {
     queryKey: ['whatsapp-ai-settings', clinicId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('whatsapp_ai_settings' as unknown)
+        .from('whatsapp_ai_settings')
         .select('*')
         .eq('clinic_id', clinicId!)
         .maybeSingle();
@@ -92,8 +92,8 @@ export default function WhatsAppAiSettingsTab() {
         meta_token_configured: form.meta_token_configured,
       };
       const { error } = await supabase
-        .from('whatsapp_ai_settings' as unknown)
-        .upsert(payload as unknown, { onConflict: 'clinic_id' });
+        .from('whatsapp_ai_settings')
+        .upsert(payload, { onConflict: 'clinic_id' });
       if (error) throw error;
     },
     onSuccess: () => {

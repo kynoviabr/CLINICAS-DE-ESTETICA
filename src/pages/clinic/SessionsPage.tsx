@@ -244,7 +244,7 @@ export default function SessionsPage() {
         .select('id, patient_id, treatment_id, status')
         .eq('clinic_id', clinicId!);
       if (error) throw error;
-      return ((data || []) as unknown) as RenewalTaskRow[];
+      return ((data || [])) as RenewalTaskRow[];
     },
     enabled: !!clinicId,
   });

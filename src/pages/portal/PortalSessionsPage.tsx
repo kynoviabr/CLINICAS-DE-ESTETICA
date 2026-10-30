@@ -15,7 +15,7 @@ export default function PortalSessionsPage() {
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      const { data: portal } = await supabase.from('patient_users' as unknown)
+      const { data: portal } = await supabase.from('patient_users')
         .select('patient_id').eq('auth_user_id', user.id).eq('status', 'active').limit(1).maybeSingle();
       if (!portal) { setLoading(false); return; }
       const { data } = await supabase.from('session_records')
@@ -42,7 +42,7 @@ export default function PortalSessionsPage() {
         <Card key={s.id} className="shadow-card">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="font-semibold text-foreground text-sm">{(s as unknown).treatments?.name || 'Sessão'}</span>
+              <span className="font-semibold text-foreground text-sm">{(s).treatments?.name || 'Sessão'}</span>
               <Badge variant="outline">#{s.session_number}/{s.total_sessions}</Badge>
             </div>
             <p className="text-xs text-muted-foreground">{format(new Date(s.performed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>

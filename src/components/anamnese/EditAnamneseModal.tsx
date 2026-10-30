@@ -10,11 +10,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import type { Database } from '@/integrations/supabase/types';
+
+type AnamneseRow = Database['public']['Tables']['patient_anamneses']['Row'];
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  anamnese: any;
+  anamnese: AnamneseRow;
   patientId: string;
 }
 
@@ -59,7 +62,7 @@ export default function EditAnamneseModal({ open, onOpenChange, anamnese, patien
         validity_days: validityDays,
         notes: form.notes.trim() || null,
         updated_by: user?.id,
-      } as any).eq('id', anamnese.id);
+      }).eq('id', anamnese.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -68,7 +71,7 @@ export default function EditAnamneseModal({ open, onOpenChange, anamnese, patien
       toast.success('Anamnese atualizada!');
       onOpenChange(false);
     },
-    onError: (err: any) => toast.error(err.message || 'Erro ao atualizar'),
+    onError: (err: Error) => toast.error(err.message || 'Erro ao atualizar'),
   });
 
   return (

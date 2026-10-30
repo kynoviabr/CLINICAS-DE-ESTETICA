@@ -16,8 +16,6 @@ export const MENU_PERMISSION_KEYS = [
   'evolution.view',
   'photos.view',
   'feedback.view',
-  'nps.view',
-  'satisfaction.view',
   'reports.view',
   'settings.view',
 ] as const;
@@ -40,8 +38,6 @@ export const PATH_PERMISSION_MAP: Array<{ prefix: string; key: MenuPermissionKey
   { prefix: '/clinic/evolution', key: 'evolution.view' },
   { prefix: '/clinic/photos', key: 'photos.view' },
   { prefix: '/clinic/feedback', key: 'feedback.view' },
-  { prefix: '/clinic/nps', key: 'nps.view' },
-  { prefix: '/clinic/satisfaction', key: 'satisfaction.view' },
   { prefix: '/clinic/reports', key: 'reports.view' },
   { prefix: '/clinic', key: 'dashboard.view' },
 ];
@@ -59,7 +55,6 @@ export const LEGACY_ROLE_PERMISSIONS: Record<AppRole, MenuPermissionKey[]> = {
     'payments.view',
     'appointments.view',
     'feedback.view',
-    'nps.view',
   ],
   professional: [
     'dashboard.view',
@@ -70,7 +65,6 @@ export const LEGACY_ROLE_PERMISSIONS: Record<AppRole, MenuPermissionKey[]> = {
     'evolution.view',
     'photos.view',
     'feedback.view',
-    'nps.view',
     'goals.view',
   ],
   sales: [

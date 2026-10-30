@@ -16,6 +16,7 @@ import {
   User, HeartPulse, Pill, AlertTriangle, Sparkles, Target, Coffee, FileCheck,
   ChevronLeft, ChevronRight, Check,
 } from 'lucide-react';
+import type { Json } from '@/integrations/supabase/types';
 
 
 interface AnamnesisFormProps {
@@ -132,7 +133,7 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
 
   const currentSection = sections[step];
 
-  const updateSection = (section: keyof FormData, field: string, value: any) => {
+  const updateSection = <S extends keyof FormData, F extends keyof FormData[S]>(section: S, field: F, value: FormData[S][F]) => {
     setForm(prev => ({
       ...prev,
       [section]: { ...prev[section], [field]: value },
@@ -144,17 +145,19 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
       if (!form.consent.agrees_terms) throw new Error('É necessário aceitar os termos de consentimento');
       
       const now = new Date().toISOString();
+      const formData: Json = JSON.parse(JSON.stringify(form));
 
       const { error } = await supabase.from('patient_anamneses').insert({
+        anamnese_number: `AN-${Date.now()}`,
         clinic_id: clinicId,
         patient_id: patientId,
-        form_data: form as any,
+        form_data: formData,
         filled_at: now,
         source_type: 'digital',
         status: 'filled',
         validity_days: validityDays,
         created_by: user?.id,
-      } as any);
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -165,7 +168,7 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
       setStep(0);
       onOpenChange(false);
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     },
   });

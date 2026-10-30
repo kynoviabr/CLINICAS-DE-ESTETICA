@@ -58,11 +58,6 @@ type RenewalTaskMetricRow = {
 };
 type ClinicSettingRow = { key: string; value: string };
 
-function npsScoreColor(nps: number): string {
-  if (nps < 0) return 'text-destructive';
-  if (nps < 50) return 'text-warning';
-  return 'text-success';
-}
 
 const formatCurrency = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v);
 
@@ -194,21 +189,7 @@ export default function ClinicDashboard() {
     enabled: !!clinicId && !isSales,
   });
 
-  // NPS
-  const { data: npsData } = useQuery({
-    queryKey: ['dashboard-nps', clinicId],
-    queryFn: async () => {
-      const { data } = await supabase.from('nps_responses').select('score')
-        .eq('clinic_id', clinicId!).gte('submitted_at', subDays(today, 30).toISOString());
-      const responses = data || [];
-      if (responses.length === 0) return null;
-      const promoters = responses.filter(r => r.score >= 9).length;
-      const detractors = responses.filter(r => r.score <= 6).length;
-      const nps = Math.round(((promoters - detractors) / responses.length) * 100);
-      return { nps, total: responses.length, promoters, detractors, neutrals: responses.length - promoters - detractors };
-    },
-    enabled: !!clinicId && isAdmin,
-  });
+
 
   // Anamnese alerts
   const { data: anamneseAlerts } = useQuery({
@@ -340,7 +321,7 @@ export default function ClinicDashboard() {
       const monthStart = startOfMonth(today).toISOString();
       const monthEnd = endOfMonth(today).toISOString();
       const { data: tasks, error } = await supabase
-        .from('renewal_tasks' as unknown)
+        .from('renewal_tasks')
         .select('id, status, created_at, converted_proposal_id, discarded_reason, sla_red_at')
         .eq('clinic_id', clinicId!)
         .gte('created_at', monthStart)
@@ -656,7 +637,7 @@ export default function ClinicDashboard() {
           <BrandStat icon={Activity} label="Sessões do Mês" value={growthMetrics?.sessions.current || 0}
             trend={growthMetrics && growthMetrics.sessions.previous > 0 ? { value: Math.round(((growthMetrics.sessions.current - growthMetrics.sessions.previous) / growthMetrics.sessions.previous) * 100), label: 'vs mês anterior' } : undefined}
           />
-          <div className="cursor-pointer" onClick={() => navigate('/clinic/satisfaction')}>
+          <div className="cursor-pointer" onClick={() => navigate('/clinic/feedback')}>
             <BrandStat icon={Star} label="Satisfação Média" value={avgRating ? avgRating.avg : '—'} />
           </div>
         </div>
@@ -695,16 +676,7 @@ export default function ClinicDashboard() {
             </Card>
           )}
 
-          {/* NPS */}
-          {npsData && (
-            <Card className="shadow-card animate-fade-in cursor-pointer" onClick={() => navigate('/clinic/satisfaction')}>
-              <CardContent className="p-4">
-                <TrendingUp className="w-5 h-5 text-primary mb-1" />
-                <p className={cn("text-xl font-bold", npsScoreColor(npsData.nps))}>{npsData.nps}</p>
-                <p className="text-xs text-muted-foreground">NPS ({npsData.total} respostas)</p>
-              </CardContent>
-            </Card>
-          )}
+
 
           {/* Dissatisfied */}
           {growthMetrics && growthMetrics.dissatisfied > 0 && (

@@ -215,7 +215,7 @@ export default function ProposalsPage() {
     queryFn: async () => {
       if (!linkedPayerId) return null;
       const { data } = await supabase
-        .from('payers' as unknown)
+        .from('payers')
         .select('id, name, cpf')
         .eq('clinic_id', clinicId!)
         .eq('id', linkedPayerId)
@@ -708,14 +708,14 @@ export default function ProposalsPage() {
           return;
         }
         const { data: newPayer, error: payerError } = await supabase
-          .from('payers' as unknown)
+          .from('payers')
           .insert({
             clinic_id: clinicId!,
             patient_id: proposal.patient_id,
             name: payerData.new_payer.name.trim(),
             cpf: payerData.new_payer.cpf.trim(),
             birth_date: payerData.new_payer.birth_date || null,
-          } as unknown)
+          })
           .select('id')
           .single();
         if (payerError) {

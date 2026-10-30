@@ -11,14 +11,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useToast } from '@/hooks/use-toast';
 import { AlertTriangle, CheckCircle2, Eye, ExternalLink, FileSignature, Filter, Plus, Search, Upload } from 'lucide-react';
 import { format } from 'date-fns';
+import { getSignedContractUrl } from '@/lib/storageHelper';
+import { generateContractPDF } from '@/lib/contractPDF';
+import { renderContractTemplate, type ContractTemplateData } from '@/lib/contractTemplateRenderer';
 import { ptBR } from 'date-fns/locale';
 import { ContractStatusBadge } from '@/components/contracts/ContractStatusBadge';
 import { ContractViewDialog } from '@/components/contracts/ContractViewDialog';
-import { generateContractHTML } from '@/components/contracts/ContractTemplateGenerator';
-import { generateContractPDF } from '@/lib/contractPDF';
+
+
 import { Card, CardContent } from '@/components/ui/card';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import type { Database } from '@/integrations/supabase/types';
+import type { Database, Json } from '@/integrations/supabase/types';
 import PayerSection, { type PayerData } from '@/components/patient/PayerSection';
 import {
   ContractPaymentConfigurator,
@@ -60,6 +63,14 @@ type ProposalItemFilterRow = {
   treatments?: { name?: string | null } | null;
 };
 
+async function computeSHA256(text: string) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export default function ContractsPage() {
   const { clinicId, clinicName } = useBranding();
   const { user } = useAuth();
@@ -80,6 +91,21 @@ export default function ContractsPage() {
   const [treatmentFilter, setTreatmentFilter] = useState('all');
   const [viewContract, setViewContract] = useState<ContractWithRelations | null>(null);
   const [createDialog, setCreateDialog] = useState(false);
+  const [previewContract, setPreviewContract] = useState<{
+    html: string;
+    pdfPath: string;
+    renderData: ContractTemplateData;
+    templateId: string;
+    templateVersion: number;
+    contractNumber: string;
+    issuanceKey: string;
+    payerIdForContract: string | null;
+    paymentTermsText: string;
+    proposal: ApprovedProposal;
+  } | null>(null);
+  const [confirmingEmission, setConfirmingEmission] = useState(false);
+  const [generatingPreview, setGeneratingPreview] = useState(false);
+
   const [selectedProposal, setSelectedProposal] = useState('');
   const [payerData, setPayerData] = useState<PayerData>({ is_self_payer: true, payer_id: null });
   const [paymentCondition, setPaymentCondition] = useState<PaymentCondition>('cash');
@@ -162,7 +188,7 @@ export default function ContractsPage() {
     queryFn: async () => {
       if (!linkedPayerId) return null;
       const { data, error } = await supabase
-        .from('payers' as unknown)
+        .from('payers')
         .select('id, name, cpf')
         .eq('clinic_id', clinicId!)
         .eq('id', linkedPayerId)
@@ -234,6 +260,12 @@ export default function ContractsPage() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      setGeneratingPreview(true);
+      try {
+      const now = new Date();
+      const formattedDate = format(now, 'dd/MM/yyyy');
+      const contractNumber = `CT-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`;
+
       const proposal = approvedProposals.find((item) => item.id === selectedProposal);
       if (!proposal) throw new Error('Selecione uma proposta');
       if (selectedPaymentMethods.length === 0) throw new Error('Selecione ao menos uma forma de pagamento.');
@@ -248,9 +280,7 @@ export default function ContractsPage() {
       if (hasInvalidInstallments) throw new Error('Cartão e boleto exigem quantidade de parcelas maior que zero.');
       const totalInformed = amounts.reduce((sum, value) => sum + value, 0);
       if (totalInformed + 0.0001 < proposalAmount) {
-        throw new Error(
-          `A soma das formas de pagamento (R$ ${totalInformed.toFixed(2)}) deve ser igual ou maior ao valor da proposta (R$ ${proposalAmount.toFixed(2)}).`
-        );
+        throw new Error(`A soma das formas de pagamento (R$ ${totalInformed.toFixed(2)}) deve ser igual ou maior ao valor da proposta (R$ ${proposalAmount.toFixed(2)}).`);
       }
 
       const paymentTermsText = buildContractPaymentNotes(
@@ -261,146 +291,122 @@ export default function ContractsPage() {
       );
 
       const patient = proposal.patients;
-      let resolvedPayerId: string | null = null;
+      let payerIdForContract = null;
+
       if (!payerData.is_self_payer) {
-        if (payerData.payer_id) {
-          resolvedPayerId = payerData.payer_id;
-        } else if (payerData.new_payer) {
-          if (!payerData.new_payer.name.trim()) throw new Error('Nome do pagador é obrigatório.');
-          if (!payerData.new_payer.cpf.trim()) throw new Error('CPF do pagador é obrigatório.');
-          const { data: newPayer, error: payerError } = await supabase
-            .from('payers' as unknown)
-            .insert({
-              clinic_id: clinicId!,
-              name: payerData.new_payer.name.trim(),
-              cpf: payerData.new_payer.cpf.trim(),
-              birth_date: payerData.new_payer.birth_date || null,
-            })
-            .select('id')
-            .single();
-          if (payerError) throw payerError;
-          resolvedPayerId = (newPayer as { id: string }).id;
-        }
+        if (!payerData.payer_id) throw new Error('Selecione o pagador');
+        payerIdForContract = payerData.payer_id;
       }
-      const { data: items, error: itemsError } = await supabase
+
+      const { data: payerRaw } = payerIdForContract
+        ? await supabase.from('payers').select('name, cpf, birth_date').eq('id', payerIdForContract).single()
+        : { data: null };
+
+      // Re-fetch clinic data properly
+      const { data: clinicData, error: clinicError } = await supabase.from('clinics').select('name, address, city, state, phone, email').eq('id', clinicId!).single();
+      if (clinicError) throw clinicError;
+      const { data: cnpjSetting } = await supabase.from('clinic_settings').select('value').eq('clinic_id', clinicId).eq('key', 'cnpj').single();
+
+      const { data: proposalItems, error: proposalItemsError } = await supabase
         .from('proposal_items')
         .select('quantity, treatments(name, num_sessions)')
         .eq('proposal_id', proposal.id);
-      if (itemsError) throw itemsError;
+      if (proposalItemsError) throw proposalItemsError;
+      const typedItems = (proposalItems || []) as ProposalItemLite[];
+      const treatmentNames = typedItems.map((item) => item.treatments?.name).filter(Boolean).join(', ');
+      const totalSessions = typedItems.reduce((total, item) => total + item.quantity * (item.treatments?.num_sessions || 1), 0);
 
-      const treatmentNames = ((items || []) as ProposalItemLite[])
-        .map((item) => item.treatments?.name || '')
-        .filter(Boolean)
-        .join(', ');
-      const totalSessions = ((items || []) as ProposalItemLite[]).reduce(
-        (sum: number, item) => sum + ((item.treatments?.num_sessions || 1) * (item.quantity || 1)),
-        0
-      );
+      const { data: anamnesis } = await supabase.from('patient_anamneses').select('id').eq('patient_id', proposal.patient_id).order('created_at', { ascending: false }).limit(1).maybeSingle();
 
-      let payerName: string | null = null;
-      let payerCpf: string | null = null;
-      let payerBirthDate: string | null = null;
-      const payerIdForContract = payerData.is_self_payer ? null : (resolvedPayerId || patient?.payer_id || null);
-      if (!payerData.is_self_payer && payerIdForContract) {
-        const { data: payer, error: payerError } = await supabase
-          .from('payers')
-          .select('name, cpf, birth_date')
-          .eq('id', payerIdForContract)
-          .maybeSingle();
-        if (payerError) throw payerError;
-        if (payer) {
-          payerName = payer.name;
-          payerCpf = payer.cpf;
-          payerBirthDate = payer.birth_date;
-        }
+      const { data: templateDataRaw, error: templateError } = await supabase
+        .from('contract_templates')
+        .select('*')
+        .eq('clinic_id', clinicId)
+        .eq('status', 'active')
+        .single();
+
+      if (templateError || !templateDataRaw) {
+        throw new Error('Nenhum modelo de contrato ativo encontrado para a clínica. Acesse Configurações > Contrato padrão para ativar um modelo.');
       }
 
-      const [{ data: clinicData, error: clinicError }, { data: cnpjSetting, error: cnpjError }, { data: anamnesis, error: anamneseError }] =
-        await Promise.all([
-          supabase.from('clinics').select('city').eq('id', clinicId!).maybeSingle(),
-          supabase.from('clinic_settings').select('value').eq('clinic_id', clinicId!).eq('key', 'cnpj').maybeSingle(),
-          supabase
-            .from('patient_anamneses')
-            .select('id')
-            .eq('patient_id', proposal.patient_id)
-            .eq('clinic_id', clinicId!)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-        ]);
-
-      if (clinicError) throw clinicError;
-      if (cnpjError) throw cnpjError;
-      if (anamneseError) throw anamneseError;
-
-      const now = new Date();
-      const contractNumber = `CONT-${format(now, 'yyyyMM')}-${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}`;
-      const formattedDate = format(now, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
-
-      const templateData = {
-        clinicName: clinicName || 'Clínica',
-        clinicCnpj: cnpjSetting?.value || '',
-        clinicCity: clinicData?.city || '',
-        patientName: patient?.full_name || '',
-        patientCpf: patient?.cpf || '',
-        patientBirthDate: patient?.date_of_birth || null,
-        payerName,
-        payerCpf,
-        payerBirthDate,
-        isSelfPayer: payerData.is_self_payer,
-        treatmentName: treatmentNames || 'Tratamento estético',
-        sessions: totalSessions,
-        proposalNumber: proposal.proposal_number,
-        anamnesisId: anamnesis?.id ? anamnesis.id.substring(0, 8).toUpperCase() : null,
-        totalValue: Number(proposal.final_amount),
-        paymentTerms: paymentTermsText,
-        contractNumber,
-        date: now.toISOString(),
+      const renderData: ContractTemplateData = {
+        clinic: {
+          name: clinicData?.name || '',
+          cnpj: typeof cnpjSetting?.value === 'string' ? cnpjSetting.value : '',
+          address: clinicData?.address || '',
+          city: clinicData?.city || '',
+          state: clinicData?.state || '',
+          phone: clinicData?.phone || '',
+          email: clinicData?.email || '',
+        },
+        patient: {
+          name: patient?.full_name || '',
+          cpf: patient.cpf || '',
+          birth_date: patient?.date_of_birth || '',
+          address: ''
+        },
+        payer: !payerData.is_self_payer && payerRaw ? {
+          name: payerRaw.name || '',
+          cpf: payerRaw.cpf || '',
+          birth_date: payerRaw.birth_date || ''
+        } : undefined,
+        contract: {
+          number: contractNumber,
+          date: formattedDate,
+          start_date: formattedDate,
+          end_date: ''
+        },
+        treatments: {
+          summary: treatmentNames || 'Tratamento estético',
+          total_sessions: totalSessions
+        },
+        payment: {
+          total_value: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(proposal.final_amount)),
+          condition: paymentConditionLabels[paymentCondition],
+          methods: selectedPaymentMethods.join(', '),
+          installments: selectedPaymentMethods.reduce((acc: number, m: PaymentMethod) => acc + (Number(paymentConfig[m]?.installments) || 1), 0),
+          due_dates: ''
+        },
+        proposal: {
+          number: proposal.proposal_number
+        },
+        anamnesis: {
+          number: anamnesis?.id ? anamnesis.id.substring(0, 8).toUpperCase() : ''
+        }
       };
 
-      const templateHtml = generateContractHTML(templateData);
-      const pdfBlob = generateContractPDF({ ...templateData, formattedDate });
-      const pdfPath = `${clinicId}/${proposal.patient_id}/drafts/${contractNumber}.pdf`;
+      const rendered = renderContractTemplate(templateDataRaw.content_html, renderData);
 
-      const { error: uploadError } = await supabase.storage.from('contracts').upload(pdfPath, pdfBlob, {
-        contentType: 'application/pdf',
-        upsert: true,
-      });
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage.from('contracts').getPublicUrl(pdfPath);
-
-      const { data: insertedContract, error } = await supabase.from('contracts').insert({
-        clinic_id: clinicId!,
-        patient_id: proposal.patient_id,
-        proposal_id: proposal.id,
-        payer_id: payerIdForContract,
-        contract_number: contractNumber,
-        status: 'draft',
-        process_status: 'pending_upload',
-        template_html: templateHtml,
-        signed_pdf_url: urlData.publicUrl,
-        notes: paymentTermsText,
-        created_by: user?.id || null,
-        start_date: format(now, 'yyyy-MM-dd'),
-      }).select('id').single();
-
-      if (error) throw error;
-      if (insertedContract?.id) {
-        await upsertContractFinancialForecast(insertedContract.id);
+      if (rendered.missingRequired.length > 0 || rendered.unknownPlaceholders.length > 0) {
+        throw new Error(`Erros no modelo: Ausentes [${rendered.missingRequired.join(', ')}]. Desconhecidos [${rendered.unknownPlaceholders.join(', ')}]. Corrija no Contrato Padrão.`);
       }
 
-      const { error: patientUpdateError } = await supabase
-        .from('patients')
-        .update({
-          is_self_payer: payerData.is_self_payer,
-          payer_id: payerIdForContract,
-        })
-        .eq('id', proposal.patient_id)
-        .eq('clinic_id', clinicId!);
-      if (patientUpdateError) throw patientUpdateError;
+      const pdfPath = `${clinicId}/${proposal.patient_id}/${contractNumber}.pdf`;
+      const issuanceKey = `proposal:${proposal.id}`;
+
+      // Open the preview modal
+      setPreviewContract({
+        html: rendered.html,
+        pdfPath,
+        renderData,
+        templateId: templateDataRaw.id,
+        templateVersion: templateDataRaw.version,
+        contractNumber,
+        issuanceKey,
+        payerIdForContract,
+        paymentTermsText,
+        proposal
+      });
+
+      } finally {
+        setGeneratingPreview(false);
+      }
+      // Return null, the actual emission happens in confirmEmission
+      return null;
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
+       if(res === null) return; // Prevent closing the main modal yet
+
       qc.invalidateQueries({ queryKey: ['contracts'] });
       qc.invalidateQueries({ queryKey: ['patients'] });
       setCreateDialog(false);
@@ -416,6 +422,79 @@ export default function ContractsPage() {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     },
   });
+
+  const handleConfirmEmission = async () => {
+    if (!previewContract || !clinicId || !user || confirmingEmission) return;
+    setConfirmingEmission(true);
+    let uploaded = false;
+    try {
+      const documentHash = await computeSHA256(previewContract.html);
+      const pdf = await generateContractPDF(previewContract.html);
+      const { error: uploadError } = await supabase.storage
+        .from('contracts')
+        .upload(previewContract.pdfPath, pdf, { contentType: 'application/pdf', upsert: false });
+      if (uploadError) throw uploadError;
+      uploaded = true;
+
+      const proposal = previewContract.proposal;
+      const { data: contract, error: insertError } = await supabase.from('contracts').insert({
+        clinic_id: clinicId,
+        patient_id: proposal.patient_id,
+        payer_id: previewContract.payerIdForContract,
+        proposal_id: proposal.id,
+        contract_number: previewContract.contractNumber,
+        issuance_key: previewContract.issuanceKey,
+        status: 'active',
+        process_status: 'pending_confirmation',
+        notes: previewContract.paymentTermsText,
+        template_html: previewContract.html,
+        contract_template_id: previewContract.templateId,
+        contract_template_version: previewContract.templateVersion,
+        template_snapshot_html: previewContract.html,
+        contract_data_snapshot: previewContract.renderData as unknown as Json,
+        generated_at: new Date().toISOString(),
+        generated_by: user.id,
+        document_hash: documentHash,
+        pdf_storage_path: previewContract.pdfPath,
+        signed_pdf_url: previewContract.pdfPath,
+        created_by: user.id,
+      }).select('id').single();
+      if (insertError) throw insertError;
+
+      await upsertContractFinancialForecast(contract.id);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['contracts'] }),
+        qc.invalidateQueries({ queryKey: ['patients'] }),
+      ]);
+      setPreviewContract(null);
+      setCreateDialog(false);
+      setSelectedProposal('');
+      toast({ title: 'Contrato emitido com sucesso!' });
+    } catch (error) {
+      if (uploaded) await supabase.storage.from('contracts').remove([previewContract.pdfPath]);
+      const { data: existing } = await supabase
+        .from('contracts')
+        .select('id, document_hash')
+        .eq('clinic_id', clinicId)
+        .eq('issuance_key', previewContract.issuanceKey)
+        .maybeSingle();
+      if (existing) {
+        const attemptedHash = await computeSHA256(previewContract.html);
+        if (existing.document_hash !== attemptedHash) {
+          toast({ title: 'Conflito de emissão', description: 'Já existe uma emissão para esta proposta com conteúdo diferente.', variant: 'destructive' });
+          return;
+        }
+        await qc.invalidateQueries({ queryKey: ['contracts'] });
+        setPreviewContract(null);
+        setCreateDialog(false);
+        toast({ title: 'Contrato já emitido', description: 'A emissão existente foi mantida; nenhuma duplicata foi criada.' });
+      } else {
+        toast({ title: 'Erro ao emitir contrato', description: error instanceof Error ? error.message : 'Falha inesperada', variant: 'destructive' });
+      }
+    } finally {
+      setConfirmingEmission(false);
+    }
+  };
 
   const bulkStatusMutation = useMutation({
     mutationFn: async () => {
@@ -592,16 +671,16 @@ export default function ContractsPage() {
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
-        <BrandButton size="sm" variant={quickFilter === 'all' ? 'default' : 'outline'} onClick={() => setQuickFilter('all')}>
+        <BrandButton size="sm" variant={quickFilter === 'all' ? 'primary' : 'outline'} onClick={() => setQuickFilter('all')}>
           Todos
         </BrandButton>
-        <BrandButton size="sm" variant={quickFilter === 'mine_today' ? 'default' : 'outline'} onClick={() => setQuickFilter('mine_today')}>
+        <BrandButton size="sm" variant={quickFilter === 'mine_today' ? 'primary' : 'outline'} onClick={() => setQuickFilter('mine_today')}>
           Meus hoje
         </BrandButton>
-        <BrandButton size="sm" variant={quickFilter === 'pending_signature' ? 'default' : 'outline'} onClick={() => setQuickFilter('pending_signature')}>
+        <BrandButton size="sm" variant={quickFilter === 'pending_signature' ? 'primary' : 'outline'} onClick={() => setQuickFilter('pending_signature')}>
           Assinatura pendente
         </BrandButton>
-        <BrandButton size="sm" variant={quickFilter === 'overdue' ? 'default' : 'outline'} onClick={() => setQuickFilter('overdue')}>
+        <BrandButton size="sm" variant={quickFilter === 'overdue' ? 'primary' : 'outline'} onClick={() => setQuickFilter('overdue')}>
           Vencidos
         </BrandButton>
       </div>
@@ -707,7 +786,14 @@ export default function ContractsPage() {
                           <BrandButton
                             variant="ghost"
                             size="sm"
-                            onClick={() => window.open(contract.signed_pdf_url, '_blank', 'noopener,noreferrer')}
+                            onClick={async () => {
+                              try {
+                                const url = await getSignedContractUrl(contract.pdf_storage_path || contract.signed_pdf_url);
+                                window.open(url, '_blank', 'noopener,noreferrer');
+                              } catch (e) {
+                                toast({ title: 'Erro de acesso', description: 'Não foi possível carregar o arquivo.', variant: 'destructive' });
+                              }
+                            }}
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
                           </BrandButton>
@@ -828,6 +914,25 @@ export default function ContractsPage() {
           onClose={() => setViewContract(null)}
         />
       )}
+
+      {/* PREVIEW MODAL */}
+      <Dialog open={!!previewContract} onOpenChange={(open) => !open && setPreviewContract(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Revisão do Contrato: {previewContract?.contractNumber}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto bg-gray-100 p-8 rounded">
+            <div className="bg-white mx-auto shadow max-w-3xl min-h-[800px] p-10 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: previewContract?.html || '' }} />
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <BrandButton variant="outline" onClick={() => setPreviewContract(null)} disabled={confirmingEmission}>Cancelar</BrandButton>
+            <BrandButton onClick={handleConfirmEmission} disabled={confirmingEmission}>
+              {confirmingEmission ? 'Emitindo...' : 'Confirmar e Emitir'}
+            </BrandButton>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
