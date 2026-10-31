@@ -7,9 +7,10 @@ describe('webhookAuth', () => {
     expect(isValidWebhookToken('abc123', 'zzz')).toBe(false);
   });
 
-  it('aceita quando token esperado não está configurado', () => {
-    expect(isValidWebhookToken('', '')).toBe(true);
-    expect(isValidWebhookToken(null, undefined)).toBe(true);
+  it('recusa quando token esperado não está configurado', () => {
+    expect(isValidWebhookToken('', '')).toBe(false);
+    expect(isValidWebhookToken('abc123', '')).toBe(false);
+    expect(isValidWebhookToken(null, undefined)).toBe(false);
   });
 
   it('extrai bearer token', () => {

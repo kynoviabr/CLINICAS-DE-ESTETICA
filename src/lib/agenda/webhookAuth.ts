@@ -3,7 +3,7 @@ export function isValidWebhookToken(
   expectedToken: string | null | undefined,
 ): boolean {
   const expected = String(expectedToken || '').trim();
-  if (!expected) return true;
+  if (!expected) return false;
   const provided = String(providedToken || '').trim();
   return provided.length > 0 && provided === expected;
 }

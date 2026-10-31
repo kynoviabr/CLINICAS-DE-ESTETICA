@@ -61,7 +61,7 @@ function extractInboundMessages(body: Record<string, unknown>): InboundMessage[]
 
 async function verifyMetaSignature(req: Request, rawBody: string) {
   const appSecret = Deno.env.get("META_APP_SECRET");
-  if (!appSecret) return true;
+  if (!appSecret) return false;
 
   const signature = req.headers.get("x-hub-signature-256") || "";
   const expectedPrefix = "sha256=";

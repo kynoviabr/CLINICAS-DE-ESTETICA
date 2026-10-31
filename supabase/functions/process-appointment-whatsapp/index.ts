@@ -63,7 +63,7 @@ serve(async (req) => {
       : null;
     const providedToken = tokenHeader || bearerToken || "";
 
-    if (expectedWebhookToken && providedToken !== expectedWebhookToken) {
+    if (!expectedWebhookToken || providedToken !== expectedWebhookToken) {
       return new Response(JSON.stringify({ ok: false, reason: "unauthorized_webhook" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 401,
