@@ -22,7 +22,10 @@ export function useUserRole(): UserRoleData {
     }
 
     const fetch = async () => {
-      setData((current) => ({ ...current, loading: true, resolved: false }));
+      // Só mostra carregamento se o papel ainda não foi resolvido. Em revalidações
+      // (ex.: refresh de token ao voltar para a aba) mantemos o estado atual para
+      // não desmontar a tela e perder a subseção em que a usuária estava.
+      setData((current) => (current.resolved ? current : { ...current, loading: true, resolved: false }));
       // Check staff roles first
       const { data: roleData } = await supabase
         .from('user_roles')
@@ -54,7 +57,7 @@ export function useUserRole(): UserRoleData {
     };
 
     fetch();
-  }, [user]);
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return data;
 }
