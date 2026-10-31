@@ -112,9 +112,6 @@ export default function PatientDetailPage() {
     session_records?: { performed_at?: string | null; treatments?: { name?: string | null } | null } | null;
   };
   type ProposalRow = Pick<Database['public']['Tables']['proposals']['Row'], 'id' | 'proposal_number' | 'status' | 'final_amount' | 'created_at' | 'valid_until' | 'patient_id'>;
-  type ContractRow = Database['public']['Tables']['contracts']['Row'] & {
-    proposals?: { proposal_number?: string | null; final_amount?: number | null } | null;
-  };
   const [viewPhoto, setViewPhoto] = useState<PhotoRow | null>(null);
   const [grantingAccess, setGrantingAccess] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -219,7 +216,7 @@ export default function PatientDetailPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('contracts')
-        .select('id, proposal_id, contract_number, process_status, status, created_at, signed_pdf_url, proposals(proposal_number, final_amount)')
+        .select('id, proposal_id, contract_number, process_status, status, created_at, signed_pdf_url, pdf_storage_path, proposals(proposal_number, final_amount)')
         .eq('patient_id', id!)
         .order('created_at', { ascending: false });
       return data || [];
@@ -475,7 +472,7 @@ export default function PatientDetailPage() {
         );
       }
 
-      const existingContract = contracts.find((contract: ContractRow) => contract.proposal_id === contractDialogProposal.id);
+      const existingContract = contracts.find((contract) => contract.proposal_id === contractDialogProposal.id);
       if (existingContract) {
         throw new Error('Esta proposta já possui contrato vinculado.');
       }
@@ -491,7 +488,6 @@ export default function PatientDetailPage() {
             .from('payers')
             .insert({
               clinic_id: clinicId,
-              patient_id: id,
               name: payerData.new_payer.name.trim(),
               cpf: payerData.new_payer.cpf.trim(),
               birth_date: payerData.new_payer.birth_date || null,
@@ -991,7 +987,7 @@ export default function PatientDetailPage() {
               ) : (
                 <div className="space-y-3">
                   {proposals.map((proposal: ProposalRow) => {
-                    const linkedContract = contracts.find((contract: ContractRow) => contract.proposal_id === proposal.id);
+                    const linkedContract = contracts.find((contract) => contract.proposal_id === proposal.id);
                     const canGenerateContract = proposal.status === 'accepted' && !linkedContract;
 
                     return (
@@ -1060,7 +1056,7 @@ export default function PatientDetailPage() {
                 <p className="text-sm text-muted-foreground text-center py-8">Nenhum contrato encontrado</p>
               ) : (
                 <div className="space-y-3">
-                  {contracts.map((contract: ContractRow) => (
+                  {contracts.map((contract) => (
                     <div key={contract.id} className="flex flex-col gap-3 rounded-lg bg-secondary/50 p-3 md:flex-row md:items-center md:justify-between">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -1095,7 +1091,7 @@ export default function PatientDetailPage() {
                                 const url = await getSignedContractUrl(contract.pdf_storage_path || contract.signed_pdf_url);
                                 window.open(url, '_blank', 'noopener,noreferrer');
                               } catch (e) {
-                                toast({ title: 'Erro de acesso', description: 'Não foi possível carregar o arquivo.', variant: 'destructive' });
+                                toast.error('Não foi possível carregar o arquivo.');
                               }
                             }}
                           >

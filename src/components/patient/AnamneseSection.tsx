@@ -134,7 +134,7 @@ export default function AnamneseSection({ patientId, clinicId }: AnamneseSection
       const validUntil = addDays(new Date(), validityDays);
 
       const { error: insertError } = await supabase.from('patient_anamneses').insert({
-        anamnese_number: `AN-${Date.now()}`,
+        anamnese_number: '', // o banco gera o número (trigger)
         clinic_id: clinicId,
         patient_id: patientId,
         file_url: publicUrl,

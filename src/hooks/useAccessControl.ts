@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRole } from '@/hooks/useUserRole';
-import { LEGACY_ROLE_PERMISSIONS, MENU_PERMISSION_KEYS, type MenuPermissionKey } from '@/lib/accessPermissions';
+import { LEGACY_ROLE_PERMISSIONS, MENU_PERMISSION_KEYS, isMenuPermissionKey, type MenuPermissionKey } from '@/lib/accessPermissions';
 
 export function useAccessControl() {
   const { user } = useAuth();
@@ -51,7 +51,7 @@ export function useAccessControl() {
         if (permsError) throw permsError;
 
         // Quem tem grupo vê só o que os grupos liberam; grupo sem permissões não libera nada.
-        const resolved = (perms || []).map((row: { permission_key: MenuPermissionKey }) => row.permission_key);
+        const resolved = (perms || []).map((row) => row.permission_key).filter(isMenuPermissionKey);
         setPermissions(new Set(resolved));
       } catch {
         // Sem conseguir ler as permissões, não libera nada além do mínimo.

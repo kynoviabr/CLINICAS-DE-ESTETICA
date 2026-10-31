@@ -202,10 +202,7 @@ export default function AppointmentsPage() {
               <SelectItem value="unassigned">Não atribuído</SelectItem>
               {professionals.map(p => (
                 <SelectItem key={p.user_id} value={p.user_id}>
-                  <span className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full inline-block" style={{ background: p.color }} />
-                    {p.label}
-                  </span>
+                  {p.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -235,18 +232,7 @@ export default function AppointmentsPage() {
 
       <TodayQueue ctx={ctx} />
 
-      {/* Professional legend */}
-      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        {professionals.length > 0 && viewMode !== 'day' && (
-          <div className="flex flex-wrap gap-3">
-            {professionals.map(p => (
-              <span key={p.user_id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="w-3 h-3 rounded-full" style={{ background: p.color }} />
-                {p.label}
-              </span>
-            ))}
-          </div>
-        )}
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
         <div className="flex flex-wrap gap-2">
           <span className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
             {agendaSignals.evaluations} avaliações

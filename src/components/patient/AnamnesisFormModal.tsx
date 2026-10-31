@@ -148,7 +148,7 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
       const formData: Json = JSON.parse(JSON.stringify(form));
 
       const { error } = await supabase.from('patient_anamneses').insert({
-        anamnese_number: `AN-${Date.now()}`,
+        anamnese_number: '', // o banco gera o número (trigger)
         clinic_id: clinicId,
         patient_id: patientId,
         form_data: formData,

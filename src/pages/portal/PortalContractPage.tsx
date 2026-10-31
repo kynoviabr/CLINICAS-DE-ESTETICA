@@ -7,6 +7,10 @@ import { FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+import type { Tables } from '@/integrations/supabase/types';
+
+type Contract = Tables<'contracts'>;
+
 const statusMap: Record<string, { label: string; className: string }> = {
   draft: { label: 'Rascunho', className: 'bg-muted text-muted-foreground' },
   active: { label: 'Vigente', className: 'bg-green-100 text-green-700' },
@@ -16,7 +20,7 @@ const statusMap: Record<string, { label: string; className: string }> = {
 
 export default function PortalContractPage() {
   const { user } = useAuth();
-  const [contracts, setContracts] = useState<unknown[]>([]);
+  const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

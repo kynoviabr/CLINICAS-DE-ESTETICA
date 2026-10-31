@@ -14,6 +14,7 @@ import { type PayerData } from '@/components/patient/PayerSection';
 import { paymentConditionLabels, type PaymentCondition, type PaymentConfig, type PaymentMethod } from '@/components/contracts/ContractPaymentConfigurator';
 import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
 import { defaultStages, normalizeStageCode, stageAppearance, lostReasons, normalizePhone, getSchemaMissingColumn, stripUnsupportedLeadFields, buildEvaluationScheduleLink, isSchedulableAppointmentStatus, isFollowUpDue, getPriorityRank, normalizeLeadSource, getLeadSourceMeta, type StageCode, type LeadRow, type RenewalTaskRow, type RenewalInteractionRow, type LeadProposalRow, type LeadProposalItem, type LeadProposalView, type CrmTreatmentRow } from '@/lib/crm/model';
+import type { TablesUpdate } from '@/integrations/supabase/types';
 
 export function useCrmPage() {
   const { clinicId } = useBranding();
@@ -872,7 +873,7 @@ export function useCrmPage() {
 
     let nextPatientId = lead.patient_id;
     const nextAppointmentId = lead.appointment_id;
-    const patch: Record<string, unknown> = {
+    const patch: TablesUpdate<'leads'> = {
       kanban_stage: targetStage,
     };
 
@@ -1281,7 +1282,6 @@ export function useCrmPage() {
             .from('payers')
             .insert({
               clinic_id: clinicId,
-              patient_id: contractDialogProposal.patient_id,
               name: payerData.new_payer.name.trim(),
               cpf: payerData.new_payer.cpf.trim(),
               birth_date: payerData.new_payer.birth_date || null,

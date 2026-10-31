@@ -31,6 +31,11 @@ import TreatmentsPage from '@/pages/clinic/TreatmentsPage';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import type { Tables } from '@/integrations/supabase/types';
+import { errorMessage } from '@/lib/errors';
+
+type StaffMember = Pick<Tables<'user_roles'>, 'id' | 'user_id' | 'role' | 'is_active' | 'created_at'>;
+type Invitation = Tables<'team_invitations'>;
 
 export default function SettingsPage() {
   const { clinicId, role } = useUserRole();
@@ -57,10 +62,10 @@ export default function SettingsPage() {
   const [uploading, setUploading] = useState(false);
 
   // Staff
-  const [staff, setStaff] = useState<unknown[]>([]);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
 
   // Invitations
-  const [invitations, setInvitations] = useState<unknown[]>([]);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
 
   // Invite form
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -190,7 +195,7 @@ export default function SettingsPage() {
       setInviteOpen(false);
       loadTeam();
     } catch (err: unknown) {
-      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+      toast({ title: 'Erro', description: errorMessage(err, 'Não foi possível enviar o convite.'), variant: 'destructive' });
     } finally {
       setInviting(false);
     }

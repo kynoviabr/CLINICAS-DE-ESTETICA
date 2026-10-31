@@ -12,11 +12,17 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
+import type { Tables } from '@/integrations/supabase/types';
+import type { LucideIcon } from 'lucide-react';
+
+type Feedback = Tables<'session_feedback'> & { session_records: { performed_at: string; treatments: { name: string } | null } | null };
+type AvailableSession = Pick<Tables<'session_records'>, 'id' | 'session_number' | 'total_sessions' | 'performed_at' | 'treatment_id' | 'professional_id'> & { treatments: { name: string } | null };
+
 export default function PortalFeedbackPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [feedbacks, setFeedbacks] = useState<unknown[]>([]);
-  const [sessions, setSessions] = useState<unknown[]>([]);
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  const [sessions, setSessions] = useState<AvailableSession[]>([]);
   const [patientId, setPatientId] = useState<string | null>(null);
   const [clinicId, setClinicId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -83,11 +89,11 @@ export default function PortalFeedbackPage() {
     const { data } = await supabase.from('session_feedback').select('*, session_records(performed_at, treatments(name))').eq('patient_id', patientId).order('created_at', { ascending: false });
     const feedbacksData = data || [];
     const evaluatedIds = feedbacksData.map(f => f.session_record_id);
-    setSessions(prev => prev.filter(s => !evaluatedIds.includes((s as { id: string }).id)));
+    setSessions(prev => prev.filter(s => !evaluatedIds.includes(s.id)));
     setFeedbacks(feedbacksData);
   };
 
-  const RatingSelector = ({ value, onChange, label, icon: Icon }: { value: number; onChange: (v: number) => void; label: string; icon: unknown }) => (
+  const RatingSelector = ({ value, onChange, label, icon: Icon }: { value: number; onChange: (v: number) => void; label: string; icon: LucideIcon }) => (
     <div className="space-y-2">
       <Label className="flex items-center gap-1.5"><Icon className="w-4 h-4 text-primary" />{label}</Label>
       <div className="flex gap-1">

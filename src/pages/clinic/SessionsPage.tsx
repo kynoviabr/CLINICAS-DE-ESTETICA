@@ -60,7 +60,7 @@ type PatientRow = Pick<Database['public']['Tables']['patients']['Row'], 'id' | '
 type TreatmentRow = Pick<Database['public']['Tables']['treatments']['Row'], 'id' | 'name' | 'num_sessions' | 'duration_minutes'>;
 type AvailabilityRow = Database['public']['Tables']['professional_availability']['Row'];
 type BlockRow = Database['public']['Tables']['appointment_blocks']['Row'];
-type AppointmentRow = Pick<Database['public']['Tables']['appointments']['Row'], 'id' | 'patient_id' | 'treatment_id' | 'professional_id' | 'start_time' | 'status' | 'end_time'> & {
+type AppointmentRow = Pick<Database['public']['Tables']['appointments']['Row'], 'id' | 'patient_id' | 'treatment_id' | 'professional_id' | 'start_time' | 'status'> & {
   patients?: { full_name?: string | null } | null;
   treatments?: { name?: string | null } | null;
 };

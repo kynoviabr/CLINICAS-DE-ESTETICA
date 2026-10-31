@@ -15,6 +15,12 @@ import { Camera, ZoomIn, ArrowLeftRight, Upload, Loader2, Trash2 } from 'lucide-
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import type { Tables, Enums } from '@/integrations/supabase/types';
+import { errorMessage } from '@/lib/errors';
+
+type Photo = Tables<'patient_photos'>;
+type PhotoType = Enums<'photo_type'>;
+type PatientOption = Pick<Tables<'patients'>, 'id' | 'full_name'>;
 
 const typeLabels: Record<string, string> = { before: 'Antes', during: 'Durante', after: 'Depois', progress: 'Progresso' };
 const typeColors: Record<string, string> = { before: 'bg-blue-100 text-blue-700', during: 'bg-yellow-100 text-yellow-700', after: 'bg-green-100 text-green-700', progress: 'bg-purple-100 text-purple-700' };
@@ -22,17 +28,17 @@ const typeColors: Record<string, string> = { before: 'bg-blue-100 text-blue-700'
 export default function PhotosPage() {
   const { user } = useAuth();
   const { clinicId } = useUserRole();
-  const [photos, setPhotos] = useState<unknown[]>([]);
-  const [patients, setPatients] = useState<unknown[]>([]);
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [patients, setPatients] = useState<PatientOption[]>([]);
   const [selectedPatient, setSelectedPatient] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [loading, setLoading] = useState(true);
-  const [viewPhoto, setViewPhoto] = useState<unknown>(null);
+  const [viewPhoto, setViewPhoto] = useState<Photo | null>(null);
   const [compareMode, setCompareMode] = useState(false);
-  const [comparePhotos, setComparePhotos] = useState<unknown[]>([]);
+  const [comparePhotos, setComparePhotos] = useState<Photo[]>([]);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadType, setUploadType] = useState<string>('progress');
+  const [uploadType, setUploadType] = useState<PhotoType>('progress');
   const [uploadDesc, setUploadDesc] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -47,7 +53,7 @@ export default function PhotosPage() {
     if (!clinicId || !selectedPatient) { setPhotos([]); setLoading(false); return; }
     setLoading(true);
     let q = supabase.from('patient_photos').select('*').eq('clinic_id', clinicId).eq('patient_id', selectedPatient).order('taken_at', { ascending: false });
-    if (filterType !== 'all') q = q.eq('photo_type', filterType);
+    if (filterType !== 'all') q = q.eq('photo_type', filterType as PhotoType);
     const { data } = await q;
     setPhotos(data || []);
     setLoading(false);
@@ -92,13 +98,13 @@ export default function PhotosPage() {
       setUploadDesc('');
       fetchPhotos();
     } catch (err: unknown) {
-      toast.error(err.message || 'Erro ao enviar foto');
+      toast.error(errorMessage(err, 'Erro ao enviar foto'));
     } finally {
       setUploading(false);
     }
   };
 
-  const handleDelete = async (photo: unknown) => {
+  const handleDelete = async (photo: Photo) => {
     if (!confirm('Deseja realmente excluir esta foto?')) return;
 
     try {
@@ -116,11 +122,11 @@ export default function PhotosPage() {
       setPhotos(prev => prev.filter(p => p.id !== photo.id));
       setViewPhoto(null);
     } catch (err: unknown) {
-      toast.error(err.message || 'Erro ao excluir');
+      toast.error(errorMessage(err, 'Erro ao excluir'));
     }
   };
 
-  const toggleCompare = (photo: unknown) => {
+  const toggleCompare = (photo: Photo) => {
     if (comparePhotos.find(p => p.id === photo.id)) {
       setComparePhotos(comparePhotos.filter(p => p.id !== photo.id));
     } else if (comparePhotos.length < 2) {
@@ -241,7 +247,7 @@ export default function PhotosPage() {
           <div className="space-y-4">
             <div>
               <Label>Tipo da foto</Label>
-              <Select value={uploadType} onValueChange={setUploadType}>
+              <Select value={uploadType} onValueChange={(v) => setUploadType(v as PhotoType)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="before">Antes</SelectItem>

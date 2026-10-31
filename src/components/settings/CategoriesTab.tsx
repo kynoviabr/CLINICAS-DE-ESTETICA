@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, Edit, Tags } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
+import type { Tables } from '@/integrations/supabase/types';
 
 interface CategoryForm {
   name: string;
@@ -97,9 +98,9 @@ export default function CategoriesTab() {
     onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
-  const openEdit = (cat: unknown) => {
+  const openEdit = (cat: Tables<'treatment_categories'>) => {
     setEditingId(cat.id);
-    setForm({ name: cat.name, description: cat.description || '', status: cat.status });
+    setForm({ name: cat.name, description: cat.description || '', status: cat.status ?? 'active' });
     setDialogOpen(true);
   };
 

@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useStaffDirectory } from '@/hooks/useStaffDirectory';
 import { useToast } from '@/hooks/use-toast';
-import { MENU_PERMISSION_KEYS, type MenuPermissionKey } from '@/lib/accessPermissions';
+import { MENU_PERMISSION_KEYS, isMenuPermissionKey, type MenuPermissionKey } from '@/lib/accessPermissions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -147,7 +147,7 @@ export default function AccessGroupsTab() {
         toast({ title: 'Erro', description: error.message, variant: 'destructive' });
         return;
       }
-      setSelectedPermissions(new Set((data || []).map((row: { permission_key: MenuPermissionKey }) => row.permission_key)));
+      setSelectedPermissions(new Set((data || []).map((row) => row.permission_key).filter(isMenuPermissionKey)));
     };
     loadPermissions();
     // eslint-disable-next-line react-hooks/exhaustive-deps

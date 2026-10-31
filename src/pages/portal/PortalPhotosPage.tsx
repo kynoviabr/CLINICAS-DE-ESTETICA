@@ -7,15 +7,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Camera } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import type { Tables } from '@/integrations/supabase/types';
+
+type Photo = Tables<'patient_photos'>;
 
 const typeLabels: Record<string, string> = { before: 'Antes', during: 'Durante', after: 'Depois', progress: 'Progresso' };
 const typeColors: Record<string, string> = { before: 'bg-blue-100 text-blue-700', during: 'bg-yellow-100 text-yellow-700', after: 'bg-green-100 text-green-700', progress: 'bg-purple-100 text-purple-700' };
 
 export default function PortalPhotosPage() {
   const { user } = useAuth();
-  const [photos, setPhotos] = useState<unknown[]>([]);
+  const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewPhoto, setViewPhoto] = useState<unknown>(null);
+  const [viewPhoto, setViewPhoto] = useState<Photo | null>(null);
 
   useEffect(() => {
     if (!user) return;

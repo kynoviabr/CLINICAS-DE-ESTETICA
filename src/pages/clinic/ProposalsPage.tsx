@@ -711,7 +711,6 @@ export default function ProposalsPage() {
           .from('payers')
           .insert({
             clinic_id: clinicId!,
-            patient_id: proposal.patient_id,
             name: payerData.new_payer.name.trim(),
             cpf: payerData.new_payer.cpf.trim(),
             birth_date: payerData.new_payer.birth_date || null,
@@ -866,16 +865,16 @@ export default function ProposalsPage() {
         <Input type="date" value={dateEnd} onChange={(event) => setDateEnd(event.target.value)} className="w-[170px]" />
       </div>
       <div className="mb-4 flex flex-wrap gap-2">
-        <BrandButton size="sm" variant={quickFilter === 'all' ? 'default' : 'outline'} onClick={() => setQuickFilter('all')}>
+        <BrandButton size="sm" variant={quickFilter === 'all' ? 'primary' : 'outline'} onClick={() => setQuickFilter('all')}>
           Todas
         </BrandButton>
-        <BrandButton size="sm" variant={quickFilter === 'draft' ? 'default' : 'outline'} onClick={() => setQuickFilter('draft')}>
+        <BrandButton size="sm" variant={quickFilter === 'draft' ? 'primary' : 'outline'} onClick={() => setQuickFilter('draft')}>
           Rascunhos
         </BrandButton>
-        <BrandButton size="sm" variant={quickFilter === 'sent' ? 'default' : 'outline'} onClick={() => setQuickFilter('sent')}>
+        <BrandButton size="sm" variant={quickFilter === 'sent' ? 'primary' : 'outline'} onClick={() => setQuickFilter('sent')}>
           Enviadas
         </BrandButton>
-        <BrandButton size="sm" variant={quickFilter === 'accepted' ? 'default' : 'outline'} onClick={() => setQuickFilter('accepted')}>
+        <BrandButton size="sm" variant={quickFilter === 'accepted' ? 'primary' : 'outline'} onClick={() => setQuickFilter('accepted')}>
           Aprovadas
         </BrandButton>
       </div>
