@@ -1,3 +1,5 @@
+import { Suspense } from 'react';
+import { PageLoader } from '@/components/PageLoader';
 import { Outlet } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -30,7 +32,9 @@ export default function ClinicLayout() {
       <ClinicSidebar />
       <main className="lg:ml-[220px] pt-[60px] lg:pt-0 min-h-screen">
         <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-8 2xl:px-10">
-          <Outlet />
+          <Suspense fallback={<PageLoader />}>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
     </div>

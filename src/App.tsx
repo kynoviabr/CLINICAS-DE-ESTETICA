@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -6,38 +7,39 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BrandingProvider } from "@/contexts/BrandingContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-
 import LoginPage from "./pages/LoginPage";
-import ResetPasswordPage from "./pages/ResetPasswordPage";
-import OnboardingPage from "./pages/OnboardingPage";
 import ClinicLayout from "./components/layouts/ClinicLayout";
 import PatientPortalLayout from "./components/layouts/PatientPortalLayout";
-import ClinicDashboard from "./pages/clinic/DashboardPage";
-import CrmPage from "./pages/clinic/CrmPage";
-import PatientsPage from "./pages/clinic/PatientsPage";
-import PatientDetailPage from "./pages/clinic/PatientDetailPage";
-import TreatmentsPage from "./pages/clinic/TreatmentsPage";
-import ProposalsPage from "./pages/clinic/ProposalsPage";
-import ContractsPage from "./pages/clinic/ContractsPage";
-import PaymentsPage from "./pages/clinic/PaymentsPage";
-import FinanceContractsPage from "./pages/clinic/FinanceContractsPage";
-import AppointmentsPage from "./pages/clinic/AppointmentsPage";
-import SessionsPage from "./pages/clinic/SessionsPage";
-import FeedbackPage from "./pages/clinic/FeedbackPage";
-import EvolutionPage from "./pages/clinic/EvolutionPage";
-import PhotosPage from "./pages/clinic/PhotosPage";
-import ReportsPage from "./pages/clinic/ReportsPage";
-import SettingsPage from "./pages/clinic/SettingsPage";
-import WhatsAppAiPage from "./pages/clinic/WhatsAppAiPage";
-import GoalsTrackingPage from "./pages/clinic/GoalsTrackingPage";
-import PortalHomePage from "./pages/portal/PortalHomePage";
-import PortalContractPage from "./pages/portal/PortalContractPage";
-import PortalPaymentsPage from "./pages/portal/PortalPaymentsPage";
-import PortalSessionsPage from "./pages/portal/PortalSessionsPage";
-import PortalEvolutionPage from "./pages/portal/PortalEvolutionPage";
-import PortalPhotosPage from "./pages/portal/PortalPhotosPage";
-import PortalFeedbackPage from "./pages/portal/PortalFeedbackPage";
 import NotFound from "./pages/NotFound";
+import { PageLoader } from "./components/PageLoader";
+
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
+const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
+const ClinicDashboard = lazy(() => import("./pages/clinic/DashboardPage"));
+const CrmPage = lazy(() => import("./pages/clinic/CrmPage"));
+const PatientsPage = lazy(() => import("./pages/clinic/PatientsPage"));
+const PatientDetailPage = lazy(() => import("./pages/clinic/PatientDetailPage"));
+const TreatmentsPage = lazy(() => import("./pages/clinic/TreatmentsPage"));
+const ProposalsPage = lazy(() => import("./pages/clinic/ProposalsPage"));
+const ContractsPage = lazy(() => import("./pages/clinic/ContractsPage"));
+const PaymentsPage = lazy(() => import("./pages/clinic/PaymentsPage"));
+const FinanceContractsPage = lazy(() => import("./pages/clinic/FinanceContractsPage"));
+const AppointmentsPage = lazy(() => import("./pages/clinic/AppointmentsPage"));
+const SessionsPage = lazy(() => import("./pages/clinic/SessionsPage"));
+const FeedbackPage = lazy(() => import("./pages/clinic/FeedbackPage"));
+const EvolutionPage = lazy(() => import("./pages/clinic/EvolutionPage"));
+const PhotosPage = lazy(() => import("./pages/clinic/PhotosPage"));
+const ReportsPage = lazy(() => import("./pages/clinic/ReportsPage"));
+const SettingsPage = lazy(() => import("./pages/clinic/SettingsPage"));
+const WhatsAppAiPage = lazy(() => import("./pages/clinic/WhatsAppAiPage"));
+const GoalsTrackingPage = lazy(() => import("./pages/clinic/GoalsTrackingPage"));
+const PortalHomePage = lazy(() => import("./pages/portal/PortalHomePage"));
+const PortalContractPage = lazy(() => import("./pages/portal/PortalContractPage"));
+const PortalPaymentsPage = lazy(() => import("./pages/portal/PortalPaymentsPage"));
+const PortalSessionsPage = lazy(() => import("./pages/portal/PortalSessionsPage"));
+const PortalEvolutionPage = lazy(() => import("./pages/portal/PortalEvolutionPage"));
+const PortalPhotosPage = lazy(() => import("./pages/portal/PortalPhotosPage"));
+const PortalFeedbackPage = lazy(() => import("./pages/portal/PortalFeedbackPage"));
 
 const queryClient = new QueryClient();
 
@@ -49,6 +51,7 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <BrandingProvider>
+            <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<Navigate to="/login" replace />} />
               <Route path="/login" element={<LoginPage />} />
@@ -104,6 +107,7 @@ const App = () => (
 
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
           </BrandingProvider>
         </AuthProvider>
       </BrowserRouter>

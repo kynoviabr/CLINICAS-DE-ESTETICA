@@ -10,7 +10,6 @@ export default tseslint.config(
       "dist/**",
       "coverage/**",
       ".vite/**",
-      "shape-clinic-landing/**",
       "supabase/.branches/**",
       "supabase/.temp/**",
       "node_modules/**",
