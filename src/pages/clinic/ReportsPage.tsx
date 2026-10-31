@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachWeekOfInterval, startOfWeek, endOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { installmentSituation, paymentMethodLabel, todayIso } from '@/lib/finance/installments';
 import { toast } from 'sonner';
 import {
   generateFinancialPDF, generateSessionsPDF,
@@ -29,11 +30,6 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { cn } from '@/lib/utils';
-
-const paymentMethodLabels: Record<string, string> = {
-  credit_card: 'Cartão Crédito', debit_card: 'Cartão Débito',
-  pix: 'PIX', bank_transfer: 'Transferência', cash: 'Dinheiro', boleto: 'Boleto',
-};
 
 const formatCurrency = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
@@ -227,36 +223,36 @@ export default function ReportsPage() {
     if (!clinicId) return;
     setLoadingFinancial(true);
     try {
-      const { data: plans, error } = await supabase.from('payment_plans')
-        .select('*, patients!inner(full_name), contracts!inner(contract_number)')
-        .eq('clinic_id', clinicId);
-      if (error) throw error;
-      if (!plans?.length) { toast.info('Nenhum dado financeiro encontrado'); return; }
-      const planIds = plans.map(p => p.id);
-      const { data: installments } = await supabase.from('payment_installments')
-        .select('*').in('payment_plan_id', planIds)
+      // Uma linha por contrato com parcelas vencendo no período (Financeiro de Contratos).
+      const { data: installments, error } = await supabase.from('contract_installments')
+        .select('contract_id, amount, status, due_date, paid_amount, payment_method, contracts!inner(contract_number, patients(full_name))')
+        .eq('clinic_id', clinicId)
+        .neq('status', 'cancelado')
         .gte('due_date', startDate).lte('due_date', endDate);
-      const installmentsByPlan = (installments || []).reduce((acc: Record<string, unknown[]>, inst) => {
-        (acc[inst.payment_plan_id] = acc[inst.payment_plan_id] || []).push(inst);
+      if (error) throw error;
+      if (!installments?.length) { toast.info('Nenhum dado financeiro encontrado'); return; }
+      const today = todayIso();
+      const byContract = installments.reduce((acc: Record<string, typeof installments>, inst) => {
+        (acc[inst.contract_id] = acc[inst.contract_id] || []).push(inst);
         return acc;
       }, {});
       let totalRevenue = 0, totalPaid = 0, totalPending = 0, totalOverdue = 0;
       const rows: FinancialRow[] = [];
-      for (const plan of plans) {
-        const insts = installmentsByPlan[plan.id] || [];
-        if (!insts.length) continue;
-        const paidInsts = insts.filter((i) => i.status === 'paid');
-        const paidAmount = paidInsts.reduce((s: number, i) => s + Number(i.amount), 0);
+      for (const insts of Object.values(byContract)) {
+        const paidInsts = insts.filter((i) => i.status === 'pago');
+        const paidAmount = paidInsts.reduce((s: number, i) => s + Number(i.paid_amount ?? i.amount), 0);
         const totalAmount = insts.reduce((s: number, i) => s + Number(i.amount), 0);
-        const pendingAmount = totalAmount - paidAmount;
-        const overdueInsts = insts.filter((i) => i.status === 'overdue');
-        const overdueAmount = overdueInsts.reduce((s: number, i) => s + Number(i.amount), 0);
+        const pendingAmount = Math.max(totalAmount - paidAmount, 0);
+        const overdueAmount = insts
+          .filter((i) => installmentSituation(i, today) === 'atrasada')
+          .reduce((s: number, i) => s + Number(i.amount), 0);
         totalRevenue += totalAmount; totalPaid += paidAmount; totalPending += pendingAmount; totalOverdue += overdueAmount;
+        const methods = [...new Set(insts.map((i) => paymentMethodLabel(i.payment_method)))].join(', ');
         rows.push({
-          patient: (plan).patients?.full_name || '—',
-          contractNumber: (plan).contracts?.contract_number || '—',
+          patient: insts[0].contracts?.patients?.full_name || '—',
+          contractNumber: insts[0].contracts?.contract_number || '—',
           totalAmount, numInstallments: insts.length, paidCount: paidInsts.length, paidAmount, pendingAmount,
-          method: paymentMethodLabels[plan.payment_method] || plan.payment_method,
+          method: methods,
         });
       }
       generateFinancialPDF(clinicName, periodLabel, rows, { totalRevenue, totalPaid, totalPending, totalOverdue });
