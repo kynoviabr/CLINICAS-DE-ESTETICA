@@ -6,6 +6,8 @@ name: Backup do banco
 #   BACKUP_PASSPHRASE    senha usada para criptografar os arquivos (guardar fora do GitHub)
 #   RCLONE_DRIVE_TOKEN   token OAuth do Google Drive gerado com `rclone authorize "drive"`
 #   GDRIVE_FOLDER_ID     ID da pasta "Backups Clinova" no Drive
+#   GDRIVE_CLIENT_ID     ID do cliente OAuth (App para computador) do Google Cloud
+#   GDRIVE_CLIENT_SECRET chave secreta desse cliente OAuth
 
 on:
   schedule:
@@ -61,6 +63,8 @@ jobs:
         env:
           RCLONE_CONFIG_GDRIVE_TYPE: drive
           RCLONE_CONFIG_GDRIVE_SCOPE: drive
+          RCLONE_CONFIG_GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          RCLONE_CONFIG_GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
           RCLONE_CONFIG_GDRIVE_TOKEN: ${{ secrets.RCLONE_DRIVE_TOKEN }}
           RCLONE_CONFIG_GDRIVE_ROOT_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
         run: |

@@ -9,6 +9,8 @@ Cada arquivo contém:
 
 Os arquivos enviados ao Storage (fotos, PDFs, logos) não estão neste backup.
 
+O acesso ao Drive usa um cliente OAuth próprio (Google Cloud, projeto "Backup Clinova", tipo "App para computador", tela de consentimento publicada para o token não expirar em 7 dias). O token é gerado com `rclone authorize "drive" <client_id> <client_secret>` e só funciona com esse mesmo cliente.
+
 ## Restaurar
 
 1. Baixe o arquivo do Drive e abra:
