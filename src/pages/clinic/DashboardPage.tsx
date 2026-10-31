@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useUrlState } from '@/hooks/useUrlState';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -472,14 +473,7 @@ export default function ClinicDashboard() {
   }, [funnelData]);
 
   const tooltipStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' };
-  const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = searchParams.get('aba');
-  const activeTab: DashboardTab = DASHBOARD_TABS.includes(tabParam as DashboardTab) ? (tabParam as DashboardTab) : 'executivo';
-  const setActiveTab = (tab: DashboardTab) => {
-    const next = new URLSearchParams(searchParams);
-    if (tab === 'executivo') next.delete('aba'); else next.set('aba', tab);
-    setSearchParams(next, { replace: true });
-  };
+  const [activeTab, setActiveTab] = useUrlState<DashboardTab>('aba', 'executivo', DASHBOARD_TABS);
 
   const executiveSemaphores = useMemo(() => {
     const commercialRevenue = totalSalesMonth;

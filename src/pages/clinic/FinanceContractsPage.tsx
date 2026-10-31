@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useUrlState } from '@/hooks/useUrlState';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { addDays, endOfMonth, endOfWeek, endOfYear, format, startOfMonth, startOfWeek, startOfYear } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -141,7 +142,7 @@ export default function FinanceContractsPage() {
   const { clinicId } = useBranding();
   const { role } = useUserRole();
   const { toast } = useToast();
-  const [tab, setTab] = useState<'matrix' | 'divergence'>('matrix');
+  const [tab, setTab] = useUrlState<'matrix' | 'divergence'>('aba', 'matrix', ['matrix', 'divergence']);
   const [periodMode, setPeriodMode] = useState<PeriodMode>('month');
   const [anchorDate, setAnchorDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [customStart, setCustomStart] = useState('');

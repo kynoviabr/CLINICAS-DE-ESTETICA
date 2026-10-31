@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useUrlState } from '@/hooks/useUrlState';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -33,6 +34,8 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function SettingsPage() {
+  const [settingsTab, setSettingsTab] = useUrlState<string>('aba', 'general');
+  const [teamTab, setTeamTab] = useUrlState<string>('subaba', 'internal-team');
   const { clinicId, role } = useUserRole();
   const { user } = useAuth();
   const branding = useBranding();
@@ -217,7 +220,7 @@ export default function SettingsPage() {
     <div>
       <PageHeader title="Configurações" description="Gerencie sua clínica" />
 
-      <Tabs defaultValue="general" className="space-y-4">
+      <Tabs value={settingsTab} onValueChange={setSettingsTab} className="space-y-4">
         <TabsList className="!h-auto min-h-10 w-full flex-wrap justify-start gap-1">
           <TabsTrigger value="general"><Settings className="w-4 h-4 mr-1" />Geral</TabsTrigger>
           <TabsTrigger value="whatsapp-ai"><MessageSquare className="w-4 h-4 mr-1" />WhatsApp IA</TabsTrigger>
@@ -330,7 +333,7 @@ export default function SettingsPage() {
 
         {/* ===== TEAM ===== */}
         <TabsContent value="team">
-          <Tabs defaultValue="internal-team" className="space-y-4">
+          <Tabs value={teamTab} onValueChange={setTeamTab} className="space-y-4">
             <TabsList>
               <TabsTrigger value="internal-team">Equipe (acessos internos)</TabsTrigger>
               <TabsTrigger value="groups-permissions">Grupos e permissões</TabsTrigger>
