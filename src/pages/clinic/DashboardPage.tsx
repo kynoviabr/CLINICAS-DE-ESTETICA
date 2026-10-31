@@ -21,6 +21,7 @@ import {
   subDays, subMonths, startOfMonth, endOfMonth, eachMonthOfInterval, addDays, differenceInDays
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { todayIso } from '@/lib/finance/installments';
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area, ComposedChart,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
@@ -34,7 +35,7 @@ import { Button } from '@/components/ui/button';
 const CHART_COLORS = ['hsl(var(--primary))', 'hsl(var(--accent))', '#34d399', '#f59e0b', '#8b5cf6', '#ec4899'];
 type ContractStatusRow = Pick<Database['public']['Tables']['contracts']['Row'], 'process_status'>;
 type AnamneseRow = Pick<Database['public']['Tables']['patient_anamneses']['Row'], 'patient_id' | 'uploaded_at'>;
-type RevenueInstallmentRow = Pick<Database['public']['Tables']['payment_installments']['Row'], 'amount' | 'paid_date'>;
+type RevenueInstallmentRow = Pick<Database['public']['Tables']['contract_installments']['Row'], 'paid_amount' | 'paid_at'>;
 type SessionRecordRow = Pick<Database['public']['Tables']['session_records']['Row'], 'performed_at'>;
 type PatientCreatedRow = Pick<Database['public']['Tables']['patients']['Row'], 'created_at'>;
 type AppointmentTreatmentRow = {
@@ -163,9 +164,10 @@ export default function ClinicDashboard() {
   const { data: overduePayments = 0 } = useQuery({
     queryKey: ['dashboard-overdue', clinicId],
     queryFn: async () => {
-      const { count } = await supabase.from('payment_installments')
-        .select('*, payment_plans!inner(clinic_id)', { count: 'exact', head: true })
-        .eq('payment_plans.clinic_id', clinicId!).eq('status', 'overdue');
+      // Atraso é derivado: parcela prevista com vencimento antes de hoje.
+      const { count } = await supabase.from('contract_installments')
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId!).eq('status', 'previsto').lt('due_date', todayIso());
       return count || 0;
     },
     enabled: !!clinicId,
@@ -231,10 +233,10 @@ export default function ClinicDashboard() {
           .eq('clinic_id', clinicId!).gte('created_at', monthStart).lte('created_at', monthEnd),
         supabase.from('contracts').select('id, status', { count: 'exact', head: false })
           .eq('clinic_id', clinicId!).gte('created_at', monthStart).lte('created_at', monthEnd),
-        supabase.from('payment_installments')
-          .select('id, status, payment_plans!inner(clinic_id, created_at)', { count: 'exact', head: false })
-          .eq('payment_plans.clinic_id', clinicId!).eq('status', 'paid')
-          .gte('paid_date', monthStart.slice(0, 10)).lte('paid_date', monthEnd.slice(0, 10)),
+        supabase.from('contract_installments')
+          .select('id', { count: 'exact', head: false })
+          .eq('clinic_id', clinicId!).eq('status', 'pago')
+          .gte('paid_at', monthStart.slice(0, 10)).lte('paid_at', monthEnd.slice(0, 10)),
       ]);
       const totalProposals = proposals.data?.length || 0;
       const acceptedProposals = proposals.data?.filter(p => p.status === 'accepted').length || 0;
@@ -259,13 +261,13 @@ export default function ClinicDashboard() {
         supabase.from('patients').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId!).gte('created_at', prevStart).lte('created_at', prevEnd),
         supabase.from('session_records').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId!).gte('performed_at', currStart).lte('performed_at', currEnd),
         supabase.from('session_records').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId!).gte('performed_at', prevStart).lte('performed_at', prevEnd),
-        supabase.from('payment_installments').select('amount, payment_plans!inner(clinic_id)').eq('payment_plans.clinic_id', clinicId!).eq('status', 'paid').gte('paid_date', currStart.slice(0, 10)).lte('paid_date', currEnd.slice(0, 10)),
-        supabase.from('payment_installments').select('amount, payment_plans!inner(clinic_id)').eq('payment_plans.clinic_id', clinicId!).eq('status', 'paid').gte('paid_date', prevStart.slice(0, 10)).lte('paid_date', prevEnd.slice(0, 10)),
+        supabase.from('contract_installments').select('paid_amount, paid_at').eq('clinic_id', clinicId!).eq('status', 'pago').gte('paid_at', currStart.slice(0, 10)).lte('paid_at', currEnd.slice(0, 10)),
+        supabase.from('contract_installments').select('paid_amount, paid_at').eq('clinic_id', clinicId!).eq('status', 'pago').gte('paid_at', prevStart.slice(0, 10)).lte('paid_at', prevEnd.slice(0, 10)),
         supabase.from('patients').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId!).eq('dissatisfaction_flag', true),
       ]);
 
-      const currRev = (currRevenue.data || []).reduce((s: number, r: RevenueInstallmentRow) => s + Number(r.amount), 0);
-      const prevRev = (prevRevenue.data || []).reduce((s: number, r: RevenueInstallmentRow) => s + Number(r.amount), 0);
+      const currRev = (currRevenue.data || []).reduce((s: number, r: RevenueInstallmentRow) => s + Number(r.paid_amount || 0), 0);
+      const prevRev = (prevRevenue.data || []).reduce((s: number, r: RevenueInstallmentRow) => s + Number(r.paid_amount || 0), 0);
 
       return {
         newPatients: { current: currPatients.count || 0, previous: prevPatients.count || 0 },
@@ -281,11 +283,11 @@ export default function ClinicDashboard() {
   const { data: ltvData } = useQuery({
     queryKey: ['dashboard-ltv', clinicId],
     queryFn: async () => {
-      const { data: plans } = await supabase.from('payment_plans')
-        .select('patient_id, total_amount').eq('clinic_id', clinicId!);
+      const { data: plans } = await supabase.from('contract_payment_plans')
+        .select('patient_id, total_contract_value').eq('clinic_id', clinicId!);
       if (!plans?.length) return null;
       const byPatient: Record<string, number> = {};
-      plans.forEach(p => { byPatient[p.patient_id] = (byPatient[p.patient_id] || 0) + Number(p.total_amount); });
+      plans.forEach(p => { if (p.patient_id) byPatient[p.patient_id] = (byPatient[p.patient_id] || 0) + Number(p.total_contract_value); });
       const values = Object.values(byPatient);
       const avg = values.reduce((s, v) => s + v, 0) / values.length;
       return { avg, total: values.length };
@@ -361,10 +363,10 @@ export default function ClinicDashboard() {
     queryKey: ['dashboard-revenue-sessions-chart', clinicId],
     queryFn: async () => {
       const [revenueRes, sessionsRes] = await Promise.all([
-        supabase.from('payment_installments')
-          .select('amount, paid_date, payment_plans!inner(clinic_id)')
-          .eq('payment_plans.clinic_id', clinicId!).eq('status', 'paid')
-          .gte('paid_date', startOfMonth(sixMonthsAgo).toISOString().slice(0, 10)),
+        supabase.from('contract_installments')
+          .select('paid_amount, paid_at')
+          .eq('clinic_id', clinicId!).eq('status', 'pago')
+          .gte('paid_at', startOfMonth(sixMonthsAgo).toISOString().slice(0, 10)),
         supabase.from('session_records').select('performed_at')
           .eq('clinic_id', clinicId!).gte('performed_at', startOfMonth(sixMonthsAgo).toISOString()),
       ]);
@@ -372,7 +374,7 @@ export default function ClinicDashboard() {
       const sessByMonth: Record<string, number> = {};
       months.forEach(m => { const k = format(m, 'yyyy-MM'); revByMonth[k] = 0; sessByMonth[k] = 0; });
       (revenueRes.data || []).forEach((inst: RevenueInstallmentRow) => {
-        if (inst.paid_date) { const k = inst.paid_date.slice(0, 7); if (revByMonth[k] !== undefined) revByMonth[k] += Number(inst.amount); }
+        if (inst.paid_at) { const k = inst.paid_at.slice(0, 7); if (revByMonth[k] !== undefined) revByMonth[k] += Number(inst.paid_amount || 0); }
       });
       (sessionsRes.data || []).forEach((s: SessionRecordRow) => {
         const k = s.performed_at.slice(0, 7); if (sessByMonth[k] !== undefined) sessByMonth[k]++;
@@ -815,7 +817,7 @@ export default function ClinicDashboard() {
             </div>
           )}
           {overduePayments > 0 && (
-            <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 flex items-center gap-3 animate-fade-in cursor-pointer" onClick={() => navigate('/clinic/payments')}>
+            <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 flex items-center gap-3 animate-fade-in cursor-pointer" onClick={() => navigate('/clinic/finance/contracts')}>
               <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
               <div>
                 <p className="text-sm font-semibold text-destructive">{overduePayments} parcela{overduePayments > 1 ? 's' : ''} vencida{overduePayments > 1 ? 's' : ''}</p>

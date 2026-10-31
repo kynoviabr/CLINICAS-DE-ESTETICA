@@ -760,6 +760,10 @@ export type Database = {
           installment_number: number
           installments_count: number
           notes: string | null
+          paid_amount: number | null
+          paid_at: string | null
+          paid_by: string | null
+          paid_method: string | null
           payment_method: string
           payment_method_id: string | null
           payment_plan_id: string
@@ -776,6 +780,10 @@ export type Database = {
           installment_number: number
           installments_count: number
           notes?: string | null
+          paid_amount?: number | null
+          paid_at?: string | null
+          paid_by?: string | null
+          paid_method?: string | null
           payment_method: string
           payment_method_id?: string | null
           payment_plan_id: string
@@ -792,6 +800,10 @@ export type Database = {
           installment_number?: number
           installments_count?: number
           notes?: string | null
+          paid_amount?: number | null
+          paid_at?: string | null
+          paid_by?: string | null
+          paid_method?: string | null
           payment_method?: string
           payment_method_id?: string | null
           payment_plan_id?: string
@@ -2057,114 +2069,6 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      payment_installments: {
-        Row: {
-          amount: number
-          created_at: string
-          due_date: string
-          id: string
-          installment_number: number
-          paid_date: string | null
-          payment_plan_id: string
-          status: Database["public"]["Enums"]["payment_status"]
-          updated_at: string
-        }
-        Insert: {
-          amount: number
-          created_at?: string
-          due_date: string
-          id?: string
-          installment_number: number
-          paid_date?: string | null
-          payment_plan_id: string
-          status?: Database["public"]["Enums"]["payment_status"]
-          updated_at?: string
-        }
-        Update: {
-          amount?: number
-          created_at?: string
-          due_date?: string
-          id?: string
-          installment_number?: number
-          paid_date?: string | null
-          payment_plan_id?: string
-          status?: Database["public"]["Enums"]["payment_status"]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payment_installments_payment_plan_id_fkey"
-            columns: ["payment_plan_id"]
-            isOneToOne: false
-            referencedRelation: "payment_plans"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      payment_plans: {
-        Row: {
-          clinic_id: string
-          contract_id: string
-          created_at: string
-          id: string
-          notes: string | null
-          num_installments: number
-          patient_id: string
-          payment_method: Database["public"]["Enums"]["payment_method"]
-          status: Database["public"]["Enums"]["payment_status"]
-          total_amount: number
-          updated_at: string
-        }
-        Insert: {
-          clinic_id: string
-          contract_id: string
-          created_at?: string
-          id?: string
-          notes?: string | null
-          num_installments?: number
-          patient_id: string
-          payment_method?: Database["public"]["Enums"]["payment_method"]
-          status?: Database["public"]["Enums"]["payment_status"]
-          total_amount: number
-          updated_at?: string
-        }
-        Update: {
-          clinic_id?: string
-          contract_id?: string
-          created_at?: string
-          id?: string
-          notes?: string | null
-          num_installments?: number
-          patient_id?: string
-          payment_method?: Database["public"]["Enums"]["payment_method"]
-          status?: Database["public"]["Enums"]["payment_status"]
-          total_amount?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payment_plans_clinic_id_fkey"
-            columns: ["clinic_id"]
-            isOneToOne: false
-            referencedRelation: "clinics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payment_plans_contract_id_fkey"
-            columns: ["contract_id"]
-            isOneToOne: false
-            referencedRelation: "contracts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payment_plans_patient_id_fkey"
-            columns: ["patient_id"]
-            isOneToOne: false
-            referencedRelation: "patients"
             referencedColumns: ["id"]
           },
         ]
