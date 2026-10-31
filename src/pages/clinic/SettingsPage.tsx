@@ -440,7 +440,7 @@ export default function SettingsPage() {
                 <CardHeader><CardTitle className="flex items-center gap-2"><Mail className="w-5 h-5" />Convites</CardTitle></CardHeader>
                 <CardContent>
                   <div className="divide-y divide-border">
-                    {invitations.map((inv: unknown) => {
+                    {invitations.map((inv) => {
                       const isPending = inv.status === 'pending';
                       const isAccepted = inv.status === 'accepted';
                       return (

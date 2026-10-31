@@ -142,7 +142,7 @@ export default function PatientsPage() {
 
   // Build anamnese map (latest per patient)
   const anamneseMap: Record<string, string> = {};
-  anamneses.forEach((a: unknown) => {
+  anamneses.forEach((a) => {
     if (!anamneseMap[a.patient_id]) anamneseMap[a.patient_id] = a.uploaded_at;
   });
 
@@ -321,7 +321,7 @@ export default function PatientsPage() {
       setPayerData(defaultPayerData);
       toast({ title: editingId ? 'Paciente atualizado!' : 'Paciente criado!' });
     },
-    onError: (err: unknown) => {
+    onError: (err: Error) => {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     },
   });

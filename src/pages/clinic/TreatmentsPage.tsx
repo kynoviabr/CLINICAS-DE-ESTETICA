@@ -154,7 +154,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
       setCostLines([]);
       toast({ title: editingId ? 'Tratamento atualizado!' : 'Tratamento criado!' });
     },
-    onError: (err: unknown) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   const openEdit = async (t: unknown) => {
@@ -210,7 +210,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
     setCostLines(updated);
   };
 
-  const getCostItemById = (id: string) => costItems.find((c: unknown) => c.id === id);
+  const getCostItemById = (id: string) => costItems.find((c) => c.id === id);
   const totalCost = costLines.reduce((sum, l) => {
     const item = getCostItemById(l.cost_item_id);
     return sum + (item ? Number(item.unit_cost) * (parseFloat(l.quantity) || 0) : 0);
@@ -280,7 +280,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os tipos</SelectItem>
-            {categories.map((category: unknown) => (
+            {categories.map((category) => (
               <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
             ))}
             <SelectItem value="uncategorized">Sem categoria</SelectItem>
@@ -309,7 +309,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
 
       {!isLoading && treatments.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {treatments.map((t: unknown) => (
+          {treatments.map((t) => (
             <div key={t.id} className="bg-card rounded-xl shadow-card p-5 animate-fade-in hover:shadow-card-hover transition-shadow">
               <div className="flex items-start justify-between mb-3">
                 <div>
@@ -386,7 +386,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
                 <Select value={form.category_id} onValueChange={v => setForm({ ...form, category_id: v })}>
                   <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent>
-                    {categories.map((c: unknown) => (
+                    {categories.map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -484,7 +484,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
                         <Select value={line.cost_item_id} onValueChange={v => updateCostLine(idx, 'cost_item_id', v)}>
                           <SelectTrigger className="flex-1"><SelectValue placeholder="Selecione item..." /></SelectTrigger>
                           <SelectContent>
-                            {costItems.map((c: unknown) => (
+                            {costItems.map((c) => (
                               <SelectItem key={c.id} value={c.id}>{c.name} (R$ {Number(c.unit_cost).toFixed(2)}/{c.unit || 'un'})</SelectItem>
                             ))}
                           </SelectContent>

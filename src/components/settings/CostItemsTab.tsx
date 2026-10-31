@@ -164,7 +164,7 @@ export default function CostItemsTab() {
       setForm(emptyForm);
       toast({ title: editingId ? 'Item atualizado!' : 'Item criado!' });
     },
-    onError: (err: unknown) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   const openEdit = (item: unknown) => {
@@ -231,7 +231,7 @@ export default function CostItemsTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {costItems.map((item: unknown) => (
+                  {costItems.map((item) => (
                     <tr key={item.id} className="border-b last:border-0 hover:bg-secondary/30 transition-colors">
                       <td className="px-4 py-3 text-sm font-medium text-foreground">{item.name}</td>
                       <td className="px-4 py-3">
