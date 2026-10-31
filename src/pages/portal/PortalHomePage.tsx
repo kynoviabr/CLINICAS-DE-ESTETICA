@@ -9,11 +9,15 @@ import { CalendarDays, Star, Activity, FileText, Camera, CreditCard } from 'luci
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+import type { Tables } from '@/integrations/supabase/types';
+
+type NextAppointment = Tables<'appointments'> & { treatments: { name: string } | null };
+
 export default function PortalHomePage() {
   const { user } = useAuth();
   const { clinicName } = useBranding();
   const [patientName, setPatientName] = useState('');
-  const [nextSession, setNextSession] = useState<unknown>(null);
+  const [nextSession, setNextSession] = useState<NextAppointment | null>(null);
   const [progress, setProgress] = useState({ done: 0, total: 1 });
   const [photoCount, setPhotoCount] = useState(0);
 

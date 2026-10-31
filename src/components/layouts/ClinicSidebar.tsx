@@ -5,6 +5,7 @@ import {
   CalendarDays, Activity, Camera, MessageSquare, Settings, LogOut,
   Menu, X, Stethoscope, FileSignature, BarChart3, TrendingUp, Star, KanbanSquare, Landmark, Goal
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
 import { useUserRole, type AppRole } from '@/hooks/useUserRole';
@@ -15,7 +16,7 @@ import NotificationBell from '@/components/NotificationBell';
 
 interface NavItem {
   to: string;
-  icon: unknown;
+  icon: LucideIcon;
   label: string;
   roles: AppRole[];
   permissionKey: MenuPermissionKey;

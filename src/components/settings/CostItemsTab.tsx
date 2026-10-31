@@ -14,6 +14,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, Edit, DollarSign } from 'lucide-react';
+import type { Tables } from '@/integrations/supabase/types';
+
+/** Quem não é admin não lê o custo unitário. */
+type CostItem = Omit<Tables<'cost_items'>, 'unit_cost'> & { unit_cost?: number };
 
 const typeLabels: Record<string, string> = {
   labor: 'Mão de Obra',
@@ -134,7 +138,7 @@ export default function CostItemsTab() {
       let q = supabase.from('cost_items').select(columns).eq('clinic_id', clinicId).order('name');
       if (search) q = q.ilike('name', `%${search}%`);
       const { data } = await q;
-      return data || [];
+      return (data || []) as unknown as CostItem[];
     },
     enabled: !!clinicId,
   });
@@ -167,14 +171,14 @@ export default function CostItemsTab() {
     onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
-  const openEdit = (item: unknown) => {
+  const openEdit = (item: CostItem) => {
     setEditingId(item.id);
     setForm({
       name: item.name,
       type: item.type,
       unit_cost: String(item.unit_cost || ''),
       unit: item.unit || '',
-      status: item.status,
+      status: item.status ?? 'active',
     });
     setDialogOpen(true);
   };

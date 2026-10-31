@@ -21,6 +21,10 @@ export const MENU_PERMISSION_KEYS = [
 
 export type MenuPermissionKey = (typeof MENU_PERMISSION_KEYS)[number];
 
+export function isMenuPermissionKey(key: string): key is MenuPermissionKey {
+  return (MENU_PERMISSION_KEYS as readonly string[]).includes(key);
+}
+
 export const PATH_PERMISSION_MAP: Array<{ prefix: string; key: MenuPermissionKey }> = [
   { prefix: '/clinic/settings', key: 'settings.view' },
   { prefix: '/clinic/whatsapp-ai', key: 'whatsapp_ai.view' },

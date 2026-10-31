@@ -55,7 +55,7 @@ export default function ProfessionalsTab() {
   const { items: profTreatments, create: linkTreatment } = useProfessionalTreatments();
   const { clinicId } = useUserRole();
 
-  const [treatments, setTreatments] = useState<unknown[]>([]);
+  const [treatments, setTreatments] = useState<Array<{ id: string; name: string }>>([]);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [cpfError, setCpfError] = useState('');

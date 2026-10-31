@@ -55,6 +55,7 @@ export default function CombosTab({ readOnly = false }: CombosTabProps = {}) {
     },
     enabled: !!clinicId,
   });
+  type Combo = (typeof combos)[number];
 
   const { data: treatments = [] } = useQuery({
     queryKey: ['treatments-active', clinicId],
@@ -155,7 +156,7 @@ export default function CombosTab({ readOnly = false }: CombosTabProps = {}) {
     onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
-  const openEdit = (combo: unknown) => {
+  const openEdit = (combo: Combo) => {
     setEditingId(combo.id);
     setForm({
       name: combo.name,
@@ -169,7 +170,7 @@ export default function CombosTab({ readOnly = false }: CombosTabProps = {}) {
     setDialogOpen(true);
   };
 
-  const openDuplicate = (combo: unknown) => {
+  const openDuplicate = (combo: Combo) => {
     setEditingId(null);
     setForm({
       name: combo.name ? `${combo.name} (Cópia)` : 'Novo combo (Cópia)',

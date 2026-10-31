@@ -11,6 +11,7 @@ import { ptBR } from 'date-fns/locale';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { Database } from '@/integrations/supabase/types';
 import { professionalColors, weekDays, getWindowByType, isMissingRelationError, type ViewMode, type WaitlistWindowType, type WaitlistPriority, type WaitlistContactPreference, type WaitlistTargetType, type AppointmentRow, type WaitlistRow, type WaitlistNotificationRow, type ReminderRow, type WhatsAppCommandLogRow, type AgendaJobExecutionRow, type ContractLite, type ProposalItemLite, type SessionRecordLite } from '@/lib/agenda/model';
+import type { Enums, Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
 
 export function useAgendaPage() {
   const { clinicId } = useBranding();
@@ -50,7 +51,7 @@ export function useAgendaPage() {
   const [blockEndTime, setBlockEndTime] = useState('10:00');
   const [blockReason, setBlockReason] = useState('');
   const [blockNotes, setBlockNotes] = useState('');
-  const [exceptionModal, setExceptionModal] = useState<{ mode: 'cancel' | 'no_show' | 'reschedule'; appointment: Record<string, unknown> & { id: string; clinic_id: string; status: string; appointment_type?: string | null; lead_id?: string | null } } | null>(null);
+  const [exceptionModal, setExceptionModal] = useState<{ mode: 'cancel' | 'no_show' | 'reschedule'; appointment: Partial<Tables<'appointments'>> & { id: string; clinic_id: string; status: string; appointment_type?: string | null; lead_id?: string | null } } | null>(null);
   const [exceptionReason, setExceptionReason] = useState('');
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('09:00');
@@ -403,7 +404,7 @@ export function useAgendaPage() {
     }
   };
 
-  const openExceptionModal = (mode: 'cancel' | 'no_show' | 'reschedule', appointment: Record<string, unknown> & { id: string; clinic_id: string; status: string; appointment_type?: string | null; lead_id?: string | null }) => {
+  const openExceptionModal = (mode: 'cancel' | 'no_show' | 'reschedule', appointment: Partial<Tables<'appointments'>> & { id: string; clinic_id: string; status: string; appointment_type?: string | null; lead_id?: string | null }) => {
     setExceptionReason('');
     setRescheduleDate(format(getAppointmentStartDate(appointment), 'yyyy-MM-dd'));
     setRescheduleTime(format(getAppointmentStartDate(appointment), 'HH:mm'));
@@ -673,7 +674,7 @@ export function useAgendaPage() {
           throw new Error('Este tratamento já foi finalizado (saldo 0).');
         }
       }
-      const payload: Record<string, unknown> = {
+      const payload: TablesInsert<'appointments'> = {
         clinic_id: clinicId!,
         patient_id: appointmentType === 'session' ? selectedPatient : null,
         lead_id: appointmentType === 'evaluation' ? selectedLead : null,
@@ -740,7 +741,7 @@ export function useAgendaPage() {
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const appointment = appointments.find((item) => item.id === id);
-      const patch: Record<string, unknown> = { status };
+      const patch: TablesUpdate<'appointments'> = { status: status as Enums<'appointment_status'> };
 
       if (status === 'confirmed') patch.confirmed_at = new Date().toISOString();
       if (status === 'in_progress') patch.checked_in_at = new Date().toISOString();
@@ -777,7 +778,7 @@ export function useAgendaPage() {
           throw new Error('Informe o motivo para continuar.');
         }
 
-        const patch: Record<string, unknown> = {
+        const patch: TablesUpdate<'appointments'> = {
           status: exceptionModal.mode === 'cancel' ? 'cancelled' : 'no_show',
         };
 
@@ -1091,7 +1092,7 @@ export function useAgendaPage() {
       const professionalId = notification.matched_professional_id;
       if (!professionalId) throw new Error('Profissional da vaga não identificado.');
 
-      const appointmentPayload: Record<string, unknown> = {
+      const appointmentPayload: TablesInsert<'appointments'> = {
         clinic_id: clinicId,
         patient_id: waitlist.patient_id,
         lead_id: waitlist.lead_id,
@@ -1124,7 +1125,7 @@ export function useAgendaPage() {
         .eq('id', notification.id);
       if (notifError) throw notifError;
 
-      const waitlistUpdate: Record<string, unknown> = {
+      const waitlistUpdate: TablesUpdate<'appointment_waitlist'> = {
         status: 'scheduled',
         resulting_appointment_id: appointment.id,
       };

@@ -11,8 +11,9 @@ import { Star, MessageSquare, BarChart3, TrendingUp, AlertTriangle, ThumbsDown, 
 import { subDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import type { Tables } from '@/integrations/supabase/types';
 
-function isNegativeFeedback(f: unknown): boolean {
+function isNegativeFeedback(f: Pick<Tables<'session_feedback'>, 'rating' | 'service_attention' | 'waiting_time'>): boolean {
   return f.rating <= 3 || (f.service_attention != null && f.service_attention <= 2) || (f.waiting_time != null && f.waiting_time <= 2);
 }
 

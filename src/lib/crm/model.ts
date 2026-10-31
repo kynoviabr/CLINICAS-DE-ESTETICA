@@ -136,7 +136,7 @@ export function normalizeStageCode(code?: string | null) {
   return code;
 }
 
-export function stageAppearance(stage: Pick<StageDefinition, 'code' | 'label' | 'description'>, index: number): StageDefinition {
+export function stageAppearance(stage: Pick<StageDefinition, 'code' | 'label' | 'description' | 'isSystem'>, index: number): StageDefinition {
   const preset = stageAppearanceMap[stage.code];
   if (preset) return { ...preset, ...stage };
 

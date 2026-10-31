@@ -30,6 +30,10 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { cn } from '@/lib/utils';
+import type { Tables } from '@/integrations/supabase/types';
+import { errorMessage } from '@/lib/errors';
+
+type ProposalItemRow = Tables<'proposal_items'> & { treatments: { name: string; id: string } | null };
 
 const formatCurrency = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
@@ -85,7 +89,7 @@ export default function ReportsPage() {
 
       // Proposal items for treatment breakdown
       const proposalIds = (proposals || []).map(p => p.id);
-      let items: unknown[] = [];
+      let items: ProposalItemRow[] = [];
       if (proposalIds.length > 0) {
         const { data } = await supabase.from('proposal_items')
           .select('*, treatments(name, id)')
@@ -257,7 +261,7 @@ export default function ReportsPage() {
       }
       generateFinancialPDF(clinicName, periodLabel, rows, { totalRevenue, totalPaid, totalPending, totalOverdue });
       toast.success('Relatório financeiro gerado!');
-    } catch (err: unknown) { toast.error(err.message || 'Erro ao gerar relatório'); } finally { setLoadingFinancial(false); }
+    } catch (err: unknown) { toast.error(errorMessage(err, 'Erro ao gerar relatório')); } finally { setLoadingFinancial(false); }
   };
 
   const handleSessionsExport = async () => {
@@ -280,7 +284,7 @@ export default function ReportsPage() {
       }));
       generateSessionsPDF(clinicName, periodLabel, rows, { totalSessions: sessions.length, uniquePatients, uniqueTreatments });
       toast.success('Relatório de sessões gerado!');
-    } catch (err: unknown) { toast.error(err.message || 'Erro ao gerar relatório'); } finally { setLoadingSessions(false); }
+    } catch (err: unknown) { toast.error(errorMessage(err, 'Erro ao gerar relatório')); } finally { setLoadingSessions(false); }
   };
 
   const totalSalesRevenue = salesReport?.proposals.reduce((s, p) => s + Number(p.final_amount || 0), 0) || 0;

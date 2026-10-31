@@ -18,6 +18,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, Edit, Stethoscope, Trash2, DollarSign, Copy } from 'lucide-react';
 import CombosTab from '@/components/treatments/CombosTab';
+import type { Tables } from '@/integrations/supabase/types';
 
 interface TreatmentForm {
   name: string;
@@ -157,7 +158,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
     onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
-  const openEdit = async (t: unknown) => {
+  const openEdit = async (t: Tables<'treatments'>) => {
     setEditingId(t.id);
     setForm({
       name: t.name,
@@ -184,7 +185,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
     setDialogOpen(true);
   };
 
-  const openDuplicate = async (t: unknown) => {
+  const openDuplicate = async (t: Tables<'treatments'>) => {
     await openEdit(t);
     setEditingId(null);
     setForm((current) => ({

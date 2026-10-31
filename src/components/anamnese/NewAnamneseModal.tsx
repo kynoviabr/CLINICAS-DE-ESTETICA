@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import type { TablesInsert } from '@/integrations/supabase/types';
 
 interface Props {
   open: boolean;
@@ -150,7 +151,8 @@ export default function NewAnamneseModal({ open, onOpenChange, patientId, clinic
       if (!validityDays || validityDays < 1) throw new Error('Validade deve ser no mínimo 1 dia');
       if (templates.length > 0 && !form.category_id) throw new Error('Selecione o tipo de tratamento.');
       if (templates.length > 0 && !form.template_id) throw new Error('Selecione o modelo de anamnese.');
-      const payload: Record<string, unknown> = {
+      const payload: TablesInsert<'patient_anamneses'> = {
+        anamnese_number: '', // o banco gera o número (trigger)
         clinic_id: clinicId,
         patient_id: patientId,
         title: form.title.trim() || selectedTemplate?.name || null,

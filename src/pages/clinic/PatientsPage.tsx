@@ -20,6 +20,7 @@ import { AnamneseBadge, getAnamneseStatus, type AnamneseStatus } from '@/compone
 import PayerSection, { type PayerData } from '@/components/patient/PayerSection';
 import { formatCep, lookupCepAddress } from '@/lib/cep';
 import { flattenContractTreatments, type ContractTreatmentRow } from '@/lib/patients/contractTreatments';
+import type { Tables, Enums } from '@/integrations/supabase/types';
 
 interface PatientForm {
   full_name: string;
@@ -86,7 +87,7 @@ export default function PatientsPage() {
         .order('created_at', { ascending: false });
 
       if (statusFilter !== 'all') {
-        q = q.eq('status', statusFilter);
+        q = q.eq('status', statusFilter as Enums<'patient_status'>);
       }
 
       const { data, error } = await q.limit(100);
@@ -326,7 +327,7 @@ export default function PatientsPage() {
     },
   });
 
-  const openEdit = (patient: unknown) => {
+  const openEdit = (patient: Tables<'patients'>) => {
     setEditingId(patient.id);
     setForm({
       full_name: patient.full_name || '',
