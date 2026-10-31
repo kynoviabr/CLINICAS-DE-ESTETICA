@@ -29,7 +29,7 @@ type WhatsAppAiSettings = {
   meta_token_configured: boolean;
 };
 
-const projectRef = import.meta.env.VITE_SUPABASE_PROJECT_ID || 'qpqknsvbhfljhndloyda';
+const projectRef = import.meta.env.VITE_SUPABASE_PROJECT_ID || 'tdpondnuxmokefllplwd';
 const webhookUrl = `https://${projectRef}.supabase.co/functions/v1/whatsapp-ai-agent`;
 
 const defaultSettings = (clinicId: string): WhatsAppAiSettings => ({
