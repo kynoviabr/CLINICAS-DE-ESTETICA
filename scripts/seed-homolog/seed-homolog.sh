@@ -8,9 +8,17 @@ set -euo pipefail
 
 HOMOLOG_REF="majqksguuwmjhuuwjltj"
 cd "$(dirname "$0")"
+REPO_ROOT="$(cd ../.. && pwd)"
 
 if ! command -v supabase >/dev/null 2>&1; then
   echo "Supabase CLI não encontrado. Instale e faça 'supabase login' antes." >&2
+  exit 1
+fi
+
+linked_ref="$(cat "$REPO_ROOT/supabase/.temp/project-ref" 2>/dev/null || true)"
+if [ "$linked_ref" != "$HOMOLOG_REF" ]; then
+  echo "Esta pasta não está ligada à homolog (ligada a: '${linked_ref:-nenhum}')." >&2
+  echo "Rode antes: supabase link --project-ref $HOMOLOG_REF" >&2
   exit 1
 fi
 
@@ -51,5 +59,5 @@ trap 'rm -f "$tmp"' EXIT
 unset senha_sql
 
 echo "Gravando na homolog..."
-supabase db query --project-ref "$HOMOLOG_REF" -f "$tmp"
+supabase db query --linked --workdir "$REPO_ROOT" -f "$tmp"
 echo "Pronto. A lista de contas está em scripts/seed-homolog/CONTAS.md"
