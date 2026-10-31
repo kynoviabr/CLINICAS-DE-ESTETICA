@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, MessageSquare, ClipboardList } from 'lucide-react';
+import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, MessageSquare, ClipboardList, FileText } from 'lucide-react';
 import CategoriesTab from '@/components/settings/CategoriesTab';
 import CostItemsTab from '@/components/settings/CostItemsTab';
 import ParametersTab from '@/components/settings/ParametersTab';
