@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
+import { useUrlState } from '@/hooks/useUrlState';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -99,6 +100,7 @@ function getPatientFilePath(value?: string | null) {
 }
 
 export default function PatientDetailPage() {
+  const [patientTab, setPatientTab] = useUrlState<string>('aba', 'data');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -856,7 +858,7 @@ export default function PatientDetailPage() {
       )}
 
       {/* Tabs */}
-      <Tabs defaultValue="data" className="animate-fade-in">
+      <Tabs value={patientTab} onValueChange={setPatientTab} className="animate-fade-in">
         <TabsList className="w-full flex overflow-x-auto gap-1 mb-6">
           <TabsTrigger value="data" className="flex items-center gap-1"><User className="w-3.5 h-3.5" />Dados</TabsTrigger>
           <TabsTrigger value="anamnese" className="flex items-center gap-1"><FileTextIcon className="w-3.5 h-3.5" />Anamnese</TabsTrigger>
