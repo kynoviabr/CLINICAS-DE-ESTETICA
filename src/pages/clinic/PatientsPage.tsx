@@ -19,6 +19,7 @@ import {
 import { AnamneseBadge, getAnamneseStatus, type AnamneseStatus } from '@/components/patient/AnamneseSection';
 import PayerSection, { type PayerData } from '@/components/patient/PayerSection';
 import { formatCep, lookupCepAddress } from '@/lib/cep';
+import { flattenContractTreatments, type ContractTreatmentRow } from '@/lib/patients/contractTreatments';
 
 interface PatientForm {
   full_name: string;
@@ -99,12 +100,13 @@ export default function PatientsPage() {
     queryKey: ['patient-contracts-filter-map', clinicId],
     queryFn: async () => {
       if (!clinicId) return [];
+      // Tratamentos do contrato vêm dos itens da proposta que originou o contrato.
       const { data, error } = await supabase
-        .from('contract_items')
-        .select('treatment_id, treatments(name), contracts!inner(patient_id, created_at, clinic_id)')
-        .eq('contracts.clinic_id', clinicId);
+        .from('contracts')
+        .select('patient_id, created_at, proposals(proposal_items(treatment_id, treatments(name)))')
+        .eq('clinic_id', clinicId);
       if (error) throw error;
-      return data || [];
+      return flattenContractTreatments(data || []);
     },
     enabled: !!clinicId,
   });
@@ -178,7 +180,7 @@ export default function PatientsPage() {
   const normalizedSearch = search.trim().toLowerCase();
   const normalizedSearchDigits = normalizeDigits(search);
 
-  const patientContractMeta = patientContracts.reduce<Record<string, { treatments: Set<string>; contractDates: string[] }>>((acc, row: unknown) => {
+  const patientContractMeta = patientContracts.reduce<Record<string, { treatments: Set<string>; contractDates: string[] }>>((acc, row: ContractTreatmentRow) => {
     const patientId = row?.contracts?.patient_id;
     if (!patientId) return acc;
     if (!acc[patientId]) {
@@ -228,7 +230,7 @@ export default function PatientsPage() {
     return true;
   });
 
-  const treatmentOptions = patientContracts.reduce<Array<{ id: string; name: string }>>((acc, row: unknown) => {
+  const treatmentOptions = patientContracts.reduce<Array<{ id: string; name: string }>>((acc, row: ContractTreatmentRow) => {
     if (!row?.treatment_id || !row?.treatments?.name) return acc;
     if (acc.some((item) => item.id === row.treatment_id)) return acc;
     acc.push({ id: row.treatment_id, name: row.treatments.name });
