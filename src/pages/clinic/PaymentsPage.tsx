@@ -123,15 +123,15 @@ export default function PaymentsPage() {
   const normalizedPlans = useMemo(() => {
     return plans.map((plan) => {
       const installments = [...(plan.payment_installments || [])].sort(
-        (a: unknown, b: unknown) => a.installment_number - b.installment_number
+        (a, b) => a.installment_number - b.installment_number
       );
       const totalAmount = Number(plan.total_amount || 0);
       const paidAmount = installments
         .filter((installment) => installment.status === 'paid')
-        .reduce((sum: number, installment: unknown) => sum + Number(installment.amount || 0), 0);
+        .reduce((sum: number, installment) => sum + Number(installment.amount || 0), 0);
       const overdueAmount = installments
         .filter((installment) => installment.status === 'overdue')
-        .reduce((sum: number, installment: unknown) => sum + Number(installment.amount || 0), 0);
+        .reduce((sum: number, installment) => sum + Number(installment.amount || 0), 0);
       const pendingAmount = Math.max(totalAmount - paidAmount, 0);
       const paidCount = installments.filter((installment) => installment.status === 'paid').length;
       const nextInstallment = installments.find((installment) =>
@@ -167,7 +167,7 @@ export default function PaymentsPage() {
 
   const totals = useMemo(() => {
     return normalizedPlans.reduce(
-      (acc, plan: unknown) => {
+      (acc, plan) => {
         acc.total += plan.totalAmount;
         acc.paid += plan.paidAmount;
         acc.pending += plan.pendingAmount;

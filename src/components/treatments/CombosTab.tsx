@@ -229,8 +229,8 @@ export default function CombosTab({ readOnly = false }: CombosTabProps = {}) {
               <tbody>
                 {combos.map((combo) => {
                   const comboItems = combo.treatment_combo_items || [];
-                  const totalPrice = comboItems.reduce((s: number, ci: unknown) => s + Number(ci.treatments?.default_price || ci.treatments?.price || 0) * (ci.quantity || 1), 0);
-                  const totalMin = comboItems.reduce((s: number, ci: unknown) => s + Number(ci.treatments?.min_price || 0) * (ci.quantity || 1), 0);
+                  const totalPrice = comboItems.reduce((s: number, ci) => s + Number(ci.treatments?.default_price || ci.treatments?.price || 0) * (ci.quantity || 1), 0);
+                  const totalMin = comboItems.reduce((s: number, ci) => s + Number(ci.treatments?.min_price || 0) * (ci.quantity || 1), 0);
                   return (
                     <tr key={combo.id} className="border-b last:border-0 hover:bg-secondary/30 transition-colors">
                       <td className="px-4 py-3 text-sm font-medium text-foreground">{combo.name}</td>

@@ -246,11 +246,11 @@ export default function ReportsPage() {
         const insts = installmentsByPlan[plan.id] || [];
         if (!insts.length) continue;
         const paidInsts = insts.filter((i) => i.status === 'paid');
-        const paidAmount = paidInsts.reduce((s: number, i: unknown) => s + Number(i.amount), 0);
-        const totalAmount = insts.reduce((s: number, i: unknown) => s + Number(i.amount), 0);
+        const paidAmount = paidInsts.reduce((s: number, i) => s + Number(i.amount), 0);
+        const totalAmount = insts.reduce((s: number, i) => s + Number(i.amount), 0);
         const pendingAmount = totalAmount - paidAmount;
         const overdueInsts = insts.filter((i) => i.status === 'overdue');
-        const overdueAmount = overdueInsts.reduce((s: number, i: unknown) => s + Number(i.amount), 0);
+        const overdueAmount = overdueInsts.reduce((s: number, i) => s + Number(i.amount), 0);
         totalRevenue += totalAmount; totalPaid += paidAmount; totalPending += pendingAmount; totalOverdue += overdueAmount;
         rows.push({
           patient: (plan).patients?.full_name || '—',

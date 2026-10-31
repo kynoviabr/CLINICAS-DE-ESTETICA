@@ -36,11 +36,11 @@ export default function FeedbackPage() {
   });
 
   const last30 = feedbacks.filter((f) => new Date(f.created_at) >= subDays(new Date(), 30));
-  const avgRating = last30.length > 0 ? last30.reduce((s: number, f: unknown) => s + f.rating, 0) / last30.length : 0;
+  const avgRating = last30.length > 0 ? last30.reduce((s: number, f) => s + f.rating, 0) / last30.length : 0;
   const avgService = last30.filter((f) => f.service_attention != null);
-  const avgServiceScore = avgService.length > 0 ? avgService.reduce((s: number, f: unknown) => s + f.service_attention, 0) / avgService.length : 0;
+  const avgServiceScore = avgService.length > 0 ? avgService.reduce((s: number, f) => s + f.service_attention, 0) / avgService.length : 0;
   const avgWaiting = last30.filter((f) => f.waiting_time != null);
-  const avgWaitingScore = avgWaiting.length > 0 ? avgWaiting.reduce((s: number, f: unknown) => s + f.waiting_time, 0) / avgWaiting.length : 0;
+  const avgWaitingScore = avgWaiting.length > 0 ? avgWaiting.reduce((s: number, f) => s + f.waiting_time, 0) / avgWaiting.length : 0;
   const negativeCount = last30.filter(isNegativeFeedback).length;
 
   return (
