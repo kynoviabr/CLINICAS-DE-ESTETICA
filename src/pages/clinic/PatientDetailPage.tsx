@@ -42,6 +42,7 @@ import {
 import type { Database } from '@/integrations/supabase/types';
 import { formatCep, lookupCepAddress } from '@/lib/cep';
 import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
+import { functionError } from '@/lib/errors';
 
 const PATIENT_FILES_BUCKET = 'patient-files';
 const typeLabels: Record<string, string> = { before: 'Antes', during: 'Durante', after: 'Depois', progress: 'Progresso' };
@@ -279,7 +280,7 @@ export default function PatientDetailPage() {
       const { data, error } = await supabase.functions.invoke('invite-patient', {
         body: { patientId: id, clinicId },
       });
-      if (error) throw error;
+      if (error) throw await functionError(error);
       if (data?.error) throw new Error(data.error);
       toast.success(data?.message || 'Acesso ao portal concedido!');
       queryClient.invalidateQueries({ queryKey: ['patient-portal-access', id] });

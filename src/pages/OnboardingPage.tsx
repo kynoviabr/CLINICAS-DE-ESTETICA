@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Stethoscope, Building2, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { functionError } from '@/lib/errors';
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Tente novamente em alguns instantes.';
@@ -41,7 +42,7 @@ export default function OnboardingPage() {
         body: { clinicName, phone, email },
       });
 
-      if (error) throw error;
+      if (error) throw await functionError(error);
       if (data?.error) throw new Error(data.error);
 
       toast({ title: 'Clínica criada com sucesso!', description: 'Bem-vindo ao Kynovia.' });

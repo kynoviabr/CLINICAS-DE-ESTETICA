@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { errorMessage } from '@/lib/errors';
+import { errorMessage, functionError } from '@/lib/errors';
 
 describe('errorMessage', () => {
   it('uses Error.message', () => expect(errorMessage(new Error('boom'), 'x')).toBe('boom'));
@@ -8,5 +8,17 @@ describe('errorMessage', () => {
     expect(errorMessage(null, 'x')).toBe('x');
     expect(errorMessage({ message: '' }, 'x')).toBe('x');
     expect(errorMessage('str', 'x')).toBe('x');
+  });
+});
+
+describe('functionError', () => {
+  it('uses the error message from the function body', async () => {
+    const err = Object.assign(new Error('Edge Function returned a non-2xx status code'), {
+      context: new Response(JSON.stringify({ error: 'Este e-mail já está vinculado a outra clínica.' }), { status: 409 }),
+    });
+    expect((await functionError(err)).message).toBe('Este e-mail já está vinculado a outra clínica.');
+  });
+  it('keeps the original error otherwise', async () => {
+    expect((await functionError(new Error('rede'))).message).toBe('rede');
   });
 });

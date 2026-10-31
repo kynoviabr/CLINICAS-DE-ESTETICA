@@ -32,7 +32,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { Tables } from '@/integrations/supabase/types';
-import { errorMessage } from '@/lib/errors';
+import { errorMessage, functionError } from '@/lib/errors';
 
 type StaffMember = Pick<Tables<'user_roles'>, 'id' | 'user_id' | 'role' | 'is_active' | 'created_at'>;
 type Invitation = Tables<'team_invitations'>;
@@ -186,7 +186,7 @@ export default function SettingsPage() {
       const { data, error } = await supabase.functions.invoke('invite-team-member', {
         body: { email: inviteEmail.trim(), role: derivedRole, clinicId, cargoName: inviteCargo },
       });
-      if (error) throw error;
+      if (error) throw await functionError(error);
       if (data?.error) throw new Error(data.error);
 
       toast({ title: data.status === 'added' ? 'Membro adicionado!' : 'Convite enviado!', description: data.message });

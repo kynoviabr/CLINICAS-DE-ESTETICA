@@ -22,6 +22,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const appUrl = Deno.env.get("APP_URL") || "https://klinova.vercel.app";
 
     // Verify caller
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -69,79 +70,71 @@ serve(async (req) => {
       });
     }
 
-    // Check if user already exists in auth
-    const { data: { users: existingUsers } } = await adminClient.auth.admin.listUsers();
-    const existingUser = existingUsers?.find((u: unknown) => u.email === email.toLowerCase().trim());
+    const normalizedEmail = email.toLowerCase().trim();
+    const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+      status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
+    // Busca a conta pelo e-mail direto no banco (listUsers só lê a primeira página).
+    const { data: found, error: findError } = await adminClient.rpc("find_auth_user_by_email", { p_email: normalizedEmail });
+    if (findError) return json({ error: findError.message }, 500);
+    const existingUser = (found as Array<{ id: string; email_confirmed: boolean }> | null)?.[0] ?? null;
 
     if (existingUser) {
-      // Check if already has a role in this clinic
-      const { data: existingRole } = await adminClient
+      const { data: activeRole } = await adminClient
         .from("user_roles")
-        .select("id")
+        .select("clinic_id")
         .eq("user_id", existingUser.id)
-        .eq("clinic_id", clinicId)
+        .eq("is_active", true)
         .maybeSingle();
 
-      if (existingRole) {
-        return new Response(JSON.stringify({ error: "Este usuário já faz parte da equipe" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (activeRole?.clinic_id === clinicId) {
+        return json({ error: "Este usuário já faz parte da equipe" }, 400);
       }
-
-      // Add role directly
-      const { error: roleError } = await adminClient.from("user_roles").insert({
-        user_id: existingUser.id, clinic_id: clinicId, role, is_active: true,
-      });
-
-      if (roleError) {
-        return new Response(JSON.stringify({ error: roleError.message }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (activeRole) {
+        // Uma clínica por pessoa: nunca puxar alguém de outra clínica sem o consentimento dela.
+        return json({ error: "Este e-mail já está vinculado a outra clínica. Peça para a pessoa usar outro e-mail." }, 409);
       }
-
-      // Mark any pending invitation as accepted
-      await adminClient.from("team_invitations")
-        .update({ status: "accepted", accepted_at: new Date().toISOString() })
-        .eq("clinic_id", clinicId).eq("email", email.toLowerCase().trim());
-
-      return new Response(JSON.stringify({ message: "Membro adicionado à equipe!", status: "added" }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
     }
 
-    // User doesn't exist — create a pending invitation
-    let { error: invError } = await adminClient.from("team_invitations").upsert({
+    // Registra (ou renova) o convite. O papel só é dado quando o e-mail for confirmado.
+    const invitation = {
       clinic_id: clinicId,
-      email: email.toLowerCase().trim(),
+      email: normalizedEmail,
       role,
       cargo_name: cargoName ?? null,
       invited_by: user.id,
       status: "pending",
-    }, { onConflict: "clinic_id,email" });
+      accepted_at: null,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    const { error: invError } = await adminClient.from("team_invitations").upsert(invitation, { onConflict: "clinic_id,email" });
+    if (invError) return json({ error: invError.message }, 500);
 
-    if (invError && (invError.code === "42703" || invError.message?.includes("cargo_name"))) {
-      // Backward compatibility for environments where migration wasn't applied yet.
-      const fallback = await adminClient.from("team_invitations").upsert({
-        clinic_id: clinicId,
-        email: email.toLowerCase().trim(),
-        role,
-        invited_by: user.id,
-        status: "pending",
-      }, { onConflict: "clinic_id,email" });
-      invError = fallback.error;
-    }
-
-    if (invError) {
-      return new Response(JSON.stringify({ error: invError.message }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    if (existingUser?.email_confirmed) {
+      // Conta já existe e o e-mail é dela: entra na equipe agora.
+      const { error: roleError } = await adminClient.from("user_roles").insert({
+        user_id: existingUser.id, clinic_id: clinicId, role, is_active: true,
       });
+      if (roleError) return json({ error: roleError.message }, 500);
+      await adminClient.from("team_invitations")
+        .update({ status: "accepted", accepted_at: new Date().toISOString() })
+        .eq("clinic_id", clinicId).eq("email", normalizedEmail);
+      return json({ message: "Membro adicionado à equipe! Ele já pode entrar com o e-mail de sempre.", status: "added" });
     }
 
-    return new Response(JSON.stringify({
-      message: "Convite criado! O membro receberá o papel ao criar conta.",
+    // Conta nova (ou ainda não confirmada): o Supabase manda o e-mail de convite.
+    const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(normalizedEmail, {
+      redirectTo: `${appUrl}/reset-password`,
+      data: { invited_to_clinic: clinicId },
+    });
+    if (inviteError) {
+      return json({ error: `Convite salvo, mas o e-mail não foi enviado: ${inviteError.message}` }, 502);
+    }
+
+    return json({
+      message: "Convite enviado! A pessoa recebe um e-mail para definir a senha ou entrar com Google.",
       status: "invited",
-    }), {
-      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (err) {

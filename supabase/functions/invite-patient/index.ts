@@ -103,11 +103,17 @@ serve(async (req) => {
     }
 
     // Check if auth user already exists
-    const { data: { users: existingUsers } } = await adminClient.auth.admin.listUsers();
+    // Busca a conta pelo e-mail direto no banco (listUsers só lê a primeira página).
+    const { data: found, error: findError } = await adminClient.rpc("find_auth_user_by_email", { p_email: email });
+    if (findError) {
+      return new Response(JSON.stringify({ error: findError.message }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     let authUserId: string;
     let accountCreated = false;
 
-    const existingUser = existingUsers?.find((u) => u.email === email);
+    const existingUser = (found as Array<{ id: string; email_confirmed: boolean }> | null)?.[0] ?? null;
 
     if (existingUser) {
       authUserId = existingUser.id;

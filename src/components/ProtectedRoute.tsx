@@ -21,9 +21,9 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
   if (!user) return <Navigate to="/login" replace />;
 
-  // If a route expects roles and user has none, force onboarding.
+  // Logado, mas sem clínica: explica o motivo em vez de cair direto no cadastro de clínica.
   if (allowedRoles && !role) {
-    return <Navigate to="/onboarding" replace />;
+    return <Navigate to="/sem-acesso" replace />;
   }
 
   if (allowedRoles && role && !allowedRoles.includes(role)) {
