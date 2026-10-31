@@ -400,7 +400,7 @@ export default function PatientDetailPage() {
       setEditOpen(false);
       toast.success('Dados do paciente atualizados');
     },
-    onError: (err: unknown) => {
+    onError: (err: Error) => {
       const message = err instanceof Error ? err.message : 'Erro ao atualizar paciente';
       toast.error(message);
     },
@@ -556,7 +556,7 @@ export default function PatientDetailPage() {
       toast.success(`Contrato ${contractNumber} gerado`);
       resetContractDialog();
     },
-    onError: (err: unknown) => {
+    onError: (err: Error) => {
       const message = err instanceof Error ? err.message : 'Erro ao gerar contrato';
       toast.error(message);
     },

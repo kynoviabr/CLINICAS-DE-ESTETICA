@@ -94,7 +94,7 @@ export default function CategoriesTab() {
       setForm(emptyForm);
       toast({ title: editingId ? 'Categoria atualizada!' : 'Categoria criada!' });
     },
-    onError: (err: unknown) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   const openEdit = (cat: unknown) => {
@@ -139,7 +139,7 @@ export default function CategoriesTab() {
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {categories.map((cat: unknown) => (
+              {categories.map((cat) => (
                 <div key={cat.id} className="flex items-center justify-between py-3">
                   <div>
                     <p className="text-sm font-medium text-foreground">{cat.name}</p>

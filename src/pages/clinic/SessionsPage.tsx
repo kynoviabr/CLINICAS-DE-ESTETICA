@@ -514,7 +514,7 @@ export default function SessionsPage() {
       setForm(emptyForm);
       toast({ title: 'Sessão registrada com sucesso!' });
     },
-    onError: (err: unknown) => {
+    onError: (err: Error) => {
       toast({ title: 'Erro', description: err instanceof Error ? err.message : 'Erro ao registrar sessão', variant: 'destructive' });
     },
   });
@@ -585,7 +585,7 @@ export default function SessionsPage() {
       setPlannerTarget(null);
       toast({ title: 'Sessões planejadas com sucesso!' });
     },
-    onError: (err: unknown) => {
+    onError: (err: Error) => {
       toast({ title: 'Erro ao planejar sessões', description: err instanceof Error ? err.message : 'Erro ao planejar sessões', variant: 'destructive' });
     },
   });

@@ -44,7 +44,7 @@ export function useStaffDirectory(clinicId?: string | null, roles?: StaffRole[])
       if (roleError) throw roleError;
 
       const activeRoles = roleRows || [];
-      const userIds = [...new Set(activeRoles.map((row: unknown) => row.user_id).filter(Boolean))];
+      const userIds = [...new Set(activeRoles.map((row) => row.user_id).filter(Boolean))];
 
       let professionalsByUser = new Map<string, string>();
       if (userIds.length > 0) {
@@ -58,11 +58,11 @@ export function useStaffDirectory(clinicId?: string | null, roles?: StaffRole[])
         if (professionalsError) throw professionalsError;
 
         professionalsByUser = new Map(
-          (professionals || []).map((professional: unknown) => [professional.user_id, professional.full_name])
+          (professionals || []).map((professional) => [professional.user_id, professional.full_name])
         );
       }
 
-      return activeRoles.map((row: unknown) => {
+      return activeRoles.map((row) => {
         const currentUserFallback =
           row.user_id === user?.id
             ? ((user.user_metadata?.full_name as string | undefined) || user.email?.split('@')[0] || null)

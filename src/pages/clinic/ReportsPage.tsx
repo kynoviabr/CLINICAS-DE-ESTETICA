@@ -103,7 +103,7 @@ export default function ReportsPage() {
         const { data: costItems } = await supabase.from('treatment_cost_items')
           .select('treatment_id, quantity, cost_items(unit_cost)');
         const ci = costItems || [];
-        ci.forEach((c: unknown) => {
+        ci.forEach((c) => {
           const tid = c.treatment_id;
           const cost = Number(c.quantity) * Number(c.cost_items?.unit_cost || 0);
           costMap[tid] = (costMap[tid] || 0) + cost;
@@ -154,7 +154,7 @@ export default function ReportsPage() {
     return Object.entries(byUser)
       .map(([userId, data]) => {
         const staff = staffList.find(s => s.user_id === userId);
-        const goal = salesReport.goals.find((g: unknown) => g.user_id === userId);
+        const goal = salesReport.goals.find((g) => g.user_id === userId);
         const goalAmount = goal ? Number(goal.goal_amount) : 0;
         const pct = goalAmount > 0 ? Math.round((data.total / goalAmount) * 100) : 0;
         return { userId, ...data, ticket: data.count > 0 ? data.total / data.count : 0, role: staff?.role || 'admin', goalAmount, pct };
@@ -166,7 +166,7 @@ export default function ReportsPage() {
   const treatmentData = (() => {
     if (!salesReport) return [];
     const byTreatment: Record<string, { name: string; count: number; revenue: number; treatmentId: string }> = {};
-    salesReport.items.forEach((item: unknown) => {
+    salesReport.items.forEach((item) => {
       const tid = item.treatment_id;
       const name = item.treatments?.name || 'Desconhecido';
       if (!byTreatment[tid]) byTreatment[tid] = { name, count: 0, revenue: 0, treatmentId: tid };
@@ -180,7 +180,7 @@ export default function ReportsPage() {
   const marginData = (() => {
     if (!salesReport || !isAdmin) return { rows: [], totalRevenue: 0, totalCost: 0 };
     const byTreatment: Record<string, { name: string; units: number; revenue: number; cost: number }> = {};
-    salesReport.items.forEach((item: unknown) => {
+    salesReport.items.forEach((item) => {
       const tid = item.treatment_id;
       const name = item.treatments?.name || 'Desconhecido';
       if (!byTreatment[tid]) byTreatment[tid] = { name, units: 0, revenue: 0, cost: 0 };
@@ -210,7 +210,7 @@ export default function ReportsPage() {
       if (p.created_by) byUser[p.created_by] = (byUser[p.created_by] || 0) + Number(p.final_amount || 0);
     });
 
-    let entries = goals.map((g: unknown) => {
+    let entries = goals.map((g) => {
       const staff = staffList.find(s => s.user_id === g.user_id);
       const realized = byUser[g.user_id] || 0;
       const goalAmount = Number(g.goal_amount);
@@ -245,12 +245,12 @@ export default function ReportsPage() {
       for (const plan of plans) {
         const insts = installmentsByPlan[plan.id] || [];
         if (!insts.length) continue;
-        const paidInsts = insts.filter((i: unknown) => i.status === 'paid');
-        const paidAmount = paidInsts.reduce((s: number, i: unknown) => s + Number(i.amount), 0);
-        const totalAmount = insts.reduce((s: number, i: unknown) => s + Number(i.amount), 0);
+        const paidInsts = insts.filter((i) => i.status === 'paid');
+        const paidAmount = paidInsts.reduce((s: number, i) => s + Number(i.amount), 0);
+        const totalAmount = insts.reduce((s: number, i) => s + Number(i.amount), 0);
         const pendingAmount = totalAmount - paidAmount;
-        const overdueInsts = insts.filter((i: unknown) => i.status === 'overdue');
-        const overdueAmount = overdueInsts.reduce((s: number, i: unknown) => s + Number(i.amount), 0);
+        const overdueInsts = insts.filter((i) => i.status === 'overdue');
+        const overdueAmount = overdueInsts.reduce((s: number, i) => s + Number(i.amount), 0);
         totalRevenue += totalAmount; totalPaid += paidAmount; totalPending += pendingAmount; totalOverdue += overdueAmount;
         rows.push({
           patient: (plan).patients?.full_name || '—',
