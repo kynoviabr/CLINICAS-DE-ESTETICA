@@ -28,3 +28,7 @@ tmp-settings.png
 *.sln
 *.sw?
 .vercel
+
+# Local env (use .env.example as template)
+.env
+.env.e2e.local
