@@ -1,0 +1,70 @@
+name: Backup do banco
+
+# Dump criptografado do banco de produção para o Google Drive a cada 4 horas.
+# Secrets necessários:
+#   SUPABASE_DB_URL      URI do pooler (session mode, porta 5432) com a senha do banco
+#   BACKUP_PASSPHRASE    senha usada para criptografar os arquivos (guardar fora do GitHub)
+#   RCLONE_DRIVE_TOKEN   token OAuth do Google Drive gerado com `rclone authorize "drive"`
+#   GDRIVE_FOLDER_ID     ID da pasta "Backups Clinova" no Drive
+
+on:
+  schedule:
+    - cron: "0 */4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RETENTION: 30d
+    steps:
+      - name: Instala pg_dump 17 e rclone
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17 rclone
+          /usr/lib/postgresql/17/bin/pg_dump --version
+
+      - name: Gera os dumps
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          stamp=$(date -u +%Y-%m-%dT%H-%MZ)
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+          mkdir -p out
+          pg_dump=/usr/lib/postgresql/17/bin/pg_dump
+          # Schema e dados do app.
+          $pg_dump "$SUPABASE_DB_URL" -Fc --no-owner --no-privileges -n public -f "out/public.dump"
+          # Usuários, logins sociais e metadados de arquivos (schemas gerenciados pelo Supabase).
+          $pg_dump "$SUPABASE_DB_URL" -Fc --data-only -t auth.users -t auth.identities -t storage.objects -f "out/auth-storage.dump"
+          tar -C out -czf "clinova-$stamp.tar.gz" .
+          ls -lh "clinova-$stamp.tar.gz"
+
+      - name: Criptografa
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          gpg --batch --yes --pinentry-mode loopback --symmetric --cipher-algo AES256 \
+            --passphrase-fd 0 -o "clinova-$STAMP.tar.gz.gpg" "clinova-$STAMP.tar.gz" <<< "$BACKUP_PASSPHRASE"
+          rm -rf out "clinova-$STAMP.tar.gz"
+
+      - name: Envia para o Google Drive e apaga os antigos
+        env:
+          RCLONE_CONFIG_GDRIVE_TYPE: drive
+          RCLONE_CONFIG_GDRIVE_SCOPE: drive
+          RCLONE_CONFIG_GDRIVE_TOKEN: ${{ secrets.RCLONE_DRIVE_TOKEN }}
+          RCLONE_CONFIG_GDRIVE_ROOT_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          set -euo pipefail
+          rclone copy "clinova-$STAMP.tar.gz.gpg" gdrive:
+          rclone delete gdrive: --min-age "$RETENTION" --include "clinova-*.tar.gz.gpg"
+          rclone lsl gdrive: --include "clinova-*.tar.gz.gpg" | tail -5
