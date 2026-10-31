@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Smartphone, ShieldCheck, ShieldOff, Send, UserPlus, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { functionError } from '@/lib/errors';
 
 type PatientOption = {
   id: string;
@@ -112,7 +113,7 @@ export default function PatientAppAccessTab() {
       const { data, error } = await supabase.functions.invoke('invite-patient', {
         body: { patientId: selectedPatientId, clinicId, forceResend: true },
       });
-      if (error) throw error;
+      if (error) throw await functionError(error);
       if ((data as { error?: string } | null)?.error) throw new Error((data as { error: string }).error);
       toast({ title: 'Acesso liberado', description: (data as { message?: string } | null)?.message || 'Convite processado com sucesso.' });
       setOpen(false);
@@ -152,7 +153,7 @@ export default function PatientAppAccessTab() {
       const { data, error } = await supabase.functions.invoke('invite-patient', {
         body: { patientId: row.patient_id, clinicId: row.clinic_id, forceResend: true },
       });
-      if (error) throw error;
+      if (error) throw await functionError(error);
       if ((data as { error?: string } | null)?.error) throw new Error((data as { error: string }).error);
       toast({ title: 'Convite reenviado', description: (data as { message?: string } | null)?.message || 'Novo convite disparado com sucesso.' });
       loadData();

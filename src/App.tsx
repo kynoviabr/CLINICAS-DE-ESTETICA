@@ -15,6 +15,7 @@ import { PageLoader } from "./components/PageLoader";
 
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
+const NoAccessPage = lazy(() => import("./pages/NoAccessPage"));
 const ClinicDashboard = lazy(() => import("./pages/clinic/DashboardPage"));
 const CrmPage = lazy(() => import("./pages/clinic/CrmPage"));
 const PatientsPage = lazy(() => import("./pages/clinic/PatientsPage"));
@@ -55,6 +56,11 @@ const App = () => (
               <Route path="/" element={<Navigate to="/login" replace />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/sem-acesso" element={
+                <ProtectedRoute>
+                  <NoAccessPage />
+                </ProtectedRoute>
+              } />
               <Route path="/onboarding" element={
                 <ProtectedRoute>
                   <OnboardingPage />
