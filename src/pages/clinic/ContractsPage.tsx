@@ -31,6 +31,7 @@ import {
   type PaymentMethod,
 } from '@/components/contracts/ContractPaymentConfigurator';
 import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
+import { formatCpf, formatPatientAddress } from '@/lib/patients/validation';
 
 type ContractRow = Database['public']['Tables']['contracts']['Row'];
 type ContractStatus = Database['public']['Enums']['contract_status'];
@@ -54,6 +55,12 @@ type ApprovedProposal = {
     date_of_birth?: string | null;
     payer_id?: string | null;
     is_self_payer?: boolean | null;
+    address?: string | null;
+    address_number?: string | null;
+    address_complement?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip_code?: string | null;
   } | null;
 };
 type ProposalItemLite = { quantity: number; treatments?: { name?: string | null; num_sessions?: number | null } | null };
@@ -168,7 +175,7 @@ export default function ContractsPage() {
       const linkedIds = (allContracts || []).map((contract) => contract.proposal_id).filter(Boolean);
       let query = supabase
         .from('proposals')
-        .select('id, proposal_number, patient_id, final_amount, patients(full_name, cpf, date_of_birth, payer_id, is_self_payer)')
+        .select('id, proposal_number, patient_id, final_amount, patients(full_name, cpf, date_of_birth, payer_id, is_self_payer, address, address_number, address_complement, city, state, zip_code)')
         .eq('clinic_id', clinicId!)
         .eq('status', 'accepted' as ProposalStatus);
 
@@ -341,9 +348,9 @@ export default function ContractsPage() {
         },
         patient: {
           name: patient?.full_name || '',
-          cpf: patient.cpf || '',
+          cpf: patient.cpf ? formatCpf(patient.cpf) : '',
           birth_date: patient?.date_of_birth || '',
-          address: ''
+          address: formatPatientAddress(patient ?? {})
         },
         payer: !payerData.is_self_payer && payerRaw ? {
           name: payerRaw.name || '',

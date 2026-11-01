@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { findPatientDuplicates } from '@/lib/patients/duplicates';
+import { onlyDigits } from '@/lib/patients/validation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -785,13 +787,20 @@ export function useCrmPage() {
   async function ensurePatientForLead(lead: LeadRow) {
     if (lead.patient_id) return lead.patient_id;
 
-    const { data, error } = await supabase
+    // Mesmo CPF de um cliente já cadastrado: liga o lead a ele em vez de duplicar.
+    const sameCpf = lead.cpf
+      ? (await findPatientDuplicates(lead.clinic_id, lead.cpf, null)).find((d) => d.match_type === 'cpf')
+      : undefined;
+
+    const { data: insertedPatient, error } = sameCpf
+      ? { data: { id: sameCpf.patient_id }, error: null }
+      : await supabase
       .from('patients')
       .insert({
         clinic_id: lead.clinic_id,
         full_name: lead.full_name,
         phone: lead.phone,
-        cpf: lead.cpf,
+        cpf: onlyDigits(lead.cpf) || null,
         email: lead.email,
         date_of_birth: lead.birth_date,
         zip_code: lead.zip_code,
@@ -805,6 +814,7 @@ export function useCrmPage() {
       .single();
 
     if (error) throw error;
+    const data = insertedPatient!;
 
     const convertedAt = new Date().toISOString();
 
