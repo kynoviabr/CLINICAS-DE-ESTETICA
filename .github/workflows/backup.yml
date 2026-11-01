@@ -11,7 +11,7 @@ name: Backup do banco
 
 on:
   schedule:
-    - cron: "0 */4 * * *"
+    - cron: "17 */4 * * *"  # minuto 17: fora do pico do GitHub no minuto 0, que atrasa ou pula agendamentos
   workflow_dispatch:
 
 concurrency:

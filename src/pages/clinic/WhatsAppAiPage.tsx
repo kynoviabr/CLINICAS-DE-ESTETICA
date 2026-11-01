@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useUrlState } from '@/hooks/useUrlState';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -65,7 +66,7 @@ export default function WhatsAppAiPage() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'open' | 'handoff' | 'closed'>('all');
+  const [filter, setFilter] = useUrlState<'all' | 'open' | 'handoff' | 'closed'>('filtro', 'all', ['all', 'open', 'handoff', 'closed']);
 
   const { data: conversations = [], isLoading, error: conversationsError } = useQuery({
     queryKey: ['whatsapp-ai-conversations', clinicId],

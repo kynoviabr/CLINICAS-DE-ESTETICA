@@ -36,7 +36,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       error,
     } = await supabase.auth.getUser();
 
-    setUser(error ? null : user);
+    // Mantém a mesma referência se for o mesmo usuário, evitando re-renders/recargas
+    // em cascata quando o Supabase revalida a sessão ao voltar para a aba.
+    setUser((current) => (error ? null : current && user && current.id === user.id ? current : user));
   }, []);
 
   useEffect(() => {

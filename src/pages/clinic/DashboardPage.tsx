@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useUrlState } from '@/hooks/useUrlState';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -30,7 +31,11 @@ import { cn } from '@/lib/utils';
 import { useMemo, useState } from 'react';
 import type { Database } from '@/integrations/supabase/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import { Button } from '@/components/ui/button';
+
+const DASHBOARD_TABS = ['executivo', 'comercial', 'financeiro', 'operacao', 'pessoas'] as const;
+type DashboardTab = (typeof DASHBOARD_TABS)[number];
 
 const CHART_COLORS = ['hsl(var(--primary))', 'hsl(var(--accent))', '#34d399', '#f59e0b', '#8b5cf6', '#ec4899'];
 type ContractStatusRow = Pick<Database['public']['Tables']['contracts']['Row'], 'process_status'>;
@@ -470,7 +475,7 @@ export default function ClinicDashboard() {
   }, [funnelData]);
 
   const tooltipStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' };
-  const [activeTab, setActiveTab] = useState<'executivo' | 'comercial' | 'financeiro' | 'operacao' | 'pessoas'>('executivo');
+  const [activeTab, setActiveTab] = useUrlState<DashboardTab>('aba', 'executivo', DASHBOARD_TABS);
 
   const executiveSemaphores = useMemo(() => {
     const commercialRevenue = totalSalesMonth;

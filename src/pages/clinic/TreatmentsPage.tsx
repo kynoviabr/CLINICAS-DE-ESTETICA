@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useUrlState } from '@/hooks/useUrlState';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -227,7 +228,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
           ? 'text-amber-700'
           : 'text-destructive';
 
-  const [activeTab, setActiveTab] = useState('treatments');
+  const [activeTab, setActiveTab] = useUrlState<string>('aba', 'treatments');
 
   return (
     <div>
