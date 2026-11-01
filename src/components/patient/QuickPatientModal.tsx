@@ -8,6 +8,9 @@ import { Label } from '@/components/ui/label';
 import { BrandButton } from '@/components/ui/brand-button';
 import { useToast } from '@/hooks/use-toast';
 import { UserPlus } from 'lucide-react';
+import { formatCpf, formatPhone, onlyDigits, patientSaveErrorMessage, validatePatientFields, type PatientFieldErrors } from '@/lib/patients/validation';
+import { PatientDuplicateAlert } from '@/components/patient/PatientDuplicateAlert';
+import { usePatientDuplicateCheck } from '@/hooks/usePatientDuplicateCheck';
 
 interface QuickPatientModalProps {
   open: boolean;
@@ -23,38 +26,14 @@ export default function QuickPatientModal({ open, onOpenChange, onCreated }: Qui
   const [phone, setPhone] = useState('');
   const [cpf, setCpf] = useState('');
   const [email, setEmail] = useState('');
+  const [errors, setErrors] = useState<PatientFieldErrors>({});
+  const [checking, setChecking] = useState(false);
+  const duplicates = usePatientDuplicateCheck(clinicId);
 
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!clinicId) throw new Error('Clínica não encontrada');
       if (!fullName.trim()) throw new Error('Nome é obrigatório');
-      if (!phone.trim()) throw new Error('Telefone é obrigatório');
-
-      // Check duplicates by phone
-      const { data: byPhone } = await supabase
-        .from('patients')
-        .select('id, full_name')
-        .eq('clinic_id', clinicId)
-        .eq('phone', phone.trim())
-        .limit(1);
-
-      if (byPhone && byPhone.length > 0) {
-        throw new Error(`Já existe um paciente com este telefone: ${byPhone[0].full_name}`);
-      }
-
-      // Check duplicates by CPF if provided
-      if (cpf.trim()) {
-        const { data: byCpf } = await supabase
-          .from('patients')
-          .select('id, full_name')
-          .eq('clinic_id', clinicId)
-          .eq('cpf', cpf.trim())
-          .limit(1);
-
-        if (byCpf && byCpf.length > 0) {
-          throw new Error(`Já existe um paciente com este CPF: ${byCpf[0].full_name}`);
-        }
-      }
 
       const { data, error } = await supabase
         .from('patients')
@@ -62,7 +41,7 @@ export default function QuickPatientModal({ open, onOpenChange, onCreated }: Qui
           clinic_id: clinicId,
           full_name: fullName.trim(),
           phone: phone.trim(),
-          cpf: cpf.trim() || null,
+          cpf: onlyDigits(cpf) || null,
           email: email.trim() || null,
           is_self_payer: true,
         })
@@ -81,7 +60,7 @@ export default function QuickPatientModal({ open, onOpenChange, onCreated }: Qui
       onOpenChange(false);
     },
     onError: (err: Error) => {
-      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+      toast({ title: 'Erro', description: patientSaveErrorMessage(err), variant: 'destructive' });
     },
   });
 
@@ -90,7 +69,26 @@ export default function QuickPatientModal({ open, onOpenChange, onCreated }: Qui
     setPhone('');
     setCpf('');
     setEmail('');
+    setErrors({});
+    duplicates.reset();
   };
+
+  const handleSubmit = async () => {
+    const found = validatePatientFields({ cpf, phone, address: '', address_number: '' });
+    setErrors(found);
+    if (Object.keys(found).length > 0) return;
+    try {
+      setChecking(true);
+      if (!(await duplicates.canSave(cpf, phone))) return;
+    } catch (err) {
+      toast({ title: 'Erro', description: patientSaveErrorMessage(err), variant: 'destructive' });
+      return;
+    } finally {
+      setChecking(false);
+    }
+    createMutation.mutate();
+  };
+  const checkOnBlur = () => { duplicates.check(cpf, phone).catch(() => undefined); };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -104,7 +102,7 @@ export default function QuickPatientModal({ open, onOpenChange, onCreated }: Qui
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            createMutation.mutate();
+            handleSubmit();
           }}
           className="space-y-4 mt-2"
         >
@@ -121,19 +119,30 @@ export default function QuickPatientModal({ open, onOpenChange, onCreated }: Qui
             <Label>Telefone *</Label>
             <Input
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(formatPhone(e.target.value))}
+              onBlur={checkOnBlur}
               placeholder="(11) 99999-9999"
+              inputMode="tel"
+              aria-invalid={!!errors.phone}
+              className={errors.phone ? 'border-destructive' : undefined}
               required
             />
+            {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>CPF</Label>
+              <Label>CPF *</Label>
               <Input
                 value={cpf}
-                onChange={(e) => setCpf(e.target.value)}
+                onChange={(e) => setCpf(formatCpf(e.target.value))}
+                onBlur={checkOnBlur}
                 placeholder="000.000.000-00"
+                inputMode="numeric"
+                aria-invalid={!!errors.cpf}
+                className={errors.cpf ? 'border-destructive' : undefined}
+                required
               />
+              {errors.cpf && <p className="text-xs text-destructive">{errors.cpf}</p>}
             </div>
             <div className="space-y-2">
               <Label>E-mail</Label>
@@ -145,6 +154,7 @@ export default function QuickPatientModal({ open, onOpenChange, onCreated }: Qui
               />
             </div>
           </div>
+          <PatientDuplicateAlert cpfMatch={duplicates.cpfMatch} phoneMatches={duplicates.phoneMatches} />
           <div className="flex gap-3 pt-2">
             <BrandButton
               type="button"
@@ -157,9 +167,9 @@ export default function QuickPatientModal({ open, onOpenChange, onCreated }: Qui
             <BrandButton
               type="submit"
               className="flex-1"
-              disabled={createMutation.isPending}
+              disabled={createMutation.isPending || checking}
             >
-              {createMutation.isPending ? 'Salvando...' : 'Cadastrar e Selecionar'}
+              {createMutation.isPending ? 'Salvando...' : checking ? 'Verificando...' : 'Cadastrar e Selecionar'}
             </BrandButton>
           </div>
         </form>

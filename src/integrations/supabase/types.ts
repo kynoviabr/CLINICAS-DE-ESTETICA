@@ -1927,6 +1927,8 @@ export type Database = {
       patients: {
         Row: {
           address: string | null
+          address_complement: string | null
+          address_number: string | null
           avatar_url: string | null
           city: string | null
           clinic_id: string
@@ -1956,6 +1958,8 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          address_complement?: string | null
+          address_number?: string | null
           avatar_url?: string | null
           city?: string | null
           clinic_id: string
@@ -1985,6 +1989,8 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          address_complement?: string | null
+          address_number?: string | null
           avatar_url?: string | null
           city?: string | null
           clinic_id?: string
@@ -3819,6 +3825,19 @@ export type Database = {
       get_patient_clinic_id: {
         Args: { _patient_user_id: string }
         Returns: string[]
+      }
+      find_patient_duplicates: {
+        Args: {
+          p_clinic_id: string
+          p_cpf: string | null
+          p_phone: string | null
+          p_exclude_id?: string | null
+        }
+        Returns: {
+          match_type: string
+          patient_id: string
+          full_name: string
+        }[]
       }
       get_patient_ids_for_user: {
         Args: { _user_id: string }

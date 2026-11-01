@@ -42,6 +42,9 @@ import {
 } from '@/components/contracts/ContractPaymentConfigurator';
 import type { Database } from '@/integrations/supabase/types';
 import { formatCep, lookupCepAddress } from '@/lib/cep';
+import { formatCpf, formatPatientAddress, formatPhone, onlyDigits, patientSaveErrorMessage, validatePatientFields, type PatientFieldErrors } from '@/lib/patients/validation';
+import { PatientDuplicateAlert } from '@/components/patient/PatientDuplicateAlert';
+import { usePatientDuplicateCheck } from '@/hooks/usePatientDuplicateCheck';
 import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
 import { functionError } from '@/lib/errors';
 
@@ -80,6 +83,8 @@ type PatientEditForm = {
   gender: string;
   zip_code: string;
   address: string;
+  address_number: string;
+  address_complement: string;
   city: string;
   state: string;
   notes: string;
@@ -128,10 +133,15 @@ export default function PatientDetailPage() {
     gender: '',
     zip_code: '',
     address: '',
+    address_number: '',
+    address_complement: '',
     city: '',
     state: '',
     notes: '',
   });
+  const [editErrors, setEditErrors] = useState<PatientFieldErrors>({});
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
+  const duplicates = usePatientDuplicateCheck(clinicId, id);
   const [contractDialogProposal, setContractDialogProposal] = useState<ProposalRow | null>(null);
   const [paymentCondition, setPaymentCondition] = useState<PaymentCondition>('cash');
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -343,10 +353,14 @@ export default function PatientDetailPage() {
       gender: patient.gender || '',
       zip_code: patient.zip_code || '',
       address: patient.address || '',
+      address_number: patient.address_number || '',
+      address_complement: patient.address_complement || '',
       city: patient.city || '',
       state: patient.state || '',
       notes: patient.notes || '',
     });
+    setEditErrors({});
+    duplicates.reset();
     setEditOpen(true);
   };
 
@@ -359,11 +373,13 @@ export default function PatientDetailPage() {
         full_name: editForm.full_name.trim(),
         email: editForm.email.trim() || null,
         phone: editForm.phone.trim() || null,
-        cpf: editForm.cpf.trim() || null,
+        cpf: onlyDigits(editForm.cpf) || null,
         date_of_birth: editForm.date_of_birth || null,
         gender: editForm.gender || null,
         zip_code: editForm.zip_code.trim() || null,
         address: editForm.address.trim() || null,
+        address_number: editForm.address_number.trim() || null,
+        address_complement: editForm.address_complement.trim() || null,
         city: editForm.city.trim() || null,
         state: editForm.state.trim() || null,
         notes: editForm.notes.trim() || null,
@@ -401,8 +417,7 @@ export default function PatientDetailPage() {
       toast.success('Dados do paciente atualizados');
     },
     onError: (err: Error) => {
-      const message = err instanceof Error ? err.message : 'Erro ao atualizar paciente';
-      toast.error(message);
+      toast.error(patientSaveErrorMessage(err));
     },
   });
 
@@ -884,11 +899,11 @@ export default function PatientDetailPage() {
                   ['Nome', patient.full_name],
                   ['E-mail', patient.email],
                   ['Telefone', patient.phone],
-                  ['CPF', patient.cpf],
+                  ['CPF', patient.cpf ? formatCpf(patient.cpf) : null],
                   ['Nascimento', patient.date_of_birth ? new Date(patient.date_of_birth).toLocaleDateString('pt-BR') : null],
                   ['Gênero', patient.gender === 'female' ? 'Feminino' : patient.gender === 'male' ? 'Masculino' : patient.gender],
                   ['CEP', patient.zip_code],
-                  ['Endereço', patient.address],
+                  ['Endereço', [patient.address, patient.address_number, patient.address_complement].filter(Boolean).join(', ') || null],
                   ['Cidade/UF', [patient.city, patient.state].filter(Boolean).join(' / ') || null],
                 ].map(([label, value], i) => (
                   <div key={i}>
@@ -1370,8 +1385,23 @@ export default function PatientDetailPage() {
           </DialogHeader>
           <form
             className="space-y-4 mt-4"
-            onSubmit={(event) => {
+            onSubmit={async (event) => {
               event.preventDefault();
+              const errors = validatePatientFields(editForm);
+              setEditErrors(errors);
+              if (Object.keys(errors).length > 0) {
+                toast.error(Object.values(errors).join(' '));
+                return;
+              }
+              try {
+                setCheckingDuplicates(true);
+                if (!(await duplicates.canSave(editForm.cpf, editForm.phone))) return;
+              } catch (err) {
+                toast.error(patientSaveErrorMessage(err));
+                return;
+              } finally {
+                setCheckingDuplicates(false);
+              }
               updatePatientMutation.mutate();
             }}
           >
@@ -1385,20 +1415,39 @@ export default function PatientDetailPage() {
                 <Input type="email" value={editForm.email} onChange={(event) => setEditForm((current) => ({ ...current, email: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label>Telefone</Label>
-                <Input value={editForm.phone} onChange={(event) => setEditForm((current) => ({ ...current, phone: event.target.value }))} placeholder="(11) 99999-9999" />
+                <Label>Telefone *</Label>
+                <Input
+                  value={editForm.phone}
+                  onChange={(event) => setEditForm((current) => ({ ...current, phone: formatPhone(event.target.value) }))}
+                  onBlur={() => duplicates.check(editForm.cpf, editForm.phone).catch(() => undefined)}
+                  placeholder="(11) 99999-9999"
+                  inputMode="tel"
+                  aria-invalid={!!editErrors.phone}
+                  className={editErrors.phone ? 'border-destructive' : undefined}
+                />
+                {editErrors.phone && <p className="text-xs text-destructive">{editErrors.phone}</p>}
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>CPF</Label>
-                <Input value={editForm.cpf} onChange={(event) => setEditForm((current) => ({ ...current, cpf: event.target.value }))} placeholder="000.000.000-00" />
+                <Label>CPF *</Label>
+                <Input
+                  value={formatCpf(editForm.cpf)}
+                  onChange={(event) => setEditForm((current) => ({ ...current, cpf: formatCpf(event.target.value) }))}
+                  onBlur={() => duplicates.check(editForm.cpf, editForm.phone).catch(() => undefined)}
+                  placeholder="000.000.000-00"
+                  inputMode="numeric"
+                  aria-invalid={!!editErrors.cpf}
+                  className={editErrors.cpf ? 'border-destructive' : undefined}
+                />
+                {editErrors.cpf && <p className="text-xs text-destructive">{editErrors.cpf}</p>}
               </div>
               <div className="space-y-2">
                 <Label>Data de nascimento</Label>
                 <Input type="date" value={editForm.date_of_birth} onChange={(event) => setEditForm((current) => ({ ...current, date_of_birth: event.target.value }))} />
               </div>
             </div>
+            <PatientDuplicateAlert cpfMatch={duplicates.cpfMatch} phoneMatches={duplicates.phoneMatches} />
             <div className="space-y-2">
               <Label>Gênero</Label>
               <Select value={editForm.gender || 'none'} onValueChange={(value) => setEditForm((current) => ({ ...current, gender: value === 'none' ? '' : value }))}>
@@ -1422,8 +1471,25 @@ export default function PatientDetailPage() {
                   <Input value={editForm.zip_code} onChange={(event) => handleEditCepChange(event.target.value)} placeholder="00000-000" />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
-                  <Label>Endereço completo</Label>
-                  <Input value={editForm.address} onChange={(event) => setEditForm((current) => ({ ...current, address: event.target.value }))} placeholder="Rua, número, complemento e bairro" />
+                  <Label>Rua e bairro</Label>
+                  <Input value={editForm.address} onChange={(event) => setEditForm((current) => ({ ...current, address: event.target.value }))} placeholder="Rua, bairro" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Número{editForm.address.trim() ? ' *' : ''}</Label>
+                  <Input
+                    value={editForm.address_number}
+                    onChange={(event) => setEditForm((current) => ({ ...current, address_number: event.target.value }))}
+                    placeholder="123 ou S/N"
+                    aria-invalid={!!editErrors.address_number}
+                    className={editErrors.address_number ? 'border-destructive' : undefined}
+                  />
+                  {editErrors.address_number && <p className="text-xs text-destructive">{editErrors.address_number}</p>}
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Complemento</Label>
+                  <Input value={editForm.address_complement} onChange={(event) => setEditForm((current) => ({ ...current, address_complement: event.target.value }))} placeholder="Apto, bloco, casa..." />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1445,8 +1511,8 @@ export default function PatientDetailPage() {
               <BrandButton type="button" variant="outline" onClick={() => setEditOpen(false)} className="flex-1">
                 Cancelar
               </BrandButton>
-              <BrandButton type="submit" className="flex-1" disabled={updatePatientMutation.isPending}>
-                {updatePatientMutation.isPending ? 'Salvando...' : 'Salvar alterações'}
+              <BrandButton type="submit" className="flex-1" disabled={updatePatientMutation.isPending || checkingDuplicates}>
+                {updatePatientMutation.isPending ? 'Salvando...' : checkingDuplicates ? 'Verificando...' : 'Salvar alterações'}
               </BrandButton>
             </div>
           </form>
