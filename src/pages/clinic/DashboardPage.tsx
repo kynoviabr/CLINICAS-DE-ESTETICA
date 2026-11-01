@@ -28,6 +28,11 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useStaffDirectory } from '@/hooks/useStaffDirectory';
+import { PERIOD_LABELS, PERIOD_PRESETS, resolvePeriod, type PeriodPreset } from '@/lib/commercial/period';
+import { buildSellerPerformance } from '@/lib/commercial/sellerPerformance';
 import { useMemo, useState } from 'react';
 import type { Database } from '@/integrations/supabase/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -90,6 +95,17 @@ export default function ClinicDashboard() {
   const sixMonthsAgo = subMonths(today, 5);
   const months = eachMonthOfInterval({ start: startOfMonth(sixMonthsAgo), end: endOfMonth(today) });
   const currentMonth = format(today, 'yyyy-MM');
+
+  // Período da área Comercial (fica na URL: ?periodo=&de=&ate=)
+  const [periodPreset, setPeriodPreset] = useUrlState<PeriodPreset>('periodo', 'mes', PERIOD_PRESETS);
+  const [customStart, setCustomStart] = useUrlState<string>('de', '');
+  const [customEnd, setCustomEnd] = useUrlState<string>('ate', '');
+  const period = resolvePeriod(periodPreset, customStart, customEnd, today);
+  const periodStartIso = period.start.toISOString();
+  const periodEndIso = period.end.toISOString();
+  const periodStartDay = format(period.start, 'yyyy-MM-dd');
+  const periodEndDay = format(period.end, 'yyyy-MM-dd');
+  const periodKey = `${periodStartDay}_${periodEndDay}`;
 
   const isAdmin = role === 'admin';
   const isSales = role === 'sales';
@@ -229,19 +245,17 @@ export default function ClinicDashboard() {
 
   // ── Conversion Funnel (admin) ──
   const { data: funnelData } = useQuery({
-    queryKey: ['dashboard-funnel', clinicId],
+    queryKey: ['dashboard-funnel', clinicId, periodKey],
     queryFn: async () => {
-      const monthStart = startOfMonth(today).toISOString();
-      const monthEnd = endOfMonth(today).toISOString();
       const [proposals, contracts, payments] = await Promise.all([
         supabase.from('proposals').select('id, status', { count: 'exact', head: false })
-          .eq('clinic_id', clinicId!).gte('created_at', monthStart).lte('created_at', monthEnd),
+          .eq('clinic_id', clinicId!).gte('created_at', periodStartIso).lte('created_at', periodEndIso),
         supabase.from('contracts').select('id, status', { count: 'exact', head: false })
-          .eq('clinic_id', clinicId!).gte('created_at', monthStart).lte('created_at', monthEnd),
+          .eq('clinic_id', clinicId!).gte('created_at', periodStartIso).lte('created_at', periodEndIso),
         supabase.from('contract_installments')
           .select('id', { count: 'exact', head: false })
           .eq('clinic_id', clinicId!).eq('status', 'pago')
-          .gte('paid_at', monthStart.slice(0, 10)).lte('paid_at', monthEnd.slice(0, 10)),
+          .gte('paid_at', periodStartDay).lte('paid_at', periodEndDay),
       ]);
       const totalProposals = proposals.data?.length || 0;
       const acceptedProposals = proposals.data?.filter(p => p.status === 'accepted').length || 0;
@@ -302,31 +316,32 @@ export default function ClinicDashboard() {
 
   // ── Commercial data (admin + sales) ──
   const { data: salesData } = useQuery({
-    queryKey: ['dashboard-sales', clinicId, currentMonth],
+    queryKey: ['dashboard-sales', clinicId, periodKey, period.goalMonth],
     queryFn: async () => {
-      const monthStart = startOfMonth(today).toISOString();
-      const monthEnd = endOfMonth(today).toISOString();
       let query = supabase.from('proposals')
         .select('id, final_amount, created_by, created_at')
         .eq('clinic_id', clinicId!)
         .eq('status', 'accepted')
-        .gte('updated_at', monthStart).lte('updated_at', monthEnd);
+        .gte('updated_at', periodStartIso).lte('updated_at', periodEndIso);
       if (isSales) query = query.eq('created_by', user!.id);
       const { data: proposals } = await query;
       const { data: staffData } = await supabase.from('user_roles')
         .select('user_id, role').eq('clinic_id', clinicId!).eq('is_active', true);
-      const { data: goalsData } = await supabase.from('sales_goals')
-        .select('*').eq('clinic_id', clinicId!).eq('period_reference', currentMonth);
+      // Metas são mensais: só valem quando o período é um mês fechado.
+      const { data: goalsData } = period.goalMonth
+        ? await supabase.from('sales_goals')
+          .select('*').eq('clinic_id', clinicId!).eq('period_reference', period.goalMonth)
+        : { data: [] };
       return { proposals: (proposals as SalesProposalRow[]) || [], staff: staffData || [], goals: (goalsData as SalesGoalRow[]) || [] };
     },
     enabled: !!clinicId && showCommercial,
   });
 
   const { data: renewalMetrics } = useQuery({
-    queryKey: ['dashboard-renewal-metrics', clinicId, currentMonth],
+    queryKey: ['dashboard-renewal-metrics', clinicId, periodKey],
     queryFn: async () => {
-      const monthStart = startOfMonth(today).toISOString();
-      const monthEnd = endOfMonth(today).toISOString();
+      const monthStart = periodStartIso;
+      const monthEnd = periodEndIso;
       const { data: tasks, error } = await supabase
         .from('renewal_tasks')
         .select('id, status, created_at, converted_proposal_id, discarded_reason, sla_red_at')
@@ -364,6 +379,43 @@ export default function ClinicDashboard() {
   });
 
   // ── Charts ──
+  // ── Avaliações por vendedor (conversão avaliação → venda) ──
+  const { data: evaluationRows = [] } = useQuery({
+    queryKey: ['dashboard-evaluations', clinicId, periodKey],
+    queryFn: async () => {
+      const { data: appts, error } = await supabase.from('appointments')
+        .select('id, status, start_time, lead_id, created_by')
+        .eq('clinic_id', clinicId!)
+        .eq('appointment_type', 'evaluation')
+        .gte('start_time', periodStartIso).lte('start_time', periodEndIso);
+      if (error) throw error;
+      const leadIds = [...new Set((appts || []).map((a) => a.lead_id).filter(Boolean))] as string[];
+      const leadsById = new Map<string, { assigned_to: string | null; converted_at: string | null; proposal_id: string | null }>();
+      const acceptedProposals = new Set<string>();
+      if (leadIds.length > 0) {
+        const { data: leads } = await supabase.from('leads')
+          .select('id, assigned_to, converted_at, proposal_id').in('id', leadIds);
+        (leads || []).forEach((l) => leadsById.set(l.id, l));
+        const proposalIds = [...new Set((leads || []).map((l) => l.proposal_id).filter(Boolean))] as string[];
+        if (proposalIds.length > 0) {
+          const { data: props } = await supabase.from('proposals').select('id, status').in('id', proposalIds);
+          (props || []).forEach((pr) => { if (pr.status === 'accepted') acceptedProposals.add(pr.id); });
+        }
+      }
+      return (appts || []).map((a) => {
+        const lead = a.lead_id ? leadsById.get(a.lead_id) : undefined;
+        return {
+          sellerId: lead?.assigned_to || a.created_by || null,
+          status: a.status as string,
+          startTime: a.start_time,
+          converted: !!lead && (!!lead.converted_at || (!!lead.proposal_id && acceptedProposals.has(lead.proposal_id))),
+        };
+      });
+    },
+    enabled: !!clinicId && showCommercial,
+  });
+  const { byUserId: staffById } = useStaffDirectory(showCommercial ? clinicId : null);
+
   const { data: revenueSessionsData = [] } = useQuery({
     queryKey: ['dashboard-revenue-sessions-chart', clinicId],
     queryFn: async () => {
@@ -443,22 +495,20 @@ export default function ClinicDashboard() {
   const myGoalAmount = myGoal ? Number(myGoal.goal_amount) : 0;
   const myPct = myGoalAmount > 0 ? Math.round((totalSalesMonth / myGoalAmount) * 100) : 0;
 
-  // Ranking (admin)
-  const ranking = isAdmin && salesData ? (() => {
-    const byUser: Record<string, number> = {};
-    salesData.proposals.forEach((p: SalesProposalRow) => {
-      if (p.created_by) byUser[p.created_by] = (byUser[p.created_by] || 0) + Number(p.final_amount || 0);
-    });
-    return Object.entries(byUser)
-      .map(([userId, total]) => {
-        const staffMember = salesData.staff.find(s => s.user_id === userId);
-        const goal = salesData.goals.find((g: SalesGoalRow) => g.user_id === userId);
-        const goalAmount = goal ? Number(goal.goal_amount) : 0;
-        return { userId, total, role: staffMember?.role || 'admin', goalAmount, pct: goalAmount > 0 ? Math.round((total / goalAmount) * 100) : 0 };
-      })
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 5);
-  })() : [];
+  // Desempenho por vendedor (admin vê todos; comercial vê só o próprio)
+  const sellerRows = useMemo(() => {
+    if (!salesData) return [];
+    const goals = period.goalMonth
+      ? Object.fromEntries(salesData.goals.map((g: SalesGoalRow) => [g.user_id, Number(g.goal_amount)]))
+      : null;
+    const rows = buildSellerPerformance(
+      evaluationRows,
+      salesData.proposals.map((p: SalesProposalRow) => ({ sellerId: p.created_by, amount: Number(p.final_amount || 0) })),
+      goals,
+    );
+    return isSales ? rows.filter((r) => r.sellerId === user?.id) : rows;
+  }, [salesData, evaluationRows, period.goalMonth, isSales, user?.id]);
+  const myEvaluationRow = sellerRows.find((r) => r.sellerId === user?.id);
 
   const totalRevenue = revenueSessionsData.reduce((s, d) => s + d.receita, 0);
 
@@ -573,11 +623,45 @@ export default function ClinicDashboard() {
         </Card>
       )}
 
+      {/* ── PERÍODO (área Comercial) ── */}
+      {showCommercial && showTab('comercial') && (
+        <Card className="shadow-card mb-4 animate-fade-in">
+          <CardContent className="p-3 flex flex-col gap-2 md:flex-row md:items-end md:gap-3">
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Período</p>
+              <Select value={periodPreset} onValueChange={(v) => setPeriodPreset(v as PeriodPreset)}>
+                <SelectTrigger className="w-full md:w-48" aria-label="Período"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PERIOD_PRESETS.map((p) => <SelectItem key={p} value={p}>{PERIOD_LABELS[p]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {periodPreset === 'personalizado' && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">De</p>
+                  <Input type="date" aria-label="Data inicial" value={customStart} max={customEnd || undefined} onChange={(e) => setCustomStart(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Até</p>
+                  <Input type="date" aria-label="Data final" value={customEnd} min={customStart || undefined} onChange={(e) => setCustomEnd(e.target.value)} />
+                </div>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground md:ml-auto">
+              {format(period.start, 'dd/MM/yyyy')} a {format(period.end, 'dd/MM/yyyy')}
+              {!period.goalMonth && ' · metas aparecem só em período de mês fechado'}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── SALES DASHBOARD (sales role) ── */}
       {isSales && showTab('comercial') && (
         <div className="space-y-4 mb-4">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             <BrandStat icon={Target} label="Minha Meta" value={myGoalAmount > 0 ? formatCurrency(myGoalAmount) : '—'} />
+            <BrandStat icon={UserCheck} label="Minha Conversão de Avaliações" value={myEvaluationRow?.conversionRate != null ? `${myEvaluationRow.conversionRate}% (${myEvaluationRow.converted}/${myEvaluationRow.evaluations})` : '—'} />
             <BrandStat icon={DollarSign} label="Meu Realizado" value={formatCurrency(totalSalesMonth)} />
             <Card className="shadow-card animate-fade-in">
               <CardContent className="p-4 text-center">
@@ -703,7 +787,7 @@ export default function ClinicDashboard() {
         <Card className="shadow-card mb-4 animate-fade-in">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Repeat className="w-5 h-5 text-primary" /> Funil de Conversão (mês atual)
+              <Repeat className="w-5 h-5 text-primary" /> Funil de Conversão ({period.label})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -737,7 +821,7 @@ export default function ClinicDashboard() {
             <TrendingUp className="w-5 h-5 text-primary" />Performance Comercial
           </h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <BrandStat icon={DollarSign} label="Vendas do Mês" value={formatCurrency(totalSalesMonth)} />
+            <BrandStat icon={DollarSign} label="Vendas no Período" value={formatCurrency(totalSalesMonth)} />
             <BrandStat icon={Target} label="Propostas Aprovadas" value={approvedCount} />
             <BrandStat icon={DollarSign} label="Ticket Médio" value={formatCurrency(ticketMedio)} />
             <BrandStat icon={Users} label="Pacientes Ativos" value={patientCount} />
@@ -751,28 +835,64 @@ export default function ClinicDashboard() {
               <BrandStat icon={AlertTriangle} label="SLA > 7d" value={renewalMetrics.slaOverdue} />
             </div>
           )}
-          {ranking.length > 0 && (
-            <Card className="shadow-card animate-fade-in cursor-pointer" onClick={() => navigate('/clinic/reports')}>
-              <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Trophy className="w-5 h-5 text-primary" />Ranking de Vendedores</CardTitle></CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {ranking.map((r, i) => (
-                    <div key={r.userId} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
-                      <div className="flex items-center gap-3">
-                        <span className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">{i + 1}</span>
-                        <span className="text-sm font-medium text-foreground">{r.userId.slice(0, 8)}...</span>
-                        <RoleBadge role={r.role} />
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-semibold">{formatCurrency(r.total)}</span>
-                        {r.goalAmount > 0 && <span className="text-xs text-muted-foreground">{r.pct}%</span>}
-                      </div>
-                    </div>
-                  ))}
+          <Card className="shadow-card animate-fade-in">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2"><Trophy className="w-5 h-5 text-primary" />Desempenho por Vendedor</CardTitle>
+              <p className="text-xs text-muted-foreground">Conversão = avaliações realizadas que viraram venda. Faltas aparecem à parte e não entram na taxa.</p>
+            </CardHeader>
+            <CardContent>
+              {sellerRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Sem avaliações ou vendas no período.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-muted-foreground border-b">
+                        <th className="py-2 pr-2">Vendedor</th>
+                        <th className="py-2 px-2 text-right">Avaliações</th>
+                        <th className="py-2 px-2 text-right">Convertidas</th>
+                        <th className="py-2 px-2 text-right">Conversão</th>
+                        <th className="py-2 px-2 text-right">Faltas</th>
+                        <th className="py-2 px-2 text-right">Vendas</th>
+                        <th className="py-2 pl-2 text-right">Meta</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sellerRows.map((r, i) => {
+                        const staff = staffById[r.sellerId];
+                        return (
+                          <tr key={r.sellerId} className="border-b last:border-0">
+                            <td className="py-2 pr-2">
+                              <div className="flex items-center gap-2">
+                                <span className="w-6 h-6 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">{i + 1}</span>
+                                <span className="font-medium text-foreground">{staff?.label || 'Usuário removido'}</span>
+                                {staff && <RoleBadge role={staff.role} />}
+                              </div>
+                            </td>
+                            <td className="py-2 px-2 text-right">{r.evaluations}</td>
+                            <td className="py-2 px-2 text-right">{r.converted}</td>
+                            <td className={cn('py-2 px-2 text-right font-semibold', r.conversionRate == null ? 'text-muted-foreground' : r.conversionRate >= 50 ? 'text-success' : r.conversionRate >= 25 ? 'text-warning' : 'text-destructive')}>
+                              {r.conversionRate == null ? '—' : `${r.conversionRate}%`}
+                            </td>
+                            <td className="py-2 px-2 text-right text-muted-foreground">{r.noShow}</td>
+                            <td className="py-2 px-2 text-right font-semibold">{formatCurrency(r.salesTotal)}</td>
+                            <td className="py-2 pl-2 text-right">
+                              {r.goalAmount ? (
+                                <div className="min-w-24">
+                                  <span className="text-xs text-muted-foreground">{r.goalPct}% de {formatCurrency(r.goalAmount)}</span>
+                                  <Progress value={Math.min(r.goalPct ?? 0, 100)} className="mt-1 h-1.5" />
+                                </div>
+                              ) : <span className="text-muted-foreground">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
 
