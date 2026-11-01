@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useUrlState } from '@/hooks/useUrlState';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -22,7 +23,7 @@ export function useAgendaPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<ViewMode>('month');
+  const [viewMode, setViewMode] = useUrlState<ViewMode>('visao', 'month', ['month', 'week', 'day']);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewAppt, setViewAppt] = useState<AppointmentRow | null>(null);
   const [selectedDate, setSelectedDate] = useState('');
