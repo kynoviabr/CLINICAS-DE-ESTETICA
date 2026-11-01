@@ -228,7 +228,12 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
           ? 'text-amber-700'
           : 'text-destructive';
 
-  const [activeTab, setActiveTab] = useUrlState<string>('aba', 'treatments');
+  // Dentro de Configurações, 'aba' já é a aba de Configurações; usamos 'subaba' para não conflitar.
+  const [activeTab, setActiveTab] = useUrlState<'treatments' | 'combos'>(
+    embedded ? 'subaba' : 'aba',
+    'treatments',
+    ['treatments', 'combos'],
+  );
 
   return (
     <div>
