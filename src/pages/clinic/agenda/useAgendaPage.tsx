@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { findPatientDuplicates } from '@/lib/patients/duplicates';
+import { onlyDigits } from '@/lib/patients/validation';
 import { useUrlState } from '@/hooks/useUrlState';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -1247,13 +1249,20 @@ export function useAgendaPage() {
 
     if (lead.patient_id) return lead.patient_id as string;
 
-    const { data: patient, error: patientError } = await supabase
+    // Mesmo CPF de um cliente já cadastrado: liga o lead a ele em vez de duplicar.
+    const sameCpf = lead.cpf
+      ? (await findPatientDuplicates(clinicId!, lead.cpf, null)).find((d) => d.match_type === 'cpf')
+      : undefined;
+
+    const { data: insertedPatient, error: patientError } = sameCpf
+      ? { data: { id: sameCpf.patient_id }, error: null }
+      : await supabase
       .from('patients')
       .insert({
         clinic_id: clinicId!,
         full_name: lead.full_name,
         phone: lead.phone,
-        cpf: lead.cpf,
+        cpf: onlyDigits(lead.cpf) || null,
         email: lead.email,
         date_of_birth: lead.birth_date,
         notes: lead.notes,
@@ -1262,6 +1271,7 @@ export function useAgendaPage() {
       .select('id')
       .single();
     if (patientError) throw patientError;
+    const patient = insertedPatient!;
 
     const { error: updateLeadError } = await supabase.from('leads')
       .update({

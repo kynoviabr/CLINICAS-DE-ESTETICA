@@ -21,6 +21,9 @@ import PayerSection, { type PayerData } from '@/components/patient/PayerSection'
 import { formatCep, lookupCepAddress } from '@/lib/cep';
 import { flattenContractTreatments, type ContractTreatmentRow } from '@/lib/patients/contractTreatments';
 import type { Tables, Enums } from '@/integrations/supabase/types';
+import { formatCpf, formatPhone, onlyDigits, patientSaveErrorMessage, validatePatientFields, type PatientFieldErrors } from '@/lib/patients/validation';
+import { PatientDuplicateAlert } from '@/components/patient/PatientDuplicateAlert';
+import { usePatientDuplicateCheck } from '@/hooks/usePatientDuplicateCheck';
 
 interface PatientForm {
   full_name: string;
@@ -31,6 +34,8 @@ interface PatientForm {
   gender: string;
   zip_code: string;
   address: string;
+  address_number: string;
+  address_complement: string;
   city: string;
   state: string;
   notes: string;
@@ -38,7 +43,7 @@ interface PatientForm {
 
 const emptyForm: PatientForm = {
   full_name: '', email: '', phone: '', cpf: '',
-  date_of_birth: '', gender: '', zip_code: '', address: '', city: '', state: '', notes: '',
+  date_of_birth: '', gender: '', zip_code: '', address: '', address_number: '', address_complement: '', city: '', state: '', notes: '',
 };
 
 const defaultPayerData: PayerData = {
@@ -63,6 +68,8 @@ const anamneseStatusHint: Record<AnamneseStatus, string> = {
 export default function PatientsPage() {
   const { clinicId } = useBranding();
   const { toast } = useToast();
+  const [fieldErrors, setFieldErrors] = useState<PatientFieldErrors>({});
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -74,6 +81,7 @@ export default function PatientsPage() {
   const [contractDateEnd, setContractDateEnd] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const duplicates = usePatientDuplicateCheck(clinicId, editingId);
   const [form, setForm] = useState<PatientForm>(emptyForm);
   const [payerData, setPayerData] = useState<PayerData>(defaultPayerData);
   const { data: patients = [], isLoading } = useQuery({
@@ -276,11 +284,13 @@ export default function PatientsPage() {
         clinic_id: clinicId,
         date_of_birth: data.date_of_birth || null,
         email: data.email || null,
-        phone: data.phone || null,
-        cpf: data.cpf || null,
+        phone: data.phone.trim() || null,
+        cpf: onlyDigits(data.cpf) || null,
         gender: data.gender || null,
         zip_code: data.zip_code || null,
         address: data.address || null,
+        address_number: data.address_number.trim() || null,
+        address_complement: data.address_complement.trim() || null,
         city: data.city || null,
         state: data.state || null,
         notes: data.notes || null,
@@ -299,7 +309,7 @@ export default function PatientsPage() {
             .insert({
               clinic_id: clinicId,
               name: data.full_name.trim(),
-              cpf: data.cpf?.trim() || null,
+              cpf: onlyDigits(data.cpf) || null,
               email: data.email?.trim() || null,
               phone: data.phone?.trim() || null,
               birth_date: data.date_of_birth || null,
@@ -323,7 +333,7 @@ export default function PatientsPage() {
       toast({ title: editingId ? 'Paciente atualizado!' : 'Paciente criado!' });
     },
     onError: (err: Error) => {
-      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+      toast({ title: 'Erro ao salvar', description: patientSaveErrorMessage(err), variant: 'destructive' });
     },
   });
 
@@ -338,10 +348,14 @@ export default function PatientsPage() {
       gender: patient.gender || '',
       zip_code: patient.zip_code || '',
       address: patient.address || '',
+      address_number: patient.address_number || '',
+      address_complement: patient.address_complement || '',
       city: patient.city || '',
       state: patient.state || '',
       notes: patient.notes || '',
     });
+    setFieldErrors({});
+    duplicates.reset();
     setPayerData({
       is_self_payer: patient.is_self_payer ?? true,
       payer_id: patient.payer_id || null,
@@ -353,16 +367,37 @@ export default function PatientsPage() {
     setEditingId(null);
     setForm(emptyForm);
     setPayerData(defaultPayerData);
+    setFieldErrors({});
+    duplicates.reset();
     setDialogOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.full_name.trim()) {
       toast({ title: 'Nome é obrigatório', variant: 'destructive' });
       return;
     }
+    const errors = validatePatientFields(form);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast({ title: 'Confira os campos destacados', description: Object.values(errors).join(' '), variant: 'destructive' });
+      return;
+    }
+    try {
+      setCheckingDuplicates(true);
+      if (!(await duplicates.canSave(form.cpf, form.phone))) return;
+    } catch (err) {
+      toast({ title: 'Não foi possível checar duplicidade', description: patientSaveErrorMessage(err), variant: 'destructive' });
+      return;
+    } finally {
+      setCheckingDuplicates(false);
+    }
     saveMutation.mutate(form);
+  };
+
+  const checkDuplicatesOnBlur = () => {
+    duplicates.check(form.cpf, form.phone).catch(() => undefined);
   };
 
   const handleCepChange = async (value: string) => {
@@ -649,20 +684,39 @@ export default function PatientsPage() {
                 <Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label>Telefone</Label>
-                <Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="(11) 99999-9999" />
+                <Label>Telefone *</Label>
+                <Input
+                  value={form.phone}
+                  onChange={e => setForm({ ...form, phone: formatPhone(e.target.value) })}
+                  onBlur={checkDuplicatesOnBlur}
+                  placeholder="(11) 99999-9999"
+                  inputMode="tel"
+                  aria-invalid={!!fieldErrors.phone}
+                  className={fieldErrors.phone ? 'border-destructive' : undefined}
+                />
+                {fieldErrors.phone && <p className="text-xs text-destructive">{fieldErrors.phone}</p>}
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>CPF</Label>
-                <Input value={form.cpf} onChange={e => setForm({ ...form, cpf: e.target.value })} placeholder="000.000.000-00" />
+                <Label>CPF *</Label>
+                <Input
+                  value={formatCpf(form.cpf)}
+                  onChange={e => setForm({ ...form, cpf: formatCpf(e.target.value) })}
+                  onBlur={checkDuplicatesOnBlur}
+                  placeholder="000.000.000-00"
+                  inputMode="numeric"
+                  aria-invalid={!!fieldErrors.cpf}
+                  className={fieldErrors.cpf ? 'border-destructive' : undefined}
+                />
+                {fieldErrors.cpf && <p className="text-xs text-destructive">{fieldErrors.cpf}</p>}
               </div>
               <div className="space-y-2">
                 <Label>Data de nascimento</Label>
                 <Input type="date" value={form.date_of_birth} onChange={e => setForm({ ...form, date_of_birth: e.target.value })} />
               </div>
             </div>
+            <PatientDuplicateAlert cpfMatch={duplicates.cpfMatch} phoneMatches={duplicates.phoneMatches} />
             <div className="space-y-2">
               <Label>Gênero</Label>
               <Select value={form.gender} onValueChange={v => setForm({ ...form, gender: v })}>
@@ -686,8 +740,25 @@ export default function PatientsPage() {
                   <Input value={form.zip_code} onChange={e => handleCepChange(e.target.value)} placeholder="00000-000" />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
-                  <Label>Endereço completo</Label>
-                  <Input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="Rua, número, complemento e bairro" />
+                  <Label>Rua e bairro</Label>
+                  <Input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="Rua, bairro" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Número{form.address.trim() ? ' *' : ''}</Label>
+                  <Input
+                    value={form.address_number}
+                    onChange={e => setForm({ ...form, address_number: e.target.value })}
+                    placeholder="123 ou S/N"
+                    aria-invalid={!!fieldErrors.address_number}
+                    className={fieldErrors.address_number ? 'border-destructive' : undefined}
+                  />
+                  {fieldErrors.address_number && <p className="text-xs text-destructive">{fieldErrors.address_number}</p>}
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Complemento</Label>
+                  <Input value={form.address_complement} onChange={e => setForm({ ...form, address_complement: e.target.value })} placeholder="Apto, bloco, casa..." />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -709,8 +780,8 @@ export default function PatientsPage() {
               <BrandButton type="button" variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">
                 Cancelar
               </BrandButton>
-              <BrandButton type="submit" className="flex-1" disabled={saveMutation.isPending}>
-                {saveMutation.isPending ? 'Salvando...' : editingId ? 'Atualizar' : 'Cadastrar'}
+              <BrandButton type="submit" className="flex-1" disabled={saveMutation.isPending || checkingDuplicates}>
+                {saveMutation.isPending ? 'Salvando...' : checkingDuplicates ? 'Verificando...' : editingId ? 'Atualizar' : 'Cadastrar'}
               </BrandButton>
             </div>
           </form>
