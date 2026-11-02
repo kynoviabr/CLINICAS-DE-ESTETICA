@@ -21,6 +21,7 @@ import { ContractViewDialog } from '@/components/contracts/ContractViewDialog';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { parseProposalNotesPayload } from '@/lib/proposals/paymentPreset';
 import type { Database, Json } from '@/integrations/supabase/types';
 import PayerSection, { type PayerData } from '@/components/patient/PayerSection';
 import {
@@ -131,6 +132,9 @@ export default function ContractsPage() {
   const returnTo = searchParams.get('returnTo');
   const returnLeadId = searchParams.get('returnLeadId');
   const crmReturnUrl = returnTo === 'crm' && returnLeadId ? `/clinic/crm?leadId=${returnLeadId}` : null;
+  // Vindo de Propostas: ?emitir=<id da proposta> abre a emissão já com ela escolhida.
+  const emitirProposalId = searchParams.get('emitir');
+  const proposalsReturnUrl = returnTo === 'proposals' ? '/clinic/proposals' : null;
 
   const { data: contracts = [], isLoading } = useQuery({
     queryKey: ['contracts', clinicId, filterStatus, search],
@@ -162,7 +166,7 @@ export default function ContractsPage() {
     enabled: !!clinicId,
   });
 
-  const { data: approvedProposals = [] } = useQuery({
+  const { data: approvedProposals = [], isFetched: approvedProposalsFetched } = useQuery({
     queryKey: ['approved-proposals-no-contract', clinicId],
     queryFn: async () => {
       const { data: allContracts, error: contractsError } = await supabase
@@ -593,9 +597,51 @@ export default function ContractsPage() {
     });
   }, [selectedProposalData]);
 
+  useEffect(() => {
+    if (emitirProposalId) setCreateDialog(true);
+  }, [emitirProposalId]);
+
+  useEffect(() => {
+    if (!emitirProposalId || !createDialog || !approvedProposalsFetched) return;
+    const clearParam = () => {
+      const next = new URLSearchParams(searchParams);
+      next.delete('emitir');
+      setSearchParams(next, { replace: true });
+    };
+    const target = approvedProposals.find((proposal) => proposal.id === emitirProposalId);
+    if (!target) {
+      clearParam();
+      setCreateDialog(false);
+      const existing = contracts.find((contract) => contract.proposal_id === emitirProposalId);
+      if (existing) {
+        setViewContract(existing);
+        toast({ title: 'Esta proposta já tem contrato', description: existing.contract_number || undefined });
+      } else {
+        toast({ title: 'Proposta indisponível', description: 'Para emitir, a proposta precisa estar aprovada e sem contrato.', variant: 'destructive' });
+      }
+      return;
+    }
+    setSelectedProposal(target.id);
+    clearParam();
+    // Traz a forma de pagamento combinada na proposta.
+    supabase.from('proposals').select('notes').eq('id', target.id).maybeSingle().then(({ data }) => {
+      const preset = parseProposalNotesPayload(data?.notes).paymentPreset;
+      if (!preset) return;
+      setPaymentCondition(preset.condition);
+      setSelectedPaymentMethods(preset.methods);
+      setPaymentDetails(preset.details);
+      setPaymentConfig(preset.config);
+    });
+  }, [emitirProposalId, createDialog, approvedProposalsFetched, approvedProposals, contracts, searchParams, setSearchParams, toast]);
+
   return (
     <div>
       <PageHeader title="Contratos" description="Formalize a venda e acompanhe o ciclo do contrato">
+        {proposalsReturnUrl && (
+          <BrandButton variant="outline" onClick={() => navigate(proposalsReturnUrl)}>
+            Voltar para Propostas
+          </BrandButton>
+        )}
         {crmReturnUrl && (
           <BrandButton variant="outline" onClick={() => navigate(crmReturnUrl)}>
             Voltar ao CRM
