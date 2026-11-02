@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useUrlState } from '@/hooks/useUrlState';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -72,10 +73,9 @@ export default function PatientsPage() {
   const [checkingDuplicates, setCheckingDuplicates] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [anamneseFilter, setAnamneseFilter] = useState<string>(searchParams.get('anamnese') || 'all');
+  const [anamneseFilter, setAnamneseFilter] = useUrlState<'all' | AnamneseStatus>('anamnese', 'all', ['all', 'none', 'valid', 'expiring', 'expired']);
   const [treatmentFilter, setTreatmentFilter] = useState<string>('all');
   const [contractDateStart, setContractDateStart] = useState('');
   const [contractDateEnd, setContractDateEnd] = useState('');
@@ -201,7 +201,8 @@ export default function PatientsPage() {
     return acc;
   }, {});
 
-  const filteredPatients = patients.filter(p => {
+  // Todos os filtros, menos o de anamnese (os cards contam sobre esta lista).
+  const patientsBeforeAnamnese = patients.filter(p => {
     const fullName = (p.full_name || '').toLowerCase();
     const email = (p.email || '').toLowerCase();
     const phone = normalizeDigits(p.phone);
@@ -214,10 +215,6 @@ export default function PatientsPage() {
       cpf.includes(normalizedSearchDigits);
 
     if (!matchSearch) return false;
-    if (anamneseFilter !== 'all') {
-      const s = getPatientAnamneseStatus(p.id);
-      if (s !== anamneseFilter) return false;
-    }
 
     const contractMeta = patientContractMeta[p.id];
     if (treatmentFilter !== 'all') {
@@ -239,6 +236,14 @@ export default function PatientsPage() {
     return true;
   });
 
+  const filteredPatients = anamneseFilter === 'all'
+    ? patientsBeforeAnamnese
+    : patientsBeforeAnamnese.filter((p) => getPatientAnamneseStatus(p.id) === anamneseFilter);
+
+  const toggleAnamneseCard = (status: AnamneseStatus) => {
+    setAnamneseFilter(anamneseFilter === status ? 'all' : status);
+  };
+
   const treatmentOptions = patientContracts.reduce<Array<{ id: string; name: string }>>((acc, row: ContractTreatmentRow) => {
     if (!row?.treatment_id || !row?.treatments?.name) return acc;
     if (acc.some((item) => item.id === row.treatment_id)) return acc;
@@ -246,7 +251,7 @@ export default function PatientsPage() {
     return acc;
   }, []).sort((a, b) => a.name.localeCompare(b.name));
 
-  const anamneseCounts = filteredPatients.reduce<Record<AnamneseStatus, number>>((acc, patient) => {
+  const anamneseCounts = patientsBeforeAnamnese.reduce<Record<AnamneseStatus, number>>((acc, patient) => {
     const status = getPatientAnamneseStatus(patient.id);
     acc[status] += 1;
     return acc;
@@ -463,7 +468,7 @@ export default function PatientsPage() {
             <SelectItem value="pending">Pendentes</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={anamneseFilter} onValueChange={setAnamneseFilter}>
+        <Select value={anamneseFilter} onValueChange={(v) => setAnamneseFilter(v as 'all' | AnamneseStatus)}>
           <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="Anamnese" />
           </SelectTrigger>
@@ -489,12 +494,16 @@ export default function PatientsPage() {
         <Input
           type="date"
           value={contractDateStart}
+          aria-label="Contrato a partir de"
+          title="Contrato a partir de"
           onChange={(event) => setContractDateStart(event.target.value)}
           className="w-full sm:w-44"
         />
         <Input
           type="date"
           value={contractDateEnd}
+          aria-label="Contrato até"
+          title="Contrato até"
           onChange={(event) => setContractDateEnd(event.target.value)}
           className="w-full sm:w-44"
         />
@@ -503,15 +512,19 @@ export default function PatientsPage() {
       {!isLoading && patients.length > 0 && (
         <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-2 xl:grid-cols-4">
           {(['none', 'valid', 'expiring', 'expired'] as AnamneseStatus[]).map((status) => (
-            <div
+            <button
+              type="button"
               key={status}
-              className={`rounded-2xl border p-4 shadow-card ${
+              onClick={() => toggleAnamneseCard(status)}
+              aria-pressed={anamneseFilter === status}
+              title={anamneseFilter === status ? 'Clique para mostrar todos' : `Mostrar só: ${anamneseStatusLabel[status]}`}
+              className={`text-left rounded-2xl border p-4 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                 status === 'expired'
                   ? 'border-destructive/40 bg-destructive/5'
                   : status === 'expiring' || status === 'none'
                     ? 'border-warning/40 bg-warning/10'
                     : 'bg-card'
-              }`}
+              } ${anamneseFilter === status ? 'ring-2 ring-primary' : anamneseFilter !== 'all' ? 'opacity-60' : ''}`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
@@ -525,8 +538,22 @@ export default function PatientsPage() {
               <p className="mt-3 text-xs leading-5 text-muted-foreground">
                 {anamneseStatusHint[status]}
               </p>
-            </div>
+              <p className="mt-2 text-xs font-medium text-primary">
+                {anamneseFilter === status ? 'Filtrando · clique para limpar' : 'Ver clientes'}
+              </p>
+            </button>
           ))}
+        </div>
+      )}
+
+      {!isLoading && anamneseFilter !== 'all' && (
+        <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <span>
+            {filteredPatients.length} cliente{filteredPatients.length === 1 ? '' : 's'} com {anamneseStatusLabel[anamneseFilter].toLowerCase()}
+          </span>
+          <button type="button" className="text-primary underline-offset-2 hover:underline" onClick={() => setAnamneseFilter('all')}>
+            Limpar filtro
+          </button>
         </div>
       )}
 
