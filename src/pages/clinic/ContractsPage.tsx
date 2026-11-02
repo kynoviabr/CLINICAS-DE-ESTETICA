@@ -21,6 +21,7 @@ import { ContractViewDialog } from '@/components/contracts/ContractViewDialog';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { parseProposalNotesPayload } from '@/lib/proposals/paymentPreset';
 import type { Database, Json } from '@/integrations/supabase/types';
 import PayerSection, { type PayerData } from '@/components/patient/PayerSection';
 import {
@@ -31,7 +32,6 @@ import {
   type PaymentMethod,
 } from '@/components/contracts/ContractPaymentConfigurator';
 import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
-import { parseProposalNotesPayload } from '@/lib/proposals/paymentPreset';
 
 type ContractRow = Database['public']['Tables']['contracts']['Row'];
 type ContractStatus = Database['public']['Enums']['contract_status'];
