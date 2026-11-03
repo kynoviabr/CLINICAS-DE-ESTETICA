@@ -33,6 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useStaffDirectory } from '@/hooks/useStaffDirectory';
 import { PERIOD_LABELS, PERIOD_PRESETS, resolvePeriod, type PeriodPreset } from '@/lib/commercial/period';
 import { buildSellerPerformance } from '@/lib/commercial/sellerPerformance';
+import { SETUP_COMPLETED_KEY, readClinicSetting } from '@/lib/setup/clinicSetup';
 import { useMemo, useState } from 'react';
 import type { Database } from '@/integrations/supabase/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -108,6 +109,11 @@ export default function ClinicDashboard() {
   const periodKey = `${periodStartDay}_${periodEndDay}`;
 
   const isAdmin = role === 'admin';
+  const { data: setupDone } = useQuery({
+    queryKey: ['setup-status', clinicId],
+    queryFn: async () => !!(await readClinicSetting(clinicId!, SETUP_COMPLETED_KEY)),
+    enabled: !!clinicId && role === 'admin',
+  });
   const isSales = role === 'sales';
   const isStaff = ['admin', 'receptionist'].includes(role || '');
   const showCommercial = isAdmin || isSales;
@@ -589,6 +595,18 @@ export default function ClinicDashboard() {
   return (
     <div className="space-y-4">
       <PageHeader title="Dashboard" description="Visão geral da sua clínica" />
+
+      {isAdmin && setupDone === false && (
+        <Card className="shadow-card border-primary/30 bg-primary/5 animate-fade-in">
+          <CardContent className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold text-foreground">Termine a implantação da clínica</p>
+              <p className="text-sm text-muted-foreground">Dados para o contrato, seus horários de atendimento e os tratamentos. Leva cerca de 5 minutos.</p>
+            </div>
+            <Button onClick={() => navigate('/clinic/implantacao')}>Continuar implantação <ArrowRight className="w-4 h-4 ml-1" /></Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)} className="mb-4">
         <TabsList className="grid grid-cols-2 lg:grid-cols-5 w-full h-auto gap-1 bg-muted/50 p-1">

@@ -21,6 +21,7 @@ const CrmPage = lazy(() => import("./pages/clinic/CrmPage"));
 const PatientsPage = lazy(() => import("./pages/clinic/PatientsPage"));
 const PatientDetailPage = lazy(() => import("./pages/clinic/PatientDetailPage"));
 const TreatmentsPage = lazy(() => import("./pages/clinic/TreatmentsPage"));
+const SetupPage = lazy(() => import("./pages/clinic/SetupPage"));
 const ProposalsPage = lazy(() => import("./pages/clinic/ProposalsPage"));
 const ContractsPage = lazy(() => import("./pages/clinic/ContractsPage"));
 const FinanceContractsPage = lazy(() => import("./pages/clinic/FinanceContractsPage"));
@@ -74,6 +75,7 @@ const App = () => (
                 </ProtectedRoute>
               }>
                 <Route index element={<ClinicDashboard />} />
+                <Route path="implantacao" element={<SetupPage />} />
                 <Route path="crm" element={<CrmPage />} />
                 <Route path="whatsapp-ai" element={<WhatsAppAiPage />} />
                 <Route path="patients" element={<PatientsPage />} />
