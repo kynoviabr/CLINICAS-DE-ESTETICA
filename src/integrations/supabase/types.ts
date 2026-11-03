@@ -2935,6 +2935,45 @@ export type Database = {
           },
         ]
       }
+      treatment_catalog: {
+        Row: {
+          category_name: string
+          cost: number | null
+          default_price: number | null
+          description: string | null
+          duration_minutes: number
+          id: number
+          min_price: number | null
+          name: string
+          num_sessions: number
+          price: number
+        }
+        Insert: {
+          category_name: string
+          cost?: number | null
+          default_price?: number | null
+          description?: string | null
+          duration_minutes: number
+          id?: number
+          min_price?: number | null
+          name: string
+          num_sessions: number
+          price: number
+        }
+        Update: {
+          category_name?: string
+          cost?: number | null
+          default_price?: number | null
+          description?: string | null
+          duration_minutes?: number
+          id?: number
+          min_price?: number | null
+          name?: string
+          num_sessions?: number
+          price?: number
+        }
+        Relationships: []
+      }
       treatment_categories: {
         Row: {
           clinic_id: string
@@ -3901,6 +3940,10 @@ export type Database = {
           patient_id: string
           full_name: string
         }[]
+      }
+      setup_clinic_defaults: {
+        Args: { p_clinic_id: string; p_categories: string[] }
+        Returns: Json
       }
       get_patient_ids_for_user: {
         Args: { _user_id: string }

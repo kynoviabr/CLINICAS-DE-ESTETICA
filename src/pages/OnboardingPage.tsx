@@ -47,7 +47,7 @@ export default function OnboardingPage() {
 
       toast({ title: 'Clínica criada com sucesso!', description: 'Bem-vindo ao Kynovia.' });
       // Small delay to let role propagate
-      setTimeout(() => navigate('/clinic', { replace: true }), 500);
+      setTimeout(() => navigate('/clinic/implantacao', { replace: true }), 500);
     } catch (err: unknown) {
       toast({ title: 'Erro', description: getErrorMessage(err), variant: 'destructive' });
     } finally {
