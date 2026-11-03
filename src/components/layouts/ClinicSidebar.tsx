@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
 import { useUserRole, type AppRole } from '@/hooks/useUserRole';
 import { useAccessControl } from '@/hooks/useAccessControl';
+import { useClinicPlan } from '@/hooks/useClinicPlan';
 import type { MenuPermissionKey } from '@/lib/accessPermissions';
 import { cn } from '@/lib/utils';
 import NotificationBell from '@/components/NotificationBell';
@@ -53,6 +54,7 @@ export default function ClinicSidebar() {
   const { clinicName, logoUrl } = useBranding();
   const { role } = useUserRole();
   const { has, loading: accessLoading } = useAccessControl();
+  const { planName } = useClinicPlan();
   const location = useLocation();
 
   const filteredNav = navItems.filter((item) => {
@@ -119,7 +121,7 @@ export default function ClinicSidebar() {
                 {clinicName}
               </h1>
               <p className="text-[11px] uppercase tracking-wider text-white/50 font-medium mt-0.5">
-                Clinic OS
+                {planName ? `Plano ${planName}` : 'Clinic OS'}
               </p>
             </div>
           </div>

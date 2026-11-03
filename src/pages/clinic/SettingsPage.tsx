@@ -34,6 +34,8 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { Tables } from '@/integrations/supabase/types';
 import { errorMessage, functionError } from '@/lib/errors';
+import { useClinicPlan } from '@/hooks/useClinicPlan';
+import { settingsTabVisible } from '@/lib/plans';
 
 type StaffMember = Pick<Tables<'user_roles'>, 'id' | 'user_id' | 'role' | 'is_active' | 'created_at'>;
 type Invitation = Tables<'team_invitations'>;
@@ -41,6 +43,11 @@ type Invitation = Tables<'team_invitations'>;
 export default function SettingsPage() {
   const [settingsTab, setSettingsTab] = useUrlState<string>('aba', 'general');
   const [teamTab, setTeamTab] = useUrlState<string>('subaba', 'internal-team');
+  const plan = useClinicPlan();
+  // Abas fora do plano somem; um link antigo para elas cai na aba padrão.
+  const show = (tab: string) => settingsTabVisible(plan.modules, tab);
+  const activeSettingsTab = show(settingsTab) ? settingsTab : 'general';
+  const activeTeamTab = show(teamTab) ? teamTab : 'internal-team';
   const { clinicId, role } = useUserRole();
   const { user } = useAuth();
   const branding = useBranding();
@@ -69,6 +76,10 @@ export default function SettingsPage() {
 
   // Invitations
   const [invitations, setInvitations] = useState<Invitation[]>([]);
+  // Vagas: equipe ativa (sem pacientes) + convites pendentes ainda válidos. Mesma conta do banco.
+  const seatsUsed =
+    new Set(staff.filter((member) => member.is_active && member.role !== 'patient').map((member) => member.user_id)).size +
+    invitations.filter((inv) => inv.status === 'pending' && (!inv.expires_at || new Date(inv.expires_at) > new Date())).length;
 
   // Invite form
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -225,22 +236,22 @@ export default function SettingsPage() {
     <div>
       <PageHeader title="Configurações" description="Gerencie sua clínica" />
 
-      <Tabs value={settingsTab} onValueChange={setSettingsTab} className="space-y-4">
+      <Tabs value={activeSettingsTab} onValueChange={setSettingsTab} className="space-y-4">
         <TabsList className="!h-auto min-h-10 w-full flex-wrap justify-start gap-1">
           <TabsTrigger value="general"><Settings className="w-4 h-4 mr-1" />Geral</TabsTrigger>
-          <TabsTrigger value="whatsapp-ai"><MessageSquare className="w-4 h-4 mr-1" />WhatsApp IA</TabsTrigger>
+          {show('whatsapp-ai') && <TabsTrigger value="whatsapp-ai"><MessageSquare className="w-4 h-4 mr-1" />WhatsApp IA</TabsTrigger>}
           <TabsTrigger value="branding"><Palette className="w-4 h-4 mr-1" />Branding</TabsTrigger>
-          <TabsTrigger value="roles"><Briefcase className="w-4 h-4 mr-1" />Cargos</TabsTrigger>
-          <TabsTrigger value="entities"><Building2 className="w-4 h-4 mr-1" />Conselhos</TabsTrigger>
+          {show('roles') && <TabsTrigger value="roles"><Briefcase className="w-4 h-4 mr-1" />Cargos</TabsTrigger>}
+          {show('entities') && <TabsTrigger value="entities"><Building2 className="w-4 h-4 mr-1" />Conselhos</TabsTrigger>}
           <TabsTrigger value="categories"><Tags className="w-4 h-4 mr-1" />Categorias</TabsTrigger>
-          <TabsTrigger value="costs"><DollarSign className="w-4 h-4 mr-1" />Custos</TabsTrigger>
+          {show('costs') && <TabsTrigger value="costs"><DollarSign className="w-4 h-4 mr-1" />Custos</TabsTrigger>}
           <TabsTrigger value="team"><Lock className="w-4 h-4 mr-1" />Segurança e Acesso</TabsTrigger>
           <TabsTrigger value="professionals"><UserCog className="w-4 h-4 mr-1" />Profissionais</TabsTrigger>
           <TabsTrigger value="treatments"><Stethoscope className="w-4 h-4 mr-1" />Tratamentos</TabsTrigger>
           {role === 'admin' && <TabsTrigger value="contract-template"><FileText className="w-4 h-4 mr-1" />Contrato Padrão</TabsTrigger>}
           <TabsTrigger value="anamnese"><ClipboardList className="w-4 h-4 mr-1" />Anamnese</TabsTrigger>
-          <TabsTrigger value="crm-kanban"><Settings className="w-4 h-4 mr-1" />CRM Kanban</TabsTrigger>
-          <TabsTrigger value="goals"><Target className="w-4 h-4 mr-1" />Metas</TabsTrigger>
+          {show('crm-kanban') && <TabsTrigger value="crm-kanban"><Settings className="w-4 h-4 mr-1" />CRM Kanban</TabsTrigger>}
+          {show('goals') && <TabsTrigger value="goals"><Target className="w-4 h-4 mr-1" />Metas</TabsTrigger>}
           <TabsTrigger value="parameters"><SlidersHorizontal className="w-4 h-4 mr-1" />Parâmetros</TabsTrigger>
         </TabsList>
 
@@ -261,6 +272,15 @@ export default function SettingsPage() {
               </Button>
             </CardContent>
           </Card>
+          {plan.planName && (
+            <Card className="shadow-card mt-4">
+              <CardHeader><CardTitle>Seu plano</CardTitle></CardHeader>
+              <CardContent className="space-y-1 text-sm">
+                <p><span className="font-semibold">{plan.planName}</span>{plan.maxUsers ? ` · até ${plan.maxUsers} usuários` : ' · usuários ilimitados'}</p>
+                <p className="text-muted-foreground">Para mudar de plano ou contratar extras (como o WhatsApp IA), fale com a Kynovia.</p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* ===== BRANDING ===== */}
@@ -338,16 +358,22 @@ export default function SettingsPage() {
 
         {/* ===== TEAM ===== */}
         <TabsContent value="team">
-          <Tabs value={teamTab} onValueChange={setTeamTab} className="space-y-4">
+          <Tabs value={activeTeamTab} onValueChange={setTeamTab} className="space-y-4">
             <TabsList>
               <TabsTrigger value="internal-team">Equipe (acessos internos)</TabsTrigger>
-              <TabsTrigger value="groups-permissions">Grupos e permissões</TabsTrigger>
-              <TabsTrigger value="patient-app-access">Pacientes APP</TabsTrigger>
+              {show('groups-permissions') && <TabsTrigger value="groups-permissions">Grupos e permissões</TabsTrigger>}
+              {show('patient-app-access') && <TabsTrigger value="patient-app-access">Pacientes APP</TabsTrigger>}
             </TabsList>
 
             <TabsContent value="internal-team" className="space-y-4">
             {/* Invite button */}
-            <div className="flex justify-end">
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {plan.maxUsers && (
+                <span className={`text-sm ${seatsUsed >= plan.maxUsers ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                  {seatsUsed} de {plan.maxUsers} usuários do plano {plan.planName}
+                  {seatsUsed >= plan.maxUsers ? ' · limite atingido' : ''}
+                </span>
+              )}
               <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
                 <DialogTrigger asChild>
                   <Button className="gradient-primary text-primary-foreground" disabled={role !== 'admin'}>
