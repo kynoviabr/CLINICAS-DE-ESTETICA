@@ -3,12 +3,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRole } from '@/hooks/useUserRole';
 import { LEGACY_ROLE_PERMISSIONS, MENU_PERMISSION_KEYS, isMenuPermissionKey, type MenuPermissionKey } from '@/lib/accessPermissions';
+import { useClinicPlan } from '@/hooks/useClinicPlan';
+import { permissionAllowedByPlan } from '@/lib/plans';
 
 export function useAccessControl() {
   const { user } = useAuth();
   const { clinicId, role, loading: roleLoading } = useUserRole();
   const [permissions, setPermissions] = useState<Set<MenuPermissionKey>>(new Set());
   const [loading, setLoading] = useState(true);
+  const { modules, loading: planLoading } = useClinicPlan();
 
   useEffect(() => {
     if (roleLoading) return;
@@ -64,11 +67,15 @@ export function useAccessControl() {
     load();
   }, [user, clinicId, role, roleLoading]);
 
-  const api = useMemo(() => ({
-    loading,
-    permissions,
-    has: (key: MenuPermissionKey) => permissions.has(key),
-  }), [loading, permissions]);
+  // Ver uma tela = o perfil permite E o plano da clínica tem o módulo.
+  const api = useMemo(() => {
+    const allowed = new Set([...permissions].filter((key) => permissionAllowedByPlan(modules, key)));
+    return {
+      loading: loading || planLoading,
+      permissions: allowed,
+      has: (key: MenuPermissionKey) => allowed.has(key),
+    };
+  }, [loading, planLoading, permissions, modules]);
 
   return api;
 }

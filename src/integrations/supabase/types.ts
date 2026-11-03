@@ -645,6 +645,30 @@ export type Database = {
           },
         ]
       }
+      clinic_module_overrides: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          enabled: boolean
+          module_key: string
+          note: string | null
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          enabled: boolean
+          module_key: string
+          note?: string | null
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          enabled?: boolean
+          module_key?: string
+          note?: string | null
+        }
+        Relationships: []
+      }
       clinic_settings: {
         Row: {
           clinic_id: string
@@ -2079,6 +2103,30 @@ export type Database = {
           },
         ]
       }
+      plans: {
+        Row: {
+          key: string
+          max_users: number | null
+          modules: string[]
+          name: string
+          sort: number
+        }
+        Insert: {
+          key: string
+          max_users?: number | null
+          modules: string[]
+          name: string
+          sort?: number
+        }
+        Update: {
+          key?: string
+          max_users?: number | null
+          modules?: string[]
+          name?: string
+          sort?: number
+        }
+        Relationships: []
+      }
       professional_availability: {
         Row: {
           clinic_id: string
@@ -2844,6 +2892,7 @@ export type Database = {
           clinic_id: string
           created_at: string
           email: string
+          expires_at: string | null
           id: string
           invited_by: string | null
           role: Database["public"]["Enums"]["app_role"]
@@ -2856,6 +2905,7 @@ export type Database = {
           clinic_id: string
           created_at?: string
           email: string
+          expires_at?: string | null
           id?: string
           invited_by?: string | null
           role: Database["public"]["Enums"]["app_role"]
@@ -2868,6 +2918,7 @@ export type Database = {
           clinic_id?: string
           created_at?: string
           email?: string
+          expires_at?: string | null
           id?: string
           invited_by?: string | null
           role?: Database["public"]["Enums"]["app_role"]
@@ -3825,6 +3876,18 @@ export type Database = {
       get_patient_clinic_id: {
         Args: { _patient_user_id: string }
         Returns: string[]
+      }
+      clinic_has_module: {
+        Args: { p_clinic_id: string; p_module: string }
+        Returns: boolean
+      }
+      clinic_modules: {
+        Args: { p_clinic_id: string }
+        Returns: string[]
+      }
+      clinic_seats: {
+        Args: { p_clinic_id: string }
+        Returns: { used: number; max_users: number | null }[]
       }
       find_patient_duplicates: {
         Args: {
