@@ -258,19 +258,14 @@ export function normalizeLeadSource(source?: string | null) {
   const normalized = source?.trim().toLowerCase();
   if (!normalized || normalized === 'sem origem' || normalized === 'nao informado' || normalized === 'não informado') return 'Sem origem';
   if (['google ads', 'ads google'].includes(normalized)) return 'google';
-  if (['whatsapp ia', 'whatsapp-ai', 'whatsapp_ai'].includes(normalized)) return 'whatsapp_ai';
+  // Leads da antiga IA de WhatsApp aparecem como origem WhatsApp.
+  if (['whatsapp ia', 'whatsapp-ai', 'whatsapp_ai'].includes(normalized)) return 'whatsapp';
   if (['indicação', 'indicacao'].includes(normalized)) return 'indicacao';
   return normalized;
 }
 
 export function getLeadSourceMeta(source?: string | null) {
   const normalized = normalizeLeadSource(source);
-  if (normalized === 'whatsapp_ai') {
-    return {
-      label: 'WhatsApp IA',
-      className: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
-    };
-  }
   if (normalized === 'whatsapp') {
     return {
       label: 'WhatsApp',

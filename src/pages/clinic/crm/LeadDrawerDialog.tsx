@@ -231,7 +231,6 @@ export function LeadDrawerDialog({ ctx }: { ctx: CrmPageController }) {
                           <SelectItem value="google">Google</SelectItem>
                           <SelectItem value="site">Site</SelectItem>
                           <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                          <SelectItem value="whatsapp_ai">WhatsApp IA</SelectItem>
                           <SelectItem value="outro">Outro</SelectItem>
                         </SelectContent>
                       </Select>

@@ -14,7 +14,6 @@ describe('planos', () => {
     expect(permissionAllowedByPlan(essencial, 'crm.view')).toBe(true);
     expect(permissionAllowedByPlan(essencial, 'goals.view')).toBe(false);
     expect(permissionAllowedByPlan(essencial, 'sessions.view')).toBe(false);
-    expect(permissionAllowedByPlan(essencial, 'whatsapp_ai.view')).toBe(false);
   });
 
   it('Essencial: menu com 9 itens', () => {

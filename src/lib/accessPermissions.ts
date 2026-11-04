@@ -3,7 +3,6 @@ import type { AppRole } from '@/hooks/useUserRole';
 export const MENU_PERMISSION_KEYS = [
   'dashboard.view',
   'crm.view',
-  'whatsapp_ai.view',
   'patients.view',
   'treatments.view',
   'proposals.view',
@@ -27,7 +26,6 @@ export function isMenuPermissionKey(key: string): key is MenuPermissionKey {
 
 export const PATH_PERMISSION_MAP: Array<{ prefix: string; key: MenuPermissionKey }> = [
   { prefix: '/clinic/settings', key: 'settings.view' },
-  { prefix: '/clinic/whatsapp-ai', key: 'whatsapp_ai.view' },
   { prefix: '/clinic/crm', key: 'crm.view' },
   { prefix: '/clinic/patients', key: 'patients.view' },
   { prefix: '/clinic/treatments', key: 'treatments.view' },
@@ -49,8 +47,7 @@ export const LEGACY_ROLE_PERMISSIONS: Record<AppRole, MenuPermissionKey[]> = {
   receptionist: [
     'dashboard.view',
     'crm.view',
-    'whatsapp_ai.view',
-    'patients.view',
+      'patients.view',
     'treatments.view',
     'proposals.view',
     'contracts.view',
@@ -72,8 +69,7 @@ export const LEGACY_ROLE_PERMISSIONS: Record<AppRole, MenuPermissionKey[]> = {
   sales: [
     'dashboard.view',
     'crm.view',
-    'whatsapp_ai.view',
-    'patients.view',
+      'patients.view',
     'treatments.view',
     'proposals.view',
     'contracts.view',
