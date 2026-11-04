@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, MessageSquare, ClipboardList, FileText } from 'lucide-react';
+import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, ClipboardList, FileText } from 'lucide-react';
 import CategoriesTab from '@/components/settings/CategoriesTab';
 import CostItemsTab from '@/components/settings/CostItemsTab';
 import ParametersTab from '@/components/settings/ParametersTab';
@@ -25,7 +25,6 @@ import DashboardAlertsTab from '@/components/settings/DashboardAlertsTab';
 import KanbanStagesTab from '@/components/settings/KanbanStagesTab';
 import PatientAppAccessTab from '@/components/settings/PatientAppAccessTab';
 import AccessGroupsTab from '@/components/settings/AccessGroupsTab';
-import WhatsAppAiSettingsTab from '@/components/settings/WhatsAppAiSettingsTab';
 import AnamneseTemplatesTab from '@/components/settings/AnamneseTemplatesTab';
 import ContractTemplatesTab from '@/components/settings/ContractTemplatesTab';
 import TreatmentsPage from '@/pages/clinic/TreatmentsPage';
@@ -239,7 +238,6 @@ export default function SettingsPage() {
       <Tabs value={activeSettingsTab} onValueChange={setSettingsTab} className="space-y-4">
         <TabsList className="!h-auto min-h-10 w-full flex-wrap justify-start gap-1">
           <TabsTrigger value="general"><Settings className="w-4 h-4 mr-1" />Geral</TabsTrigger>
-          {show('whatsapp-ai') && <TabsTrigger value="whatsapp-ai"><MessageSquare className="w-4 h-4 mr-1" />WhatsApp IA</TabsTrigger>}
           <TabsTrigger value="branding"><Palette className="w-4 h-4 mr-1" />Branding</TabsTrigger>
           {show('roles') && <TabsTrigger value="roles"><Briefcase className="w-4 h-4 mr-1" />Cargos</TabsTrigger>}
           {show('entities') && <TabsTrigger value="entities"><Building2 className="w-4 h-4 mr-1" />Conselhos</TabsTrigger>}
@@ -542,10 +540,6 @@ export default function SettingsPage() {
             <ContractTemplatesTab />
           </TabsContent>
         )}
-
-        <TabsContent value="whatsapp-ai">
-          <WhatsAppAiSettingsTab />
-        </TabsContent>
 
         {/* ===== CATEGORIES ===== */}
         <TabsContent value="categories">

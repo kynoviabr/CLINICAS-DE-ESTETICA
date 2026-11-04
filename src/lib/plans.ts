@@ -8,7 +8,7 @@ export const MODULE_KEYS = [
   'clinical',
   'performance',
   'governance',
-  'whatsapp_ai',
+  'aura',
   'white_label',
 ] as const;
 
@@ -17,7 +17,6 @@ export type ModuleKey = (typeof MODULE_KEYS)[number];
 export const PERMISSION_MODULE: Record<MenuPermissionKey, ModuleKey> = {
   'dashboard.view': 'core',
   'crm.view': 'crm',
-  'whatsapp_ai.view': 'whatsapp_ai',
   'patients.view': 'core',
   'treatments.view': 'core',
   'proposals.view': 'core',
@@ -35,7 +34,6 @@ export const PERMISSION_MODULE: Record<MenuPermissionKey, ModuleKey> = {
 
 // Abas e sub-abas de Configurações que dependem de módulo (as demais são do núcleo).
 export const SETTINGS_TAB_MODULE: Record<string, ModuleKey> = {
-  'whatsapp-ai': 'whatsapp_ai',
   roles: 'governance',
   entities: 'clinical',
   costs: 'governance',

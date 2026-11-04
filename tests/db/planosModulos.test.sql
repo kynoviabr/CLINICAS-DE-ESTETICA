@@ -23,9 +23,9 @@ SELECT pg_temp.assert_true(NOT public.clinic_has_module('20000000-0000-0000-0000
 
 -- Extras e bloqueios por clínica
 INSERT INTO public.clinic_module_overrides(clinic_id,module_key,enabled) VALUES
-('20000000-0000-0000-0000-000000000051','whatsapp_ai',true),
+('20000000-0000-0000-0000-000000000051','aura',true),
 ('20000000-0000-0000-0000-000000000051','crm',false);
-SELECT pg_temp.assert_true(public.clinic_has_module('20000000-0000-0000-0000-000000000051','whatsapp_ai'),'add-on enables module');
+SELECT pg_temp.assert_true(public.clinic_has_module('20000000-0000-0000-0000-000000000051','aura'),'add-on enables module');
 SELECT pg_temp.assert_true(NOT public.clinic_has_module('20000000-0000-0000-0000-000000000051','crm'),'override disables module');
 DELETE FROM public.clinic_module_overrides WHERE clinic_id='20000000-0000-0000-0000-000000000051';
 

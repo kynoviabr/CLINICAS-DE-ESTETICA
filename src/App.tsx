@@ -32,7 +32,6 @@ const EvolutionPage = lazy(() => import("./pages/clinic/EvolutionPage"));
 const PhotosPage = lazy(() => import("./pages/clinic/PhotosPage"));
 const ReportsPage = lazy(() => import("./pages/clinic/ReportsPage"));
 const SettingsPage = lazy(() => import("./pages/clinic/SettingsPage"));
-const WhatsAppAiPage = lazy(() => import("./pages/clinic/WhatsAppAiPage"));
 const GoalsTrackingPage = lazy(() => import("./pages/clinic/GoalsTrackingPage"));
 const PortalHomePage = lazy(() => import("./pages/portal/PortalHomePage"));
 const PortalContractPage = lazy(() => import("./pages/portal/PortalContractPage"));
@@ -77,7 +76,6 @@ const App = () => (
                 <Route index element={<ClinicDashboard />} />
                 <Route path="implantacao" element={<SetupPage />} />
                 <Route path="crm" element={<CrmPage />} />
-                <Route path="whatsapp-ai" element={<WhatsAppAiPage />} />
                 <Route path="patients" element={<PatientsPage />} />
                 <Route path="patients/:id" element={<PatientDetailPage />} />
                 <Route path="treatments" element={<TreatmentsPage readOnly />} />
