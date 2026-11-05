@@ -18,6 +18,7 @@ import { paymentConditionLabels, type PaymentCondition, type PaymentConfig, type
 import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
 import { defaultStages, normalizeStageCode, stageAppearance, lostReasons, normalizePhone, getSchemaMissingColumn, stripUnsupportedLeadFields, buildEvaluationScheduleLink, isSchedulableAppointmentStatus, isFollowUpDue, getPriorityRank, normalizeLeadSource, getLeadSourceMeta, type StageCode, type LeadRow, type RenewalTaskRow, type RenewalInteractionRow, type LeadProposalRow, type LeadProposalItem, type LeadProposalView, type CrmTreatmentRow } from '@/lib/crm/model';
 import type { TablesUpdate } from '@/integrations/supabase/types';
+import { buildBoardColumns, displayStageCode, effectiveHidden, FINAL_COLUMN_KEY } from '@/lib/crm/boardColumns';
 
 export function useCrmPage() {
   const { clinicId } = useBranding();
@@ -110,20 +111,39 @@ export function useCrmPage() {
       try {
         const parsed = JSON.parse(data.value);
         if (!Array.isArray(parsed) || parsed.length === 0) return defaultStages;
-        return parsed.map((stage: { code?: string; label?: string; description?: string }, index: number) =>
-          stageAppearance({
+        return parsed.map((stage: { code?: string; label?: string; description?: string; hidden?: boolean }, index: number) => ({
+          ...stageAppearance({
             code: normalizeStageCode(stage.code),
             label: stage.label || stage.code,
             description: stage.description || '',
             isSystem: !!defaultStages.find((item) => item.code === normalizeStageCode(stage.code)),
-          }, index)
-        );
+          }, index),
+          hidden: !!stage.hidden,
+        }));
       } catch {
         return defaultStages;
       }
     },
     enabled: !!clinicId,
   });
+
+  const { data: finalColumnLabel = null } = useQuery({
+    queryKey: ['crm-final-column', clinicId],
+    queryFn: async () => {
+      const { data } = await supabase.from('clinic_settings').select('value')
+        .eq('clinic_id', clinicId!).eq('key', FINAL_COLUMN_KEY).maybeSingle();
+      return data?.value?.trim() || null;
+    },
+    enabled: !!clinicId,
+  });
+
+  // Colunas do quadro: etapas ocultas somem (leads vão para a próxima) e Fechado/Perdido podem virar "Finalizado".
+  const boardColumns = useMemo(() => buildBoardColumns(configuredStages, finalColumnLabel), [configuredStages, finalColumnLabel]);
+  const visibleStages = useMemo(() => {
+    const hidden = effectiveHidden(configuredStages);
+    return configuredStages.filter((stage) => !hidden.has(stage.code));
+  }, [configuredStages]);
+  const displayStageOf = (code: string) => displayStageCode(boardColumns, code);
 
   const { staff } = useStaffDirectory(clinicId, ['admin', 'sales', 'receptionist', 'professional']);
   // Responsável do lead é um login; na agenda vale o cadastro de profissional dele (se tiver).
@@ -449,12 +469,12 @@ export function useCrmPage() {
       const matchesAssignee =
         assignedFilter === 'all' ||
         (assignedFilter === 'unassigned' ? !lead.assigned_to : lead.assigned_to === assignedFilter);
-      const matchesStage = stageFilter === 'all' || lead.kanban_stage === stageFilter;
+      const matchesStage = stageFilter === 'all' || lead.kanban_stage === stageFilter || displayStageCode(boardColumns, lead.kanban_stage) === stageFilter;
       const leadSource = normalizeLeadSource(lead.source);
       const matchesSource = sourceFilter === 'all' || leadSource === sourceFilter;
       return matchesSearch && matchesAssignee && matchesStage && matchesSource;
     });
-  }, [leads, search, assignedFilter, stageFilter, sourceFilter]);
+  }, [leads, search, assignedFilter, stageFilter, sourceFilter, boardColumns]);
 
   const filteredLeads = useMemo(() => {
     const isStalledLead = (lead: LeadRow) => {
@@ -484,15 +504,15 @@ export function useCrmPage() {
   }, [baseFilteredLeads, insightFilter]);
 
   const stageGroups = useMemo(() => {
-    return configuredStages.map((stage) => {
-      const items = filteredLeads.filter((lead) => lead.kanban_stage === stage.code);
+    return boardColumns.map((column) => {
+      const items = filteredLeads.filter((lead) => column.stageCodes.includes(lead.kanban_stage));
       const totalValue = items.reduce((sum, lead) => {
         const matched = proposalMap[lead.proposal_id || ''];
         return sum + Number(matched?.final_amount || 0);
       }, 0);
-      return { ...stage, items, totalValue };
+      return { ...column.stage, code: column.code, label: column.label, isFinal: column.isFinal, stageCodes: column.stageCodes, items, totalValue };
     });
-  }, [configuredStages, filteredLeads, proposalMap]);
+  }, [boardColumns, filteredLeads, proposalMap]);
 
   const selectedLeads = useMemo(
     () => filteredLeads.filter((lead) => selectedLeadIds.includes(lead.id)),
@@ -1467,6 +1487,8 @@ export function useCrmPage() {
     leads,
     isLoading,
     configuredStages,
+    visibleStages,
+    displayStageOf,
     staff,
     treatments,
     proposals,

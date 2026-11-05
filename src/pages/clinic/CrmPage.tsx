@@ -36,6 +36,7 @@ export default function CrmPage() {
     setQuickCreateOpen,
     leads,
     configuredStages,
+    visibleStages,
     staff,
     availableSources,
     clearQuickFilters,
@@ -123,7 +124,7 @@ export default function CrmPage() {
                 <SelectTrigger className="h-10 rounded-lg border-slate-200 bg-slate-50/80 text-sm"><SelectValue placeholder="Etapa" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas etapas</SelectItem>
-                  {configuredStages.map((stage) => <SelectItem key={stage.code} value={stage.code}>{stage.label}</SelectItem>)}
+                  {visibleStages.map((stage) => <SelectItem key={stage.code} value={stage.code}>{stage.label}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={sourceFilter} onValueChange={setSourceFilter}>

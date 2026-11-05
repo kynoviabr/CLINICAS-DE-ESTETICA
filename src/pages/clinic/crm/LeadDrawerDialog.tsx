@@ -19,6 +19,7 @@ export function LeadDrawerDialog({ ctx }: { ctx: CrmPageController }) {
     setLeadDrawer,
     setInteractionOpen,
     configuredStages,
+    visibleStages,
     staff,
     proposals,
     interactions,
@@ -114,7 +115,7 @@ export function LeadDrawerDialog({ ctx }: { ctx: CrmPageController }) {
                     >
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {configuredStages.map((stage) => <SelectItem key={stage.code} value={stage.code}>{stage.label}</SelectItem>)}
+                        {visibleStages.concat(visibleStages.some((stage) => stage.code === leadDrawer.kanban_stage) ? [] : configuredStages.filter((stage) => stage.code === leadDrawer.kanban_stage)).map((stage) => <SelectItem key={stage.code} value={stage.code}>{stage.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
