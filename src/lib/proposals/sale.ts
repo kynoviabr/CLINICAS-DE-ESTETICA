@@ -1,4 +1,4 @@
-import { addDays, format } from 'date-fns';
+import { addBusinessDays, format } from 'date-fns';
 import type { PaymentConfig, PaymentMethod } from '@/components/contracts/ContractPaymentConfigurator';
 import { onlyDigits } from '@/lib/patients/validation';
 
@@ -11,12 +11,13 @@ export interface SaleItem {
   min_price?: number | null;
 }
 
-export const DEFAULT_VALIDITY_DAYS = 7;
+/** Validade padrão da proposta: 5 dias úteis (seg a sex; feriados não entram na conta). */
+export const DEFAULT_VALIDITY_BUSINESS_DAYS = 5;
 
 export const saleTotal = (items: SaleItem[]) =>
   Math.round(items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0) * 100) / 100;
 
-export const defaultValidUntil = (today = new Date()) => format(addDays(today, DEFAULT_VALIDITY_DAYS), 'yyyy-MM-dd');
+export const defaultValidUntil = (today = new Date()) => format(addBusinessDays(today, DEFAULT_VALIDITY_BUSINESS_DAYS), 'yyyy-MM-dd');
 
 export function proposalNumber(now = new Date()) {
   return `PROP-${format(now, 'yyyyMM')}-${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}`;

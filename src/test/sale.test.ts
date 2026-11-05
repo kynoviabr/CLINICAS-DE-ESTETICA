@@ -19,7 +19,10 @@ describe('Nova venda', () => {
   });
 
   it('validade padrão de 7 dias', () => {
+    // quinta + 5 dias úteis = quinta seguinte; sexta + 5 = sexta seguinte (pula o fim de semana)
     expect(defaultValidUntil(new Date(2026, 10, 5))).toBe('2026-11-12');
+    expect(defaultValidUntil(new Date(2026, 10, 6))).toBe('2026-11-13');
+    expect(defaultValidUntil(new Date(2026, 10, 7))).toBe('2026-11-13');
   });
 
   it('confere a forma de pagamento', () => {
