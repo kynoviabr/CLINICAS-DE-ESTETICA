@@ -33,6 +33,7 @@ export const PATH_PERMISSION_MAP: Array<{ prefix: string; key: MenuPermissionKey
   { prefix: '/clinic/proposals', key: 'proposals.view' },
   { prefix: '/clinic/contracts', key: 'contracts.view' },
   { prefix: '/clinic/finance/contracts', key: 'finance_contracts.view' },
+  { prefix: '/clinic/financeiro', key: 'finance_contracts.view' },
   { prefix: '/clinic/metas', key: 'goals.view' },
   { prefix: '/clinic/appointments', key: 'appointments.view' },
   { prefix: '/clinic/sessions', key: 'sessions.view' },

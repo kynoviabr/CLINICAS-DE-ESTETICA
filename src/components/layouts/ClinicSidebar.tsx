@@ -30,7 +30,7 @@ const navItems: NavItem[] = [
   { to: '/clinic/vendas/nova', icon: ShoppingBag, label: 'Nova venda', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'proposals.view' },
   { to: '/clinic/proposals', icon: FileText, label: 'Propostas', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'proposals.view' },
   { to: '/clinic/contracts', icon: FileSignature, label: 'Contratos', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'contracts.view' },
-  { to: '/clinic/finance/contracts', icon: Landmark, label: 'Financeiro', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'finance_contracts.view' },
+  { to: '/clinic/financeiro', icon: Landmark, label: 'Financeiro', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'finance_contracts.view' },
   { to: '/clinic/metas/acompanhamento', icon: Goal, label: 'Metas', roles: ['admin', 'receptionist', 'sales', 'professional'], permissionKey: 'goals.view' },
   { to: '/clinic/appointments', icon: CalendarDays, label: 'Agenda', roles: ['admin', 'receptionist', 'professional'], permissionKey: 'appointments.view' },
   { to: '/clinic/sessions', icon: ClipboardList, label: 'Sessões', roles: ['admin', 'professional'], permissionKey: 'sessions.view' },

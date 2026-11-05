@@ -30,7 +30,7 @@ export function useInstallmentPayments() {
   const [paying, setPaying] = useState<ContractInstallment | null>(null);
 
   const refresh = () => {
-    ['finance-contract-detail', 'finance-receivables', 'finance-contracts-matrix', 'dashboard-overdue', 'dashboard-growth', 'dashboard-funnel', 'dashboard-revenue-sessions-chart']
+    ['simple-finance', 'finance-contract-detail', 'finance-receivables', 'finance-contracts-matrix', 'dashboard-overdue', 'dashboard-growth', 'dashboard-funnel', 'dashboard-revenue-sessions-chart']
       .forEach((key) => qc.invalidateQueries({ queryKey: [key] }));
   };
 
