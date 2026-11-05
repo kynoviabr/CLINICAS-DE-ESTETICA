@@ -27,7 +27,7 @@ import {
   type PaymentConfig,
   type PaymentMethod,
 } from '@/components/contracts/ContractPaymentConfigurator';
-import { composeProposalNotesPayload, parseProposalNotesPayload, type PaymentPresetSnapshot } from '@/lib/proposals/paymentPreset';
+import { buildPaymentPresetSummary, composeProposalNotesPayload, parseProposalNotesPayload, type PaymentPresetSnapshot } from '@/lib/proposals/paymentPreset';
 
 const statusMap: Record<string, { label: string; badge: BadgeStatus }> = {
   draft: { label: 'Rascunho', badge: 'draft' },
@@ -56,25 +56,6 @@ type ProposalWithPatient = ProposalRow & { patients?: { full_name?: string | nul
 type ProposalItemWithTreatment = ProposalItemRow & { treatments?: { name?: string | null } | null };
 type ComboItem = { treatment_id: string | null; quantity: number | null; treatments?: { id?: string | null; name?: string | null; price?: number | null } | null };
 type ComboLite = { id: string; name: string; promotional_price: number | null; treatment_combo_items?: ComboItem[] | null };
-const buildPaymentPresetSummary = (preset?: PaymentPresetSnapshot | null) => {
-  if (!preset || preset.methods.length === 0) return '';
-  const methodsText = preset.methods
-    .map((method) => {
-      const option = paymentMethodOptions.find((item) => item.value === method)?.label || method;
-      const amount = Number(preset.config?.[method]?.amount || 0);
-      const installments = Number(preset.config?.[method]?.installments || 0);
-      const installmentAmount = Number(preset.config?.[method]?.installmentAmount || 0);
-      if (method === 'card') {
-        return `${option}: R$ ${amount.toFixed(2)} · ${installments || 1}x de R$ ${(installmentAmount || amount).toFixed(2)}`;
-      }
-      if (method === 'boleto') {
-        return `${option}: R$ ${amount.toFixed(2)} · ${installments || 1}x de R$ ${(installmentAmount || amount).toFixed(2)}`;
-      }
-      return `${option}: R$ ${amount.toFixed(2)}`;
-    })
-    .join(' | ');
-  return `Condição: ${paymentConditionLabels[preset.condition]} | ${methodsText}`;
-};
 
 export default function ProposalsPage() {
   const { clinicId, clinicName } = useBranding();

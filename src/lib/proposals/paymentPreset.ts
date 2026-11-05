@@ -1,4 +1,5 @@
 import {
+  paymentConditionLabels,
   paymentMethodOptions,
   type PaymentCondition,
   type PaymentConfig,
@@ -63,4 +64,27 @@ export const composeProposalNotesPayload = (plainNotes: string, paymentPreset?: 
   const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(sanitizedPreset))));
   const markerLine = `${PAYMENT_PRESET_MARKER}${encoded}`;
   return cleanNotes ? `${cleanNotes}\n\n${markerLine}` : markerLine;
+};
+
+/** Resumo legível da forma de pagamento combinada (impressão, PDF e mensagens). */
+const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+export const buildPaymentPresetSummary = (preset?: PaymentPresetSnapshot | null) => {
+  if (!preset || preset.methods.length === 0) return '';
+  const methodsText = preset.methods
+    .map((method) => {
+      const option = paymentMethodOptions.find((item) => item.value === method)?.label || method;
+      const amount = Number(preset.config?.[method]?.amount || 0);
+      const installments = Number(preset.config?.[method]?.installments || 0);
+      const installmentAmount = Number(preset.config?.[method]?.installmentAmount || 0);
+      if (method === 'card') {
+        return `${option}: ${brl(amount)} · ${installments || 1}x de ${brl(installmentAmount || amount)}`;
+      }
+      if (method === 'boleto') {
+        return `${option}: ${brl(amount)} · ${installments || 1}x de ${brl(installmentAmount || amount)}`;
+      }
+      return `${option}: ${brl(amount)}`;
+    })
+    .join(' | ');
+  return `Condição: ${paymentConditionLabels[preset.condition]} | ${methodsText}`;
 };

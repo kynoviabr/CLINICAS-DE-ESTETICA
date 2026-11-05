@@ -3,8 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, FileText, ClipboardList,
   CalendarDays, Activity, Camera, MessageSquare, Settings, LogOut,
-  Menu, X, Stethoscope, FileSignature, BarChart3, TrendingUp, Star, KanbanSquare, Landmark, Goal
-} from 'lucide-react';
+  Menu, X, Stethoscope, FileSignature, BarChart3, TrendingUp, Star, KanbanSquare, Landmark, Goal, ShoppingBag } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -28,6 +27,7 @@ const navItems: NavItem[] = [
   { to: '/clinic/crm', icon: KanbanSquare, label: 'CRM', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'crm.view' },
   { to: '/clinic/patients', icon: Users, label: 'Pacientes', roles: ['admin', 'receptionist', 'professional', 'sales'], permissionKey: 'patients.view' },
   { to: '/clinic/treatments', icon: Stethoscope, label: 'Tratamentos', roles: ['admin', 'receptionist', 'professional', 'sales'], permissionKey: 'treatments.view' },
+  { to: '/clinic/vendas/nova', icon: ShoppingBag, label: 'Nova venda', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'proposals.view' },
   { to: '/clinic/proposals', icon: FileText, label: 'Propostas', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'proposals.view' },
   { to: '/clinic/contracts', icon: FileSignature, label: 'Contratos', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'contracts.view' },
   { to: '/clinic/finance/contracts', icon: Landmark, label: 'Financeiro', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'finance_contracts.view' },
