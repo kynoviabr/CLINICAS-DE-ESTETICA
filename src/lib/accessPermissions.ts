@@ -29,6 +29,7 @@ export const PATH_PERMISSION_MAP: Array<{ prefix: string; key: MenuPermissionKey
   { prefix: '/clinic/crm', key: 'crm.view' },
   { prefix: '/clinic/patients', key: 'patients.view' },
   { prefix: '/clinic/treatments', key: 'treatments.view' },
+  { prefix: '/clinic/vendas', key: 'proposals.view' },
   { prefix: '/clinic/proposals', key: 'proposals.view' },
   { prefix: '/clinic/contracts', key: 'contracts.view' },
   { prefix: '/clinic/finance/contracts', key: 'finance_contracts.view' },

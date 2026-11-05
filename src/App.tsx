@@ -22,6 +22,7 @@ const PatientsPage = lazy(() => import("./pages/clinic/PatientsPage"));
 const PatientDetailPage = lazy(() => import("./pages/clinic/PatientDetailPage"));
 const TreatmentsPage = lazy(() => import("./pages/clinic/TreatmentsPage"));
 const SetupPage = lazy(() => import("./pages/clinic/SetupPage"));
+const NewSalePage = lazy(() => import("./pages/clinic/NewSalePage"));
 const ProposalsPage = lazy(() => import("./pages/clinic/ProposalsPage"));
 const ContractsPage = lazy(() => import("./pages/clinic/ContractsPage"));
 const FinanceContractsPage = lazy(() => import("./pages/clinic/FinanceContractsPage"));
@@ -79,6 +80,7 @@ const App = () => (
                 <Route path="patients" element={<PatientsPage />} />
                 <Route path="patients/:id" element={<PatientDetailPage />} />
                 <Route path="treatments" element={<TreatmentsPage readOnly />} />
+                <Route path="vendas/nova" element={<NewSalePage />} />
                 <Route path="proposals" element={<ProposalsPage />} />
                 <Route path="contracts" element={<ContractsPage />} />
                 <Route path="payments" element={<Navigate to="/clinic/finance/contracts" replace />} />
