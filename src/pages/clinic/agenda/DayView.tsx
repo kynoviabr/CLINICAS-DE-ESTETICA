@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react';
 import { dayHours, daySlots, slotOf } from '@/lib/agenda/daySlots';
 import { statusConfig } from '@/lib/agenda/model';
 import type { AgendaPageController } from './useAgendaPage';
+import { DayColumnsView } from './DayColumnsView';
 
 export function DayView({ ctx }: { ctx: AgendaPageController }) {
   const {
@@ -19,6 +20,7 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
     getApptsForDay,
     availability,
     filterProfessional,
+    filterProfessionals,
     resetForm,
     setSelectedDate,
     setSelectedTime,
@@ -51,6 +53,12 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
     else if (isProfessional && myProfessionalId) setSelectedProfessional(myProfessionalId);
     setDialogOpen(true);
   };
+
+  // 2 ou mais profissionais escolhidas: uma coluna para cada.
+  const columnProfessionals = filterProfessionals.filter((id) => id !== 'unassigned');
+  if (viewMode === 'day' && columnProfessionals.length >= 2) {
+    return <DayColumnsView ctx={ctx} professionalIds={columnProfessionals} />;
+  }
 
   return (
     <>

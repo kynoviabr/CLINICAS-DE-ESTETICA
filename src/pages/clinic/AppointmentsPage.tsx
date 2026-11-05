@@ -4,6 +4,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, ChevronLeft, ChevronRight, AlertTriangle, CalendarCheck2, Clock3, CheckCircle2, CalendarCog, Lock, BellRing, CalendarDays, CalendarRange } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
 import QuickPatientModal from '@/components/patient/QuickPatientModal';
 import { format } from 'date-fns';
 import { useEffect, useRef } from 'react';
@@ -34,6 +36,8 @@ export default function AppointmentsPage() {
     setSelectedProfessional,
     filterProfessional,
     setFilterProfessional,
+    filterProfessionals,
+    setFilterProfessionals,
     filterStatus,
     setFilterStatus,
     quickPatientOpen,
@@ -233,18 +237,42 @@ export default function AppointmentsPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Select value={filterProfessional} onValueChange={setFilterProfessional}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Todos profissionais" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os responsáveis</SelectItem>
-              <SelectItem value="unassigned">Não atribuído</SelectItem>
-              {professionals.map(p => (
-                <SelectItem key={p.user_id} value={p.user_id}>
-                  {p.label}
-                </SelectItem>
+          {/* Várias profissionais: na visão Dia, cada uma vira uma coluna. */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button type="button" className="flex h-10 w-[200px] items-center justify-between rounded-md border border-input bg-background px-3 text-sm">
+                <span className="truncate">
+                  {filterProfessionals.length === 0
+                    ? 'Todas as profissionais'
+                    : filterProfessionals.length === 1
+                      ? (filterProfessional === 'unassigned' ? 'Não atribuído' : professionals.find((p) => p.id === filterProfessional)?.label || '1 profissional')
+                      : `${filterProfessionals.length} selecionadas`}
+                </span>
+                <ChevronRight className="h-4 w-4 rotate-90 opacity-50" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-64 p-2">
+              <button
+                type="button"
+                className={`w-full rounded px-2 py-1.5 text-left text-sm hover:bg-muted ${filterProfessionals.length === 0 ? 'font-semibold' : ''}`}
+                onClick={() => setFilterProfessionals([])}
+              >
+                Todas as profissionais
+              </button>
+              {[...professionals.map((p) => ({ id: p.id, label: p.label })), { id: 'unassigned', label: 'Não atribuído' }].map((option) => (
+                <label key={option.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted">
+                  <Checkbox
+                    checked={filterProfessionals.includes(option.id)}
+                    onCheckedChange={(checked) => setFilterProfessionals((current) => (checked
+                      ? [...current.filter((id) => id !== option.id), option.id]
+                      : current.filter((id) => id !== option.id)))}
+                  />
+                  {option.label}
+                </label>
               ))}
-            </SelectContent>
-          </Select>
+              <p className="px-2 pt-1 text-[11px] text-muted-foreground">Escolha 2 ou mais para ver as agendas lado a lado no dia.</p>
+            </PopoverContent>
+          </Popover>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="w-[190px]"><SelectValue placeholder="Todos status" /></SelectTrigger>
             <SelectContent>
