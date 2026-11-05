@@ -79,12 +79,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, metadata?: Record<string, unknown>) => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: metadata, emailRedirectTo: `${window.location.origin}/onboarding` },
     });
     if (error) throw error;
+    // E-mail já cadastrado: o Supabase responde "ok" sem enviar nada e sem identidades.
+    if (data.user && (data.user.identities?.length ?? 0) === 0) {
+      throw new Error('Este e-mail já tem conta. Entre com ele (ou use "Esqueci a senha") ou cadastre outro e-mail.');
+    }
   };
 
   const signInWithSocial = async (provider: 'google' | 'facebook') => {
