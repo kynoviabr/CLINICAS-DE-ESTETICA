@@ -5,6 +5,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getLeadSourceMeta } from '@/lib/crm/model';
+import { useClinicPlan } from '@/hooks/useClinicPlan';
+import { isLeanPlan } from '@/lib/plans';
 import { useCrmPage } from './crm/useCrmPage';
 import { CrmInsightsPanel } from './crm/CrmInsightsPanel';
 import { CrmBoard } from './crm/CrmBoard';
@@ -18,6 +20,9 @@ import { ContractDialog } from './crm/ContractDialog';
 
 export default function CrmPage() {
   const ctx = useCrmPage();
+  // Essencial: CRM enxuto, sem o painel de detalhes (radar comercial, origens, pendências).
+  const { modules } = useClinicPlan();
+  const lean = isLeanPlan(modules);
   const {
     navigate,
     search,
@@ -146,28 +151,32 @@ export default function CrmPage() {
         </CardContent>
       </Card>
 
-      <Card className="mb-3 border-slate-200 bg-white/95 shadow-sm">
-        <CardContent className="px-3 py-2.5">
-          <button
-            type="button"
-            onClick={() => setDetailsExpanded((current) => !current)}
-            className="flex w-full items-center justify-between gap-3 rounded-lg px-1 py-1 text-left transition-colors hover:bg-slate-50"
-          >
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Detalhes</p>
-              <p className="mt-0.5 text-sm text-slate-700">
-                Radar comercial, origens e pendências da operação
-              </p>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <span>{detailsExpanded ? 'Ocultar' : 'Expandir'}</span>
-              {detailsExpanded ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
-            </div>
-          </button>
-        </CardContent>
-      </Card>
+      {!lean && (
+        <>
+        <Card className="mb-3 border-slate-200 bg-white/95 shadow-sm">
+          <CardContent className="px-3 py-2.5">
+            <button
+              type="button"
+              onClick={() => setDetailsExpanded((current) => !current)}
+              className="flex w-full items-center justify-between gap-3 rounded-lg px-1 py-1 text-left transition-colors hover:bg-slate-50"
+            >
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Detalhes</p>
+                <p className="mt-0.5 text-sm text-slate-700">
+                  Radar comercial, origens e pendências da operação
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <span>{detailsExpanded ? 'Ocultar' : 'Expandir'}</span>
+                {detailsExpanded ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+              </div>
+            </button>
+          </CardContent>
+        </Card>
 
-      <CrmInsightsPanel ctx={ctx} />
+        <CrmInsightsPanel ctx={ctx} />
+        </>
+      )}
 
       {(insightFilter !== 'all' || sourceFilter !== 'all') && (
         <div className="mb-2 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2">
