@@ -3,9 +3,12 @@ import { BrandButton } from '@/components/ui/brand-button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, ChevronLeft, ChevronRight, AlertTriangle, CalendarCheck2, Clock3, CheckCircle2, CalendarCog, Lock, BellRing } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, AlertTriangle, CalendarCheck2, Clock3, CheckCircle2, CalendarCog, Lock, BellRing, CalendarDays } from 'lucide-react';
 import QuickPatientModal from '@/components/patient/QuickPatientModal';
 import { format } from 'date-fns';
+import { useEffect, useRef } from 'react';
+import { useClinicPlan } from '@/hooks/useClinicPlan';
+import { isLeanPlan } from '@/lib/plans';
 import { type ViewMode } from '@/lib/agenda/model';
 import { useAgendaPage } from './agenda/useAgendaPage';
 import { TodayQueue } from './agenda/TodayQueue';
@@ -53,18 +56,41 @@ export default function AppointmentsPage() {
     resetWaitlistForm,
     navigate_,
     headerLabel,
+    setCurrentDate,
+    searchParams,
   } = ctx;
+  const { modules } = useClinicPlan();
+  // Essencial: agenda simples, sem lista de espera nem disparos manuais de WhatsApp.
+  const lean = isLeanPlan(modules);
+
+  // Essencial abre direto no dia de hoje (se a URL não pediu outra visão).
+  const openedOnDay = useRef(false);
+  useEffect(() => {
+    if (!lean || openedOnDay.current) return;
+    openedOnDay.current = true;
+    if (!searchParams.get('visao')) setViewMode('day');
+  }, [lean, searchParams, setViewMode]);
+
+  const goToday = () => {
+    setCurrentDate(new Date());
+    setViewMode('day');
+  };
+
   return (
     <div>
       <PageHeader title="Agenda" description="Gerencie os agendamentos da clínica">
         <div className="flex flex-wrap gap-2">
+          <BrandButton variant="outline" onClick={goToday}>
+            <CalendarDays className="w-4 h-4" /> Hoje
+          </BrandButton>
+          <BrandButton variant="outline" onClick={() => setAvailabilityDialogOpen(true)}>
+            <CalendarCog className="w-4 h-4" /> Disponibilidade
+          </BrandButton>
+          <BrandButton variant="outline" onClick={() => setBlocksDialogOpen(true)}>
+            <Lock className="w-4 h-4" /> Bloqueios
+          </BrandButton>
+          {!lean && (
           <>
-            <BrandButton variant="outline" onClick={() => setAvailabilityDialogOpen(true)}>
-              <CalendarCog className="w-4 h-4" /> Disponibilidade
-            </BrandButton>
-            <BrandButton variant="outline" onClick={() => setBlocksDialogOpen(true)}>
-              <Lock className="w-4 h-4" /> Bloqueios
-            </BrandButton>
             <BrandButton
               variant="outline"
               onClick={() => {
@@ -103,6 +129,7 @@ export default function AppointmentsPage() {
               {runAgendaJobsMutation.isPending ? 'Executando...' : 'Rodar Jobs Agenda'}
             </BrandButton>
           </>
+          )}
           <BrandButton onClick={() => {
             resetForm();
             setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
@@ -247,9 +274,11 @@ export default function AppointmentsPage() {
           <span className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
             {agendaSignals.blockedDays} dias com restrição
           </span>
-          <span className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
-            {waitlistEntries.length} em lista de espera
-          </span>
+          {!lean && (
+            <span className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
+              {waitlistEntries.length} em lista de espera
+            </span>
+          )}
         </div>
       </div>
 
