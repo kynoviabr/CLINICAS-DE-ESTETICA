@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -14,8 +14,10 @@ import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   User, HeartPulse, Pill, AlertTriangle, Sparkles, Target, Coffee, FileCheck,
-  ChevronLeft, ChevronRight, Check,
+  ChevronLeft, ChevronRight, Check, ClipboardList,
 } from 'lucide-react';
+import { ANAMNESE_TEMPLATES_KEY, buildAreaSection, type AnamneseTemplate } from '@/lib/anamnese/templates';
+import { readClinicSetting } from '@/lib/setup/clinicSetup';
 import type { Json } from '@/integrations/supabase/types';
 
 
@@ -113,7 +115,7 @@ const emptyForm: FormData = {
   consent: { agrees_terms: false, agrees_photos: false, agrees_data_usage: false, signature_date: '' },
 };
 
-const sections = [
+const baseSections = [
   { key: 'identification', label: 'Identificação', icon: User },
   { key: 'health_history', label: 'Histórico de Saúde', icon: HeartPulse },
   { key: 'medications', label: 'Medicamentos', icon: Pill },
@@ -131,7 +133,33 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormData>(emptyForm);
 
-  const currentSection = sections[step];
+  // Perguntas da área do tratamento (modelos de Configurações > Anamnese, criados na implantação).
+  const { data: templates = [] } = useQuery({
+    queryKey: ['anamnese-templates-active', clinicId],
+    queryFn: async () => {
+      const raw = await readClinicSetting(clinicId, ANAMNESE_TEMPLATES_KEY);
+      try {
+        const parsed = raw ? JSON.parse(raw) : [];
+        return (Array.isArray(parsed) ? parsed : []).filter((t: AnamneseTemplate) => t.active && t.specific_questions?.length) as AnamneseTemplate[];
+      } catch {
+        return [] as AnamneseTemplate[];
+      }
+    },
+    enabled: open && !!clinicId,
+  });
+  const [templateId, setTemplateId] = useState('');
+  const [areaAnswers, setAreaAnswers] = useState<Record<string, string>>({});
+  const selectedTemplate = templates.find((t) => t.id === templateId) || null;
+  const sections = useMemo(() => {
+    if (templates.length === 0) return baseSections as unknown as Array<(typeof baseSections)[number] | { key: 'area'; label: string; icon: typeof ClipboardList }>;
+    const consentIndex = baseSections.findIndex((x) => x.key === 'consent');
+    return [
+      ...baseSections.slice(0, consentIndex),
+      { key: 'area' as const, label: 'Perguntas da área', icon: ClipboardList },
+      ...baseSections.slice(consentIndex),
+    ];
+  }, [templates.length]);
+  const currentSection = sections[Math.min(step, sections.length - 1)];
 
   const updateSection = <S extends keyof FormData, F extends keyof FormData[S]>(section: S, field: F, value: FormData[S][F]) => {
     setForm(prev => ({
@@ -145,7 +173,8 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
       if (!form.consent.agrees_terms) throw new Error('É necessário aceitar os termos de consentimento');
       
       const now = new Date().toISOString();
-      const formData: Json = JSON.parse(JSON.stringify(form));
+      const areaSection = buildAreaSection(selectedTemplate, areaAnswers);
+      const formData: Json = JSON.parse(JSON.stringify({ ...form, ...areaSection }));
 
       const { error } = await supabase.from('patient_anamneses').insert({
         anamnese_number: '', // o banco gera o número (trigger)
@@ -165,6 +194,8 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
       qc.invalidateQueries({ queryKey: ['patient', patientId] });
       toast({ title: 'Anamnese salva com sucesso!' });
       setForm(emptyForm);
+      setTemplateId('');
+      setAreaAnswers({});
       setStep(0);
       onOpenChange(false);
     },
@@ -507,6 +538,29 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
               <Textarea value={form.habits.diet_description} onChange={e => updateSection('habits', 'diet_description', e.target.value)} placeholder="Descreva brevemente sua alimentação" rows={2} />
             </div>
             <BooleanQuestion label="Usa protetor solar diariamente?" value={form.habits.sun_protection} onChange={v => updateSection('habits', 'sun_protection', v)} />
+          </div>
+        );
+
+      case 'area':
+        return (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Área do tratamento</Label>
+              <Select value={templateId || 'none'} onValueChange={(v) => setTemplateId(v === 'none' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="Escolha a área" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma (só perguntas gerais)</SelectItem>
+                  {templates.map((t) => <SelectItem key={t.id} value={t.id}>{t.category_name || t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">As perguntas vêm do modelo da área em Configurações &gt; Anamnese.</p>
+            </div>
+            {selectedTemplate?.specific_questions.map((q, i) => (
+              <div key={q} className="space-y-2 rounded-xl border border-border/60 bg-card/60 p-4">
+                <Label htmlFor={`area-q-${i}`}>{q}</Label>
+                <Textarea id={`area-q-${i}`} rows={2} value={areaAnswers[q] || ''} onChange={(e) => setAreaAnswers((cur) => ({ ...cur, [q]: e.target.value }))} />
+              </div>
+            ))}
           </div>
         );
 

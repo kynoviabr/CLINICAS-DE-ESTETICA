@@ -134,3 +134,13 @@ export function buildAnamneseTemplate(category: TreatmentCategory): AnamneseTemp
     notes: 'Dados básicos de saúde são comuns; perguntas específicas devem ser revisadas conforme o protocolo e profissional responsável.',
   };
 }
+
+/** Parte da área no form_data da anamnese: modelo usado e respostas por pergunta. */
+export function buildAreaSection(template: AnamneseTemplate | null, answers: Record<string, string>) {
+  if (!template) return {};
+  return {
+    template_id: template.id,
+    template: { name: template.name, category: template.category_name },
+    area_questions: Object.fromEntries(template.specific_questions.map((q) => [q, (answers[q] || '').trim()])),
+  };
+}
