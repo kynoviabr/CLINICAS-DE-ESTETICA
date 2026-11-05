@@ -15,7 +15,7 @@ import { formatBRL } from '@/lib/proposals/sale';
 
 const ROW_STYLE: Record<DreTableRow['kind'], string> = {
   revenue: 'font-semibold',
-  deduction: 'text-muted-foreground',
+  deduction: 'font-semibold text-amber-800 bg-amber-50/70',
   subtotal: 'font-semibold bg-muted/40',
   cost: 'text-muted-foreground',
   expense: 'text-muted-foreground',
@@ -109,7 +109,7 @@ export default function DrePage() {
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.key} className={`border-b last:border-b-0 ${ROW_STYLE[row.kind]}`}>
-                    <td className={`px-4 py-2 ${row.kind === 'expense' || row.kind === 'cost' || row.kind === 'deduction' ? 'pl-8' : ''}`}>{row.label}</td>
+                    <td className={`px-4 py-2 ${row.kind === 'expense' || row.kind === 'cost' ? 'pl-8' : ''}`}>{row.label}</td>
                     {row.values.map((v, i) => {
                       const value = signed(row, v);
                       const negativeResult = row.kind === 'result' && value < 0;
