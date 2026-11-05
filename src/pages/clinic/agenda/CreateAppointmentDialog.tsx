@@ -62,6 +62,7 @@ export function CreateAppointmentDialog({ ctx }: { ctx: AgendaPageController }) 
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <Select value={selectedPatient} onValueChange={(value) => {
+                      if (!value) return;
                       setSelectedPatient(value);
                       setSelectedTreatment('');
                     }}>

@@ -121,7 +121,9 @@ export function useAgendaPage() {
     enabled: !!clinicId,
   });
 
-  const selectedPatientLookupId = selectedPatient || prefillPatientId || '';
+  // Só o paciente vindo pelo link entra na busca (pode estar inativo). Escolher na lista
+  // não pode refazer a busca: a lista esvaziava e o campo perdia a escolha.
+  const selectedPatientLookupId = prefillPatientId || '';
   const { data: patients = [] } = useQuery({
     queryKey: ['patients-select', clinicId, selectedPatientLookupId],
     queryFn: async () => {
@@ -136,6 +138,7 @@ export function useAgendaPage() {
       const { data } = await query;
       return data || [];
     },
+    placeholderData: (previous) => previous,
     enabled: !!clinicId,
   });
 
