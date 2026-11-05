@@ -38,3 +38,25 @@ describe('implantação guiada', () => {
     expect(second.templates).toHaveLength(3);
   });
 });
+
+import { buildSetupItems, pickKey } from '@/lib/setup/clinicSetup';
+
+describe('tratamentos escolhidos na implantação', () => {
+  it('envia só os marcados, com o preço da clínica, e os próprios', () => {
+    const picks = {
+      [pickKey('Injetáveis', 'Skinbooster')]: { checked: true, price: '650,00' },
+      [pickKey('Injetáveis', 'Fios de PDO de sustentação')]: { checked: false, price: '2500' },
+      [pickKey('Estética Facial', 'Dermaplaning')]: { checked: true, price: '170' },
+    };
+    const { items, areas } = buildSetupItems(picks, [
+      { name: ' Protocolo noiva ', category: 'Meus protocolos', price: '900', sessions: '' },
+      { name: '', category: 'X', price: '1', sessions: '1' },
+    ]);
+    expect(items).toEqual([
+      { name: 'Skinbooster', category: 'Injetáveis', price: '650.00' },
+      { name: 'Dermaplaning', category: 'Estética Facial', price: '170' },
+      { name: 'Protocolo noiva', category: 'Meus protocolos', price: '900', sessions: '1', custom: true },
+    ]);
+    expect(areas).toEqual(['Injetáveis', 'Estética Facial', 'Meus protocolos']);
+  });
+});

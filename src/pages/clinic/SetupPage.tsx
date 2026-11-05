@@ -22,6 +22,10 @@ import {
   SETUP_STEPS,
   WEEK_DAYS,
   buildAvailabilityRows,
+  buildSetupItems,
+  pickKey,
+  type CatalogPick,
+  type CustomTreatment,
   ensureAnamneseTemplates,
   formatDocument,
   isValidDocument,
@@ -41,6 +45,7 @@ const STEP_LABELS: Record<SetupStep, string> = {
 };
 
 type CatalogItem = { category_name: string; name: string; price: number; num_sessions: number };
+type CatalogArea = { name: string; description: string | null; notice: string | null; sort: number };
 
 const money = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
@@ -64,7 +69,9 @@ export default function SetupPage() {
   const [hours, setHours] = useState({ start: '09:00', end: '18:00' });
   // 3. Tratamentos
   const [categories, setCategories] = useState<string[]>([]);
-  const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [picks, setPicks] = useState<Record<string, CatalogPick>>({});
+  const [customs, setCustoms] = useState<CustomTreatment[]>([]);
+  const [customDraft, setCustomDraft] = useState<CustomTreatment>({ name: '', category: '', price: '', sessions: '1' });
   // 5. Equipe
   const [invite, setInvite] = useState({ email: '', role: 'receptionist' });
   const [invited, setInvited] = useState<string[]>([]);
@@ -109,6 +116,16 @@ export default function SetupPage() {
     staleTime: Infinity,
   });
 
+  const { data: areas = [] } = useQuery({
+    queryKey: ['treatment-catalog-areas'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('treatment_catalog_areas').select('name, description, notice, sort').order('sort');
+      if (error) throw error;
+      return (data || []) as CatalogArea[];
+    },
+    staleTime: Infinity,
+  });
+
   // Preenche com o que já existe (quem volta ao assistente continua de onde parou).
   useEffect(() => {
     if (!loaded) return;
@@ -139,14 +156,29 @@ export default function SetupPage() {
       setDays(loaded.availability.map((a) => a.day_of_week));
       setHours({ start: String(loaded.availability[0].start_time).slice(0, 5), end: String(loaded.availability[0].end_time).slice(0, 5) });
     }
-    setCategories((cur) => (cur.length ? cur : loaded.categories.filter((name) => catalog.some((item) => item.category_name === name))));
   }, [loaded, catalog, user?.email, ownerDefaultName]);
 
   const catalogByCategory = useMemo(() => {
     const map = new Map<string, CatalogItem[]>();
     catalog.forEach((item) => map.set(item.category_name, [...(map.get(item.category_name) || []), item]));
-    return [...map.entries()];
-  }, [catalog]);
+    const order = new Map(areas.map((a) => [a.name, a.sort]));
+    return [...map.entries()].sort((a, b) => (order.get(a[0]) ?? 99) - (order.get(b[0]) ?? 99));
+  }, [catalog, areas]);
+  const areaInfo = useMemo(() => new Map(areas.map((a) => [a.name, a])), [areas]);
+
+  // Marcar a área já marca todos os tratamentos dela (a pessoa desmarca o que não faz).
+  const toggleArea = (name: string, on: boolean) => {
+    setCategories((cur) => (on ? [...new Set([...cur, name])] : cur.filter((c) => c !== name)));
+    setPicks((cur) => {
+      const next = { ...cur };
+      (catalogByCategory.find(([n]) => n === name)?.[1] || []).forEach((item) => {
+        const key = pickKey(name, item.name);
+        next[key] = { checked: on, price: cur[key]?.price ?? String(Number(item.price)) };
+      });
+      return next;
+    });
+  };
+  const { items: setupItems } = buildSetupItems(picks, customs);
 
   const go = (next: SetupStep) => {
     setStep(next);
@@ -236,8 +268,9 @@ export default function SetupPage() {
   });
 
   const saveTreatments = () => run(async () => {
-    if (categories.length > 0) {
-      const { data, error } = await supabase.rpc('setup_clinic_defaults', { p_clinic_id: clinicId!, p_categories: categories });
+    const { items, areas: chosenAreas } = buildSetupItems(picks, customs);
+    if (items.length > 0) {
+      const { data, error } = await supabase.rpc('setup_clinic_defaults', { p_clinic_id: clinicId!, p_categories: chosenAreas, p_items: items });
       if (error) throw error;
       const result = (data || {}) as { treatments?: number };
       const anamneses = await ensureAnamneseTemplates(clinicId!);
@@ -375,41 +408,86 @@ export default function SetupPage() {
           {step === 'tratamentos' && (
             <>
               <div>
-                <h2 className="text-lg font-semibold">Tratamentos que você oferece</h2>
-                <p className="text-sm text-muted-foreground">Escolha as áreas e trazemos os tratamentos prontos, com preço sugerido, sessões e custo. Você ajusta preços e remove o que não faz depois.</p>
+                <h2 className="text-lg font-semibold">O que você faz</h2>
+                <p className="text-sm text-muted-foreground">Marque as áreas que você atende e desmarque o que não faz. Os preços são uma tabela base: ajuste agora ou depois em Configurações &gt; Tratamentos.</p>
               </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-3">
                 {catalogByCategory.map(([name, items]) => {
-                  const checked = categories.includes(name);
-                  const prices = items.map((i) => Number(i.price));
+                  const on = categories.includes(name);
+                  const info = areaInfo.get(name);
+                  const chosen = items.filter((i) => picks[pickKey(name, i.name)]?.checked).length;
                   return (
-                    <div key={name} className={`rounded-xl border p-4 ${checked ? 'border-primary bg-primary/5' : 'bg-card'}`}>
+                    <div key={name} className={`rounded-xl border p-4 ${on ? 'border-primary bg-primary/5' : 'bg-card'}`}>
                       <div className="flex items-start gap-3">
-                        <Checkbox id={`cat-${name}`} checked={checked} className="mt-0.5"
-                          onCheckedChange={(v) => setCategories((cur) => (v ? [...cur, name] : cur.filter((c) => c !== name)))} />
+                        <Checkbox id={`area-${name}`} checked={on} className="mt-0.5" onCheckedChange={(v) => toggleArea(name, !!v)} />
                         <div className="min-w-0 flex-1">
-                          <Label htmlFor={`cat-${name}`} className="font-semibold">{name}</Label>
-                          <p className="text-xs text-muted-foreground">{items.length} tratamentos · {money(Math.min(...prices))} a {money(Math.max(...prices))}</p>
-                          <button type="button" className="mt-1 text-xs font-medium text-primary underline-offset-2 hover:underline"
-                            onClick={() => setOpenCategory(openCategory === name ? null : name)} aria-expanded={openCategory === name}>
-                            {openCategory === name ? 'Esconder lista' : 'Ver tratamentos'}
-                          </button>
-                          {openCategory === name && (
-                            <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                              {items.map((i) => <li key={i.name}>{i.name} · {money(Number(i.price))}{i.num_sessions > 1 ? ` · ${i.num_sessions} sessões` : ''}</li>)}
-                            </ul>
-                          )}
+                          <Label htmlFor={`area-${name}`} className="font-semibold">{name}</Label>
+                          <p className="text-xs text-muted-foreground">{info?.description || `${items.length} tratamentos`}{on ? ` · ${chosen} de ${items.length} marcados` : ''}</p>
+                          {info?.notice && <p className="mt-1 rounded-md bg-warning/10 px-2 py-1 text-xs text-warning">{info.notice}</p>}
                         </div>
                       </div>
+                      {on && (
+                        <ul className="mt-3 space-y-2 border-t pt-3">
+                          {items.map((item) => {
+                            const key = pickKey(name, item.name);
+                            const pick = picks[key] || { checked: false, price: String(Number(item.price)) };
+                            return (
+                              <li key={key} className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+                                <Checkbox id={key} checked={pick.checked} onCheckedChange={(v) => setPicks((cur) => ({ ...cur, [key]: { ...pick, checked: !!v } }))} />
+                                <Label htmlFor={key} className="min-w-0 flex-1 text-sm font-normal">
+                                  {item.name}{item.num_sessions > 1 ? <span className="text-muted-foreground"> · {item.num_sessions} sessões</span> : null}
+                                </Label>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs text-muted-foreground">R$</span>
+                                  <Input aria-label={`Preço de ${item.name}`} inputMode="decimal" className="h-9 w-24" value={pick.price} disabled={!pick.checked}
+                                    onChange={(e) => setPicks((cur) => ({ ...cur, [key]: { ...pick, price: e.target.value } }))} />
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
                     </div>
                   );
                 })}
               </div>
+
+              <div className="rounded-xl border border-dashed p-4 space-y-3">
+                <p className="text-sm font-semibold">Faço outro tratamento</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_170px_100px_80px_auto] sm:items-end">
+                  <div className={field}><Label htmlFor="c-name">Nome</Label><Input id="c-name" value={customDraft.name} onChange={(e) => setCustomDraft({ ...customDraft, name: e.target.value })} placeholder="Ex.: Protocolo noiva" /></div>
+                  <div className={field}>
+                    <Label htmlFor="c-area">Área</Label>
+                    <Input id="c-area" list="c-area-options" value={customDraft.category} onChange={(e) => setCustomDraft({ ...customDraft, category: e.target.value })} placeholder="Ex.: Facial" />
+                    <datalist id="c-area-options">{[...new Set([...categories, ...catalogByCategory.map(([n]) => n)])].map((n) => <option key={n} value={n} />)}</datalist>
+                  </div>
+                  <div className={field}><Label htmlFor="c-price">Preço (R$)</Label><Input id="c-price" inputMode="decimal" value={customDraft.price} onChange={(e) => setCustomDraft({ ...customDraft, price: e.target.value })} /></div>
+                  <div className={field}><Label htmlFor="c-sessions">Sessões</Label><Input id="c-sessions" inputMode="numeric" value={customDraft.sessions} onChange={(e) => setCustomDraft({ ...customDraft, sessions: e.target.value.replace(/\D/g, '') })} /></div>
+                  <BrandButton variant="outline" onClick={() => {
+                    if (!customDraft.name.trim() || !customDraft.category.trim()) { toast({ title: 'Informe nome e área', variant: 'destructive' }); return; }
+                    setCustoms((cur) => [...cur, customDraft]);
+                    setCustomDraft({ name: '', category: customDraft.category, price: '', sessions: '1' });
+                  }}>Adicionar</BrandButton>
+                </div>
+                {customs.length > 0 && (
+                  <ul className="space-y-1 text-sm">
+                    {customs.map((c, idx) => (
+                      <li key={`${c.name}-${idx}`} className="flex items-center justify-between gap-2">
+                        <span>{c.name} · {c.category}{c.price ? ` · R$ ${c.price}` : ''}{Number(c.sessions) > 1 ? ` · ${c.sessions} sessões` : ''}</span>
+                        <button type="button" className="text-xs text-destructive hover:underline" onClick={() => setCustoms((cur) => cur.filter((_, i) => i !== idx))}>Remover</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
               <div className="flex flex-wrap justify-between gap-2">
                 <BrandButton variant="outline" onClick={() => go('atendimento')}><ChevronLeft className="h-4 w-4" /> Voltar</BrandButton>
                 <div className="flex flex-wrap gap-2">
-                  {categories.length === 0 && <BrandButton variant="ghost" onClick={nextStep}>Cadastrar depois</BrandButton>}
-                  <BrandButton onClick={saveTreatments} disabled={saving || categories.length === 0}>{saving ? 'Preparando...' : 'Trazer tratamentos'} <ChevronRight className="h-4 w-4" /></BrandButton>
+                  {setupItems.length === 0 && <BrandButton variant="ghost" onClick={nextStep}>Cadastrar depois</BrandButton>}
+                  <BrandButton onClick={saveTreatments} disabled={saving || setupItems.length === 0}>
+                    {saving ? 'Preparando...' : `Salvar ${setupItems.length} tratamento(s)`} <ChevronRight className="h-4 w-4" />
+                  </BrandButton>
                 </div>
               </div>
             </>
