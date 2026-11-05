@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { findPatientDuplicates } from '@/lib/patients/duplicates';
+import { findPatientDuplicates, pickExistingPatient } from '@/lib/patients/duplicates';
 import { onlyDigits } from '@/lib/patients/validation';
 import { proposalNumber, saleTotal, type SaleItem } from '@/lib/proposals/sale';
 
@@ -15,10 +15,10 @@ export interface LeadForSale {
 /** Interessada vira cliente (ou é ligada à cliente que já tem o mesmo CPF). */
 export async function ensurePatientFromLead(clinicId: string, lead: LeadForSale): Promise<string> {
   if (lead.patient_id) return lead.patient_id;
-  const sameCpf = lead.cpf
-    ? (await findPatientDuplicates(clinicId, lead.cpf, null)).find((d) => d.match_type === 'cpf')
-    : undefined;
-  let patientId = sameCpf?.patient_id ?? null;
+  const duplicates = (lead.cpf || lead.phone)
+    ? await findPatientDuplicates(clinicId, lead.cpf, lead.phone)
+    : [];
+  let patientId = pickExistingPatient(duplicates, !!onlyDigits(lead.cpf));
   if (!patientId) {
     const { data, error } = await supabase.from('patients').insert({
       clinic_id: clinicId,
