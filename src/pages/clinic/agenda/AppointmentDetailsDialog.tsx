@@ -76,7 +76,7 @@ export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController })
                       <SelectContent>
                         <SelectItem value="unassigned">Sem profissional</SelectItem>
                         {professionals.map((professional) => (
-                          <SelectItem key={professional.user_id} value={professional.user_id}>
+                          <SelectItem key={professional.id} value={professional.id}>
                             {professional.label}
                           </SelectItem>
                         ))}

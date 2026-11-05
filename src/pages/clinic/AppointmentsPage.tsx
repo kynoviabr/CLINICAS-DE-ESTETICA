@@ -39,6 +39,7 @@ export default function AppointmentsPage() {
     setBlocksDialogOpen,
     setWaitlistDialogOpen,
     isProfessional,
+    myProfessionalId,
     professionals,
     waitlistEntries,
     operationalSummary,
@@ -105,8 +106,8 @@ export default function AppointmentsPage() {
           <BrandButton onClick={() => {
             resetForm();
             setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
-            if (isProfessional && user?.id) {
-              setSelectedProfessional(user.id);
+            if (isProfessional && myProfessionalId) {
+              setSelectedProfessional(myProfessionalId);
             }
             setDialogOpen(true);
           }}>

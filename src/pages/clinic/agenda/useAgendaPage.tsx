@@ -7,7 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRole } from '@/hooks/useUserRole';
-import { useStaffDirectory } from '@/hooks/useStaffDirectory';
+import { useAgendaProfessionals } from '@/hooks/useAgendaProfessionals';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameDay, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -198,7 +198,7 @@ export function useAgendaPage() {
     enabled: !!clinicId,
   });
 
-  const { staff: professionals = [] } = useStaffDirectory(clinicId);
+  const { professionals, allProfessionals, myProfessionalId, professionalIdForUser } = useAgendaProfessionals(clinicId, user?.id);
 
   const { data: availability = [] } = useQuery({
     queryKey: ['professional-availability', clinicId],
@@ -340,7 +340,7 @@ export function useAgendaPage() {
   }, [appointmentBlocks]);
   const getProfessionalLabel = (professionalId?: string | null) => {
     if (!professionalId) return 'Não atribuído';
-    return professionals.find((professional) => professional.user_id === professionalId)?.label || 'Profissional';
+    return allProfessionals.find((professional) => professional.id === professionalId)?.label || 'Profissional';
   };
   const hasAvailabilityWindow = (professionalId: string | null, startTime: Date, endTime: Date) => {
     if (!professionalId) return true;
@@ -467,19 +467,20 @@ export function useAgendaPage() {
 
     const lead = getSelectedLeadData(selectedLead);
     if (!lead?.assigned_to) {
-      if (!selectedProfessional && isProfessional && user?.id) {
-        setSelectedProfessional(user.id);
+      if (!selectedProfessional && isProfessional && myProfessionalId) {
+        setSelectedProfessional(myProfessionalId);
       }
       return;
     }
 
-    const hasProfessionalAssigned = professionals.some((professional) => professional.user_id === lead.assigned_to);
-    setSelectedProfessional(hasProfessionalAssigned ? lead.assigned_to : (isProfessional && user?.id ? user.id : ''));
-  }, [appointmentType, selectedLead, professionals, isProfessional, user, dialogOpen, selectedProfessional, getSelectedLeadData]);
+    // O responsável pelo lead é um login; na agenda vale o cadastro de profissional dele, se tiver.
+    const assignedProfessionalId = professionalIdForUser(lead.assigned_to);
+    setSelectedProfessional(assignedProfessionalId || (isProfessional && myProfessionalId ? myProfessionalId : ''));
+  }, [appointmentType, selectedLead, isProfessional, myProfessionalId, professionalIdForUser, dialogOpen, selectedProfessional, getSelectedLeadData]);
 
   useEffect(() => {
     if (professionals.length > 0 && availabilityProfessional === 'unassigned') {
-      setAvailabilityProfessional(professionals[0].user_id);
+      setAvailabilityProfessional(professionals[0].id);
     }
   }, [professionals, availabilityProfessional]);
 
@@ -507,7 +508,7 @@ export function useAgendaPage() {
 
   const getProfColor = (profId: string | null) => {
     if (!profId) return professionalColors[0];
-    const index = professionals.findIndex(p => p.user_id === profId);
+    const index = allProfessionals.findIndex(p => p.id === profId);
     return professionalColors[(index >= 0 ? index : 0) % professionalColors.length];
   };
 
@@ -657,7 +658,7 @@ export function useAgendaPage() {
       setCreateFormError('');
       const startTime = new Date(`${selectedDate}T${selectedTime}:00`);
       const endTime = new Date(startTime.getTime() + parseInt(duration) * 60000);
-      const profId = selectedProfessional || (isProfessional ? user?.id || null : null);
+      const profId = selectedProfessional || (isProfessional ? myProfessionalId : null);
       if (!profId) {
         throw new Error('Selecione um profissional para este agendamento.');
       }
@@ -1462,6 +1463,7 @@ export function useAgendaPage() {
     prefillTreatmentId,
     shouldOpenNewFromQuery,
     isProfessional,
+    myProfessionalId,
     rangeStart,
     rangeEnd,
     calendarDays,

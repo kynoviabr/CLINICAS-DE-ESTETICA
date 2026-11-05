@@ -41,10 +41,11 @@ export function validHours(start: string, end: string): boolean {
   return re.test(start) && re.test(end) && start < end;
 }
 
-export function buildAvailabilityRows(clinicId: string, userId: string, days: number[], start: string, end: string) {
+/** professionalId = professionals.id (o cadastro, não o login). */
+export function buildAvailabilityRows(clinicId: string, professionalId: string, days: number[], start: string, end: string) {
   return [...new Set(days)].sort().map((day) => ({
     clinic_id: clinicId,
-    professional_id: userId,
+    professional_id: professionalId,
     day_of_week: day,
     start_time: start,
     end_time: end,

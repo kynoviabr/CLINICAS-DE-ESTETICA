@@ -30,7 +30,7 @@ export function AvailabilityDialog({ ctx }: { ctx: AgendaPageController }) {
               <SelectTrigger><SelectValue placeholder="Selecionar profissional" /></SelectTrigger>
               <SelectContent>
                 {professionals.map((professional) => (
-                  <SelectItem key={professional.user_id} value={professional.user_id}>
+                  <SelectItem key={professional.id} value={professional.id}>
                     {professional.label}
                   </SelectItem>
                 ))}

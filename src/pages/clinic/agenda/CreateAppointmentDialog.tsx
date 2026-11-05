@@ -165,7 +165,7 @@ export function CreateAppointmentDialog({ ctx }: { ctx: AgendaPageController }) 
             <Select value={selectedProfessional} onValueChange={setSelectedProfessional}>
               <SelectTrigger><SelectValue placeholder="Selecionar profissional" /></SelectTrigger>
               <SelectContent>
-                {professionals.map(p => <SelectItem key={p.user_id} value={p.user_id}>{p.label}</SelectItem>)}
+                {professionals.map(p => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}
               </SelectContent>
             </Select>
             {appointmentType === 'evaluation' && !selectedProfessional && (

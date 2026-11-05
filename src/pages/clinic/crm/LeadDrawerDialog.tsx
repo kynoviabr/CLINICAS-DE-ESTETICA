@@ -131,7 +131,7 @@ export function LeadDrawerDialog({ ctx }: { ctx: CrmPageController }) {
                         navigate(
                           buildEvaluationScheduleLink(
                             leadDrawer.id,
-                            leadDrawer.assigned_to || null,
+                            ctx.professionalIdForUser(leadDrawer.assigned_to),
                           ),
                         )
                       }

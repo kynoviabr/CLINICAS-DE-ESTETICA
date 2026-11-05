@@ -138,7 +138,7 @@ export function WaitlistDialog({ ctx }: { ctx: AgendaPageController }) {
                   <SelectContent>
                     <SelectItem value="any">Qualquer profissional</SelectItem>
                     {professionals.map((professional) => (
-                      <SelectItem key={professional.user_id} value={professional.user_id}>{professional.label}</SelectItem>
+                      <SelectItem key={professional.id} value={professional.id}>{professional.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

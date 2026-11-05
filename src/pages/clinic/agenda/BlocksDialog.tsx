@@ -50,7 +50,7 @@ export function BlocksDialog({ ctx }: { ctx: AgendaPageController }) {
                   <SelectContent>
                     <SelectItem value="all">Bloqueio geral</SelectItem>
                     {professionals.map((professional) => (
-                      <SelectItem key={professional.user_id} value={professional.user_id}>
+                      <SelectItem key={professional.id} value={professional.id}>
                         {professional.label}
                       </SelectItem>
                     ))}
