@@ -33,10 +33,14 @@ const sectionLabels: Record<string, string> = {
   aesthetic_history: 'Histórico Estético',
   objectives: 'Objetivos',
   habits: 'Hábitos de Vida',
+  template: 'Modelo da área',
+  area_questions: 'Perguntas da área',
   consent: 'Consentimento',
 };
 
 const fieldLabels: Record<string, string> = {
+  name: 'Modelo',
+  category: 'Área',
   occupation: 'Profissão',
   marital_status: 'Estado civil',
   emergency_contact: 'Contato de emergência',

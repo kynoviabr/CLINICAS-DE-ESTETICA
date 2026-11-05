@@ -8,12 +8,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AnamneseStatusBadge } from './AnamneseStatusBadge';
 import CurrentAnamneseCard from './CurrentAnamneseCard';
 import PatientAnamneseHistoryTable from './PatientAnamneseHistoryTable';
-import NewAnamneseModal from './NewAnamneseModal';
 import EditAnamneseModal from './EditAnamneseModal';
 import AnamneseDetailDrawer from './AnamneseDetailDrawer';
 import AnamnesisFormModal from '@/components/patient/AnamnesisFormModal';
 import { toast } from 'sonner';
-import { Plus, FileText, ClipboardEdit } from 'lucide-react';
+import { FileText, ClipboardEdit } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 
 type AnamneseRow = Database['public']['Tables']['patient_anamneses']['Row'];
@@ -27,7 +26,6 @@ interface Props {
 export default function PatientAnamneseTab({ patientId, clinicId, patientAnamneseStatus }: Props) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [newOpen, setNewOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editAnamnese, setEditAnamnese] = useState<AnamneseRow | null>(null);
   const [detailAnamnese, setDetailAnamnese] = useState<AnamneseRow | null>(null);
@@ -121,16 +119,12 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
             <h3 className="text-lg font-semibold text-foreground mb-1">Nenhuma anamnese cadastrada</h3>
             <p className="text-sm text-muted-foreground mb-6">Este paciente ainda não possui anamnese cadastrada.</p>
             <div className="flex flex-wrap justify-center gap-2">
-              <BrandButton onClick={() => setNewOpen(true)}>
-                <Plus className="w-4 h-4" /> Criar anamnese
-              </BrandButton>
-              <BrandButton variant="outline" onClick={() => setFormOpen(true)}>
-                <ClipboardEdit className="w-4 h-4" /> Preencher digitalmente
+              <BrandButton onClick={() => setFormOpen(true)}>
+                <ClipboardEdit className="w-4 h-4" /> Preencher anamnese
               </BrandButton>
             </div>
           </CardContent>
         </Card>
-        <NewAnamneseModal open={newOpen} onOpenChange={setNewOpen} patientId={patientId} clinicId={clinicId} />
         <AnamnesisFormModal open={formOpen} onOpenChange={setFormOpen} patientId={patientId} clinicId={clinicId} validityDays={validityDays} />
       </>
     );
@@ -145,11 +139,8 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
           <AnamneseStatusBadge status={patientAnamneseStatus || (current?.status)} />
         </div>
         <div className="flex gap-2">
-          <BrandButton variant="outline" onClick={() => setFormOpen(true)}>
-            <ClipboardEdit className="w-4 h-4" /> Preencher digitalmente
-          </BrandButton>
-          <BrandButton onClick={() => setNewOpen(true)}>
-            <Plus className="w-4 h-4" /> Nova Anamnese
+          <BrandButton onClick={() => setFormOpen(true)}>
+            <ClipboardEdit className="w-4 h-4" /> Preencher anamnese
           </BrandButton>
         </div>
       </div>
@@ -182,8 +173,6 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
           />
         </div>
       )}
-
-      <NewAnamneseModal open={newOpen} onOpenChange={setNewOpen} patientId={patientId} clinicId={clinicId} />
       <AnamnesisFormModal open={formOpen} onOpenChange={setFormOpen} patientId={patientId} clinicId={clinicId} validityDays={validityDays} />
       {editAnamnese && (
         <EditAnamneseModal open={!!editAnamnese} onOpenChange={o => !o && setEditAnamnese(null)} anamnese={editAnamnese} patientId={patientId} />

@@ -180,7 +180,7 @@ export default function AnamneseSection({ patientId, clinicId }: AnamneseSection
 
       <div className="flex flex-wrap gap-2 mt-2">
         <BrandButton variant="outline" size="sm" onClick={() => setFormOpen(true)}>
-          <ClipboardEdit className="w-3 h-3" /> Preencher digitalmente
+          <ClipboardEdit className="w-3 h-3" /> Preencher anamnese
         </BrandButton>
         <input
           ref={fileInputRef}
