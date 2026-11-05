@@ -2225,7 +2225,7 @@ export type Database = {
           specialty: string | null
           status: string
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           class_entity_id?: string | null
@@ -2241,7 +2241,7 @@ export type Database = {
           specialty?: string | null
           status?: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           class_entity_id?: string | null
@@ -2257,7 +2257,7 @@ export type Database = {
           specialty?: string | null
           status?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -3944,6 +3944,10 @@ export type Database = {
       setup_clinic_defaults: {
         Args: { p_clinic_id: string; p_categories: string[] }
         Returns: Json
+      }
+      my_professional_id: {
+        Args: { p_clinic_id: string }
+        Returns: string
       }
       get_patient_ids_for_user: {
         Args: { _user_id: string }

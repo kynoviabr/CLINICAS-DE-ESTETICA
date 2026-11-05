@@ -5,6 +5,7 @@ import { useRoles } from '@/hooks/useRoles';
 import { useClassEntities } from '@/hooks/useClassEntities';
 import { useProfessionalTreatments } from '@/hooks/useProfessionalTreatments';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useStaffDirectory } from '@/hooks/useStaffDirectory';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,6 +55,7 @@ export default function ProfessionalsTab() {
   const { items: entities } = useClassEntities();
   const { items: profTreatments, create: linkTreatment } = useProfessionalTreatments();
   const { clinicId } = useUserRole();
+  const { staff } = useStaffDirectory(clinicId);
 
   const [treatments, setTreatments] = useState<Array<{ id: string; name: string }>>([]);
   const [open, setOpen] = useState(false);
@@ -98,9 +100,6 @@ export default function ProfessionalsTab() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.full_name.trim()) { toast.error('Informe o nome completo do profissional'); return; }
-    if (!form.user_id.trim()) { toast.error('Informe o User ID do profissional'); return; }
-    if (!form.role_id) { toast.error('Selecione um cargo'); return; }
-    if (!form.class_entity_id) { toast.error('Selecione uma entidade de classe'); return; }
     const cpfDigits = form.cpf.replace(/\D/g, '');
     if (cpfDigits.length > 0 && cpfDigits.length < 11) { setCpfError('CPF incompleto'); return; }
     if (cpfDigits.length === 11 && !isValidCPF(cpfDigits)) { setCpfError('CPF inválido'); return; }
@@ -109,8 +108,8 @@ export default function ProfessionalsTab() {
     const result = await create({
       full_name: form.full_name, cpf: cpfDigits || null, email: form.email || null,
       phone: form.phone || null, specialty: form.specialty || null,
-      registration_number: form.registration_number || null, user_id: form.user_id,
-      role_id: form.role_id, class_entity_id: form.class_entity_id, status: 'active',
+      registration_number: form.registration_number || null, user_id: form.user_id || null,
+      role_id: form.role_id || null, class_entity_id: form.class_entity_id || null, status: 'active',
     });
     if (result) {
       for (const tid of selectedTreatments) await linkTreatment(result.id, tid);
@@ -277,8 +276,17 @@ export default function ProfessionalsTab() {
                         {cpfError && <p className="text-xs text-destructive flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{cpfError}</p>}
                       </div>
                       <div className="space-y-1.5">
-                        <Label>User ID <span className="text-destructive">*</span></Label>
-                        <Input value={form.user_id} onChange={e => setForm(f => ({ ...f, user_id: e.target.value }))} required placeholder="UUID do usuário" className="font-mono text-xs" />
+                        <Label>Acesso ao sistema</Label>
+                        <Select value={form.user_id || 'none'} onValueChange={v => setForm(f => ({ ...f, user_id: v === 'none' ? '' : v }))}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Sem acesso (só agenda)</SelectItem>
+                            {staff.filter(member => !items.some(p => p.user_id === member.user_id)).map(member => (
+                              <SelectItem key={member.user_id} value={member.user_id}>{member.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[11px] text-muted-foreground">A parceira que só atende não precisa de login nem ocupa vaga do plano.</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
@@ -307,20 +315,18 @@ export default function ProfessionalsTab() {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <Label>Cargo <span className="text-destructive">*</span></Label>
+                        <Label>Cargo</Label>
                         <Select value={form.role_id} onValueChange={v => setForm(f => ({ ...f, role_id: v }))}>
                           <SelectTrigger className={!form.role_id ? 'text-muted-foreground' : ''}><SelectValue placeholder="Selecione o cargo" /></SelectTrigger>
                           <SelectContent>{activeRoles.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent>
                         </Select>
-                        {activeRoles.length === 0 && <p className="text-xs text-destructive flex items-center gap-1"><AlertTriangle className="w-3 h-3" />Cadastre um cargo primeiro</p>}
                       </div>
                       <div className="space-y-1.5">
-                        <Label>Entidade de classe <span className="text-destructive">*</span></Label>
+                        <Label>Entidade de classe</Label>
                         <Select value={form.class_entity_id} onValueChange={v => setForm(f => ({ ...f, class_entity_id: v }))}>
                           <SelectTrigger className={!form.class_entity_id ? 'text-muted-foreground' : ''}><SelectValue placeholder="Selecione" /></SelectTrigger>
                           <SelectContent>{activeEntities.map(e => <SelectItem key={e.id} value={e.id}>{e.abbreviation} — {e.name}</SelectItem>)}</SelectContent>
                         </Select>
-                        {activeEntities.length === 0 && <p className="text-xs text-destructive flex items-center gap-1"><AlertTriangle className="w-3 h-3" />Cadastre uma entidade de classe primeiro</p>}
                       </div>
                     </div>
                   </div>

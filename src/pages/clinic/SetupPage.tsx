@@ -74,14 +74,19 @@ export default function SetupPage() {
   const { data: loaded } = useQuery({
     queryKey: ['setup-prefill', clinicId, user?.id],
     queryFn: async () => {
-      const [clinicRes, documentValue, proRes, availRes, catsRes, contractRes] = await Promise.all([
+      const [clinicRes, documentValue, proRes, , catsRes, contractRes] = await Promise.all([
         supabase.from('clinics').select('name, phone, email, address, city, state, zip_code').eq('id', clinicId!).maybeSingle(),
         readClinicSetting(clinicId!, 'cnpj'),
         supabase.from('professionals').select('id, full_name, specialty, registration_number').eq('clinic_id', clinicId!).eq('user_id', user!.id).maybeSingle(),
-        supabase.from('professional_availability').select('day_of_week, start_time, end_time').eq('clinic_id', clinicId!).eq('professional_id', user!.id).eq('is_active', true),
+        Promise.resolve(null),
         supabase.from('treatment_categories').select('name').eq('clinic_id', clinicId!).eq('status', 'active'),
         supabase.from('contract_templates').select('id').eq('clinic_id', clinicId!).eq('status', 'active').limit(1),
       ]);
+      // Horários ficam no cadastro de profissional (não no login).
+      const availRes = proRes.data
+        ? await supabase.from('professional_availability').select('day_of_week, start_time, end_time')
+          .eq('clinic_id', clinicId!).eq('professional_id', proRes.data.id).eq('is_active', true)
+        : { data: [] as Array<{ day_of_week: number; start_time: string; end_time: string }> };
       return {
         clinic: clinicRes.data,
         document: documentValue,
@@ -207,19 +212,24 @@ export default function SetupPage() {
         registration_number: pro.registration.trim() || null,
         status: 'active',
       };
-      if (loaded?.professional) {
-        const { error } = await supabase.from('professionals').update(payload).eq('id', loaded.professional.id);
+      let professionalId = loaded?.professional?.id ?? null;
+      if (professionalId) {
+        const { error } = await supabase.from('professionals').update(payload).eq('id', professionalId);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('professionals').insert({ ...payload, clinic_id: clinicId!, user_id: user!.id, email: user?.email || null });
+        const { data: created, error } = await supabase.from('professionals')
+          .insert({ ...payload, clinic_id: clinicId!, user_id: user!.id, email: user?.email || null })
+          .select('id').single();
         if (error) throw error;
+        professionalId = created.id;
       }
-      const { error: delError } = await supabase.from('professional_availability').delete().eq('clinic_id', clinicId!).eq('professional_id', user!.id);
+      const { error: delError } = await supabase.from('professional_availability').delete().eq('clinic_id', clinicId!).eq('professional_id', professionalId);
       if (delError) throw delError;
-      const { error: insError } = await supabase.from('professional_availability').insert(buildAvailabilityRows(clinicId!, user!.id, days, hours.start, hours.end));
+      const { error: insError } = await supabase.from('professional_availability').insert(buildAvailabilityRows(clinicId!, professionalId, days, hours.start, hours.end));
       if (insError) throw insError;
       qc.invalidateQueries({ queryKey: ['professional-availability'] });
       qc.invalidateQueries({ queryKey: ['staff-directory'] });
+      qc.invalidateQueries({ queryKey: ['agenda-professionals'] });
     }
     qc.invalidateQueries({ queryKey: ['setup-prefill'] });
     nextStep();

@@ -9,6 +9,7 @@ import { useBranding } from '@/contexts/BrandingContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useStaffDirectory } from '@/hooks/useStaffDirectory';
+import { useAgendaProfessionals } from '@/hooks/useAgendaProfessionals';
 import { useToast } from '@/hooks/use-toast';
 import { getRenewalAlertLevel } from '@/lib/renewal/rules';
 import { formatCep, lookupCepAddress } from '@/lib/cep';
@@ -125,6 +126,8 @@ export function useCrmPage() {
   });
 
   const { staff } = useStaffDirectory(clinicId, ['admin', 'sales', 'receptionist', 'professional']);
+  // Responsável do lead é um login; na agenda vale o cadastro de profissional dele (se tiver).
+  const { professionalIdForUser } = useAgendaProfessionals(clinicId);
 
   const { data: treatments = [] } = useQuery({
     queryKey: ['crm-treatments', clinicId],
@@ -967,7 +970,7 @@ export function useCrmPage() {
         title: 'Agende primeiro',
         description: 'Confirme data, hora e profissional na Agenda antes de mover o lead para Agendado.',
       });
-      navigate(buildEvaluationScheduleLink(lead.id, lead.assigned_to || null));
+      navigate(buildEvaluationScheduleLink(lead.id, professionalIdForUser(lead.assigned_to)));
       return;
     }
     if (targetStage === 'closed_lost') {
@@ -1050,8 +1053,9 @@ export function useCrmPage() {
         if (Object.keys(requestPayload).length === 0) return;
       }
 
-      if ('assigned_to' in requestPayload && leadDrawer.appointment_id) {
-        const professionalId = requestPayload.assigned_to || null;
+      const drawerProfessionalId = professionalIdForUser(requestPayload.assigned_to as string | null | undefined);
+      if ('assigned_to' in requestPayload && leadDrawer.appointment_id && drawerProfessionalId) {
+        const professionalId = drawerProfessionalId;
         const { error: appointmentError } = await supabase.from('appointments')
           .update({ professional_id: professionalId })
           .eq('clinic_id', leadDrawer.clinic_id)
@@ -1094,8 +1098,8 @@ export function useCrmPage() {
         .eq('id', leadId);
       if (error) throw error;
 
-      if (appointmentId) {
-        const professionalId = assignedTo || null;
+      const professionalId = professionalIdForUser(assignedTo);
+      if (appointmentId && professionalId) {
         const { error: appointmentError } = await supabase.from('appointments')
           .update({ professional_id: professionalId })
           .eq('clinic_id', targetClinicId)
@@ -1120,8 +1124,8 @@ export function useCrmPage() {
           .eq('id', lead.id);
         if (error) throw error;
 
-        if (lead.appointment_id) {
-          const professionalId = assignedTo || null;
+        const professionalId = professionalIdForUser(assignedTo);
+        if (lead.appointment_id && professionalId) {
           const { error: appointmentError } = await supabase.from('appointments')
             .update({ professional_id: professionalId })
             .eq('clinic_id', lead.clinic_id)
@@ -1384,6 +1388,7 @@ export function useCrmPage() {
   const latestLeadContract = leadContracts[0];
 
   return {
+    professionalIdForUser,
     clinicId,
     user,
     role,

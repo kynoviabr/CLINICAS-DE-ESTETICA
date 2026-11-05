@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { AnamneseAlertBanner } from '@/components/anamnese/AnamneseAlertBanner';
-import { useStaffDirectory } from '@/hooks/useStaffDirectory';
+import { useAgendaProfessionals } from '@/hooks/useAgendaProfessionals';
 import {
   AlertTriangle,
   CalendarCheck2,
@@ -161,7 +161,7 @@ export default function SessionsPage() {
     enabled: !!clinicId,
   });
 
-  const { staff: professionals = [] } = useStaffDirectory(clinicId, ['admin', 'professional']);
+  const { professionals, allProfessionals } = useAgendaProfessionals(clinicId);
 
   const { data: availability = [] } = useQuery({
     queryKey: ['professional-availability-sessions', clinicId],
@@ -436,7 +436,7 @@ export default function SessionsPage() {
 
   const getProfessionalLabel = (professionalId?: string | null) => {
     if (!professionalId) return 'Não atribuído';
-    return professionals.find((professional) => professional.user_id === professionalId)?.label || 'Profissional';
+    return allProfessionals.find((professional) => professional.id === professionalId)?.label || 'Profissional';
   };
 
   const hasAvailabilityWindow = (professionalId: string, startTime: Date, endTime: Date) => {
@@ -1009,7 +1009,7 @@ export default function SessionsPage() {
                     <SelectContent>
                       <SelectItem value="unassigned">Selecionar</SelectItem>
                       {professionals.map((professional) => (
-                        <SelectItem key={professional.user_id} value={professional.user_id}>
+                        <SelectItem key={professional.id} value={professional.id}>
                           {professional.label}
                         </SelectItem>
                       ))}
