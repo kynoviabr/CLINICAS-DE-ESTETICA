@@ -26,7 +26,7 @@ export function useStock(clinicId: string | null | undefined) {
       const [itemsRes, balancesRes, recipesRes, entriesRes, apptsRes] = await Promise.all([
         supabase.from('cost_items').select('id, name, unit, type, unit_cost, stock_min, status')
           .eq('clinic_id', clinicId!).neq('type', 'labor').order('name'),
-        supabase.from('stock_balances').select('cost_item_id, balance').eq('clinic_id', clinicId!),
+        supabase.from('stock_balances').select('cost_item_id, balance, movements').eq('clinic_id', clinicId!),
         supabase.from('treatment_cost_items').select('treatment_id, cost_item_id, quantity, treatments!inner(clinic_id)')
           .eq('treatments.clinic_id', clinicId!),
         supabase.from('stock_movements').select('cost_item_id, expires_at, quantity')
@@ -37,12 +37,15 @@ export function useStock(clinicId: string | null | undefined) {
       ]);
       for (const res of [itemsRes, balancesRes, recipesRes, entriesRes, apptsRes]) if (res.error) throw res.error;
       const balances = new Map((balancesRes.data || []).map((b) => [b.cost_item_id, Number(b.balance)]));
+      const tracked = new Set((balancesRes.data || []).filter((b) => Number(b.movements) > 0).map((b) => b.cost_item_id));
       const materials: StockMaterial[] = (itemsRes.data || [])
         .filter((i) => i.status !== 'inactive')
         .map((i) => ({
           id: i.id, name: i.name, unit: i.unit, type: i.type, unit_cost: Number(i.unit_cost || 0),
-          stock_min: Number(i.stock_min || 0), balance: balances.get(i.id) ?? 0,
+          stock_min: Number(i.stock_min || 0), balance: balances.get(i.id) ?? 0, tracked: tracked.has(i.id),
         }));
+      // Com estoque lançado primeiro; os só cadastrados (ex.: vindos do catálogo) no fim.
+      materials.sort((a, b) => Number(b.tracked) - Number(a.tracked) || a.name.localeCompare(b.name));
       const recipes: RecipeLine[] = (recipesRes.data || []).map((r) => ({
         treatment_id: r.treatment_id, cost_item_id: r.cost_item_id, quantity: Number(r.quantity),
       }));

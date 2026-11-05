@@ -2,12 +2,13 @@
  * Estoque x agenda: quanto de cada material os atendimentos marcados vão gastar,
  * e se o saldo dá conta. Também avisa material abaixo do mínimo e lote vencendo.
  */
-export type StockItem = { id: string; name: string; unit: string | null; stock_min: number; balance: number };
+/** tracked = já teve lançamento no estoque; sem isso o material não gera alerta. */
+export type StockItem = { id: string; name: string; unit: string | null; stock_min: number; balance: number; tracked?: boolean };
 export type RecipeLine = { treatment_id: string; cost_item_id: string; quantity: number };
 export type PlannedAppointment = { treatment_id: string | null; start_time: string };
 export type StockEntry = { cost_item_id: string; expires_at: string | null; quantity: number };
 
-export type ItemStatus = 'ok' | 'baixo' | 'zerado' | 'vai_faltar';
+export type ItemStatus = 'ok' | 'baixo' | 'zerado' | 'vai_faltar' | 'sem_controle';
 
 export type ItemForecast = StockItem & {
   needed: number;
@@ -36,14 +37,16 @@ export function forecastItems(items: StockItem[], usage: Record<string, number>)
   return items.map((item) => {
     const needed = usage[item.id] ?? 0;
     const shortfall = Math.max(0, round(needed - item.balance));
-    const status: ItemStatus = shortfall > 0
+    const status: ItemStatus = item.tracked === false
+      ? 'sem_controle'
+      : shortfall > 0
       ? 'vai_faltar'
       : item.balance <= 0
         ? 'zerado'
         : item.stock_min > 0 && item.balance - needed < item.stock_min
           ? 'baixo'
           : 'ok';
-    return { ...item, needed, shortfall, status };
+    return { ...item, needed, shortfall: status === 'sem_controle' ? 0 : shortfall, status };
   });
 }
 
@@ -63,6 +66,7 @@ export const STATUS_LABEL: Record<ItemStatus, string> = {
   baixo: 'Acabando',
   zerado: 'Zerado',
   vai_faltar: 'Vai faltar',
+  sem_controle: 'Sem estoque lançado',
 };
 
 export function formatQty(n: number) {

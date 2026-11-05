@@ -46,4 +46,9 @@ describe('estoque x agenda', () => {
     ];
     expect(expiringEntries(entries, items, '2026-11-05').map((e) => e.expires_at)).toEqual(['2026-11-01', '2026-11-15']);
   });
+
+  it('material sem estoque lançado não gera alerta', () => {
+    const f = forecastItems([{ id: 'x', name: 'X', unit: 'un', stock_min: 5, balance: 0, tracked: false }], { x: 3 });
+    expect(f[0]).toMatchObject({ status: 'sem_controle', shortfall: 0 });
+  });
 });

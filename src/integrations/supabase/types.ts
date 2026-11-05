@@ -3537,6 +3537,7 @@ export type Database = {
           balance: number
           clinic_id: string
           cost_item_id: string
+          movements: number
         }
         Relationships: []
       }

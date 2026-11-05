@@ -22,6 +22,7 @@ const STATUS_STYLE: Record<ItemStatus, string> = {
   baixo: 'bg-amber-50 text-amber-700',
   zerado: 'bg-slate-100 text-slate-600',
   vai_faltar: 'bg-rose-50 text-rose-700',
+  sem_controle: 'bg-muted text-muted-foreground',
 };
 
 const toNumber = (v: string) => Number(v.replace(',', '.'));
@@ -166,6 +167,13 @@ export default function StockPage() {
         <p className="mb-3 text-xs text-muted-foreground">
           Para a baixa automática e a previsão pela agenda, diga em cada tratamento o material que ele usa
           (Tratamentos › editar › Composição de Custo).
+        </p>
+      )}
+
+      {stock.materials.some((m) => !m.tracked) && (
+        <p className="mb-3 text-xs text-muted-foreground">
+          Os materiais dos tratamentos do catálogo já vêm cadastrados com custo de referência de mercado. Ajuste o custo ao seu
+          fornecedor e dê a primeira entrada: a partir daí o material entra na previsão e nos alertas.
         </p>
       )}
 
