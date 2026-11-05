@@ -8,10 +8,11 @@ import { Camera } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { Tables } from '@/integrations/supabase/types';
+import { withSignedUrls } from '@/lib/photos/sign';
 
-type Photo = Tables<'patient_photos'>;
+type Photo = Tables<'patient_photos'> & { fullUrl: string | null; thumbUrl: string | null };
 
-const typeLabels: Record<string, string> = { before: 'Antes', during: 'Durante', after: 'Depois', progress: 'Progresso' };
+const typeLabels: Record<string, string> = { before: 'Antes', during: 'Durante', after: 'Depois', progress: 'Evolução' };
 const typeColors: Record<string, string> = { before: 'bg-blue-100 text-blue-700', during: 'bg-yellow-100 text-yellow-700', after: 'bg-green-100 text-green-700', progress: 'bg-purple-100 text-purple-700' };
 
 export default function PortalPhotosPage() {
@@ -27,7 +28,7 @@ export default function PortalPhotosPage() {
         .select('patient_id').eq('auth_user_id', user.id).eq('status', 'active').limit(1).maybeSingle();
       if (!portal) { setLoading(false); return; }
       const { data } = await supabase.from('patient_photos').select('*').eq('patient_id', portal.patient_id).order('taken_at', { ascending: false });
-      setPhotos(data || []);
+      setPhotos(await withSignedUrls(data || []));
       setLoading(false);
     };
     load();
@@ -48,7 +49,7 @@ export default function PortalPhotosPage() {
           {photos.map(p => (
             <Card key={p.id} className="shadow-card overflow-hidden cursor-pointer" onClick={() => setViewPhoto(p)}>
               <div className="relative aspect-square">
-                <img src={p.photo_url} alt="" className="w-full h-full object-cover" />
+                <img src={p.thumbUrl ?? ''} alt="" loading="lazy" className="w-full h-full object-cover" />
                 <Badge className={`absolute top-2 left-2 text-xs ${typeColors[p.photo_type]}`}>{typeLabels[p.photo_type]}</Badge>
               </div>
               <CardContent className="p-2">
@@ -62,7 +63,7 @@ export default function PortalPhotosPage() {
       <Dialog open={!!viewPhoto} onOpenChange={() => setViewPhoto(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>{viewPhoto?.description || 'Foto'}</DialogTitle></DialogHeader>
-          {viewPhoto && <img src={viewPhoto.photo_url} alt="" className="w-full rounded-xl" />}
+          {viewPhoto && <img src={viewPhoto.fullUrl ?? ''} alt="" className="w-full rounded-xl" />}
         </DialogContent>
       </Dialog>
     </div>
