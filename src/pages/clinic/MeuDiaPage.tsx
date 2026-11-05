@@ -23,6 +23,7 @@ import { todayIso } from '@/lib/finance/installments';
 import { MONTHLY_GOAL_KEY, goalProgress, monthBounds, parseGoal, summarizeMonth } from '@/lib/finance/simpleFinance';
 import { SETUP_COMPLETED_KEY, readClinicSetting } from '@/lib/setup/clinicSetup';
 import { formatBRL, whatsappLink } from '@/lib/proposals/sale';
+import { StockSummaryCard } from '@/components/stock/StockSummaryCard';
 import { formatPhone } from '@/lib/patients/validation';
 import { buildEvaluationScheduleLink, lostReasons } from '@/lib/crm/model';
 import { errorMessage } from '@/lib/errors';
@@ -350,6 +351,8 @@ export default function MeuDiaPage() {
           </p>
         </CardContent>
       </Card>
+
+      <StockSummaryCard clinicId={clinicId} />
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         {/* Agenda */}

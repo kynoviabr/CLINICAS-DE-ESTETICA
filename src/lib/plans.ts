@@ -24,6 +24,7 @@ export const PERMISSION_MODULE: Record<MenuPermissionKey, ModuleKey> = {
   'finance_contracts.view': 'core',
   'goals.view': 'performance',
   'appointments.view': 'core',
+  'stock.view': 'core',
   'sessions.view': 'clinical',
   'evolution.view': 'clinical',
   'photos.view': 'clinical',

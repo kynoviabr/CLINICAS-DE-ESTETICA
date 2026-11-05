@@ -1223,6 +1223,7 @@ export type Database = {
           id: string
           name: string
           status: string | null
+          stock_min: number
           type: string
           unit: string | null
           unit_cost: number
@@ -1233,6 +1234,7 @@ export type Database = {
           id?: string
           name: string
           status?: string | null
+          stock_min?: number
           type: string
           unit?: string | null
           unit_cost?: number
@@ -1243,6 +1245,7 @@ export type Database = {
           id?: string
           name?: string
           status?: string | null
+          stock_min?: number
           type?: string
           unit?: string | null
           unit_cost?: number
@@ -2956,6 +2959,54 @@ export type Database = {
         }
         Relationships: []
       }
+      stock_movements: {
+        Row: {
+          appointment_id: string | null
+          clinic_id: string
+          cost_item_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          kind: string
+          lot: string | null
+          notes: string | null
+          quantity: number
+          session_record_id: string | null
+          unit_cost: number | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          clinic_id: string
+          cost_item_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          kind: string
+          lot?: string | null
+          notes?: string | null
+          quantity: number
+          session_record_id?: string | null
+          unit_cost?: number | null
+        }
+        Update: {
+          appointment_id?: string | null
+          clinic_id?: string
+          cost_item_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          kind?: string
+          lot?: string | null
+          notes?: string | null
+          quantity?: number
+          session_record_id?: string | null
+          unit_cost?: number | null
+        }
+        Relationships: []
+      }
       treatment_catalog: {
         Row: {
           category_name: string
@@ -3265,6 +3316,7 @@ export type Database = {
       }
       user_roles: {
         Row: {
+          can_manage_stock: boolean
           clinic_id: string
           created_at: string
           id: string
@@ -3274,6 +3326,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          can_manage_stock?: boolean
           clinic_id: string
           created_at?: string
           id?: string
@@ -3283,6 +3336,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          can_manage_stock?: boolean
           clinic_id?: string
           created_at?: string
           id?: string
@@ -3478,6 +3532,14 @@ export type Database = {
       }
     }
     Views: {
+      stock_balances: {
+        Row: {
+          balance: number
+          clinic_id: string
+          cost_item_id: string
+        }
+        Relationships: []
+      }
       v_renewal_tasks_active: {
         Row: {
           assigned_to: string | null
@@ -3571,6 +3633,14 @@ export type Database = {
       }
     }
     Functions: {
+      can_manage_stock: {
+        Args: { _clinic_id: string; _user_id: string }
+        Returns: boolean
+      }
+      set_stock_manager: {
+        Args: { p_clinic_id: string; p_enabled: boolean; p_user_id: string }
+        Returns: undefined
+      }
       activate_contract_template: {
         Args: { p_clinic_id: string; p_template_id: string }
         Returns: undefined

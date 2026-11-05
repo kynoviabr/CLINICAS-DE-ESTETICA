@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -36,7 +37,7 @@ import { errorMessage, functionError } from '@/lib/errors';
 import { useClinicPlan } from '@/hooks/useClinicPlan';
 import { settingsTabVisible } from '@/lib/plans';
 
-type StaffMember = Pick<Tables<'user_roles'>, 'id' | 'user_id' | 'role' | 'is_active' | 'created_at'>;
+type StaffMember = Pick<Tables<'user_roles'>, 'id' | 'user_id' | 'role' | 'is_active' | 'created_at' | 'can_manage_stock'>;
 type Invitation = Tables<'team_invitations'>;
 
 export default function SettingsPage() {
@@ -113,7 +114,7 @@ export default function SettingsPage() {
   const loadTeam = useCallback(async () => {
     if (!clinicId) return;
     const [staffRes, invRes] = await Promise.all([
-      supabase.from('user_roles').select('id, user_id, role, is_active, created_at').eq('clinic_id', clinicId),
+      supabase.from('user_roles').select('id, user_id, role, is_active, created_at, can_manage_stock').eq('clinic_id', clinicId),
       supabase.from('team_invitations').select('*').eq('clinic_id', clinicId).order('created_at', { ascending: false }),
     ]);
     if (staffRes.data) setStaff(staffRes.data);
@@ -443,7 +444,21 @@ export default function SettingsPage() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                          {s.role !== 'admin' && s.role !== 'patient' && (
+                            <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="Pode dar entrada, ajustar e cadastrar material no Estoque">
+                              <Switch
+                                checked={!!s.can_manage_stock}
+                                disabled={role !== 'admin'}
+                                onCheckedChange={async (checked) => {
+                                  const { error } = await supabase.rpc('set_stock_manager', { p_clinic_id: clinicId!, p_user_id: s.user_id, p_enabled: checked });
+                                  if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); return; }
+                                  setStaff((cur) => cur.map((m) => (m.id === s.id ? { ...m, can_manage_stock: checked } : m)));
+                                }}
+                              />
+                              Gerencia estoque
+                            </label>
+                          )}
                           <Badge variant={roleBadgeVariant(s.role)}>{roleLabel[s.role] || s.role}</Badge>
                           <Badge variant={s.is_active ? 'default' : 'secondary'} className={s.is_active ? 'bg-green-100 text-green-700' : ''}>
                             {s.is_active ? 'Ativo' : 'Inativo'}

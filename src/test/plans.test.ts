@@ -16,8 +16,8 @@ describe('planos', () => {
     expect(permissionAllowedByPlan(essencial, 'sessions.view')).toBe(false);
   });
 
-  it('Essencial: menu com 9 itens', () => {
-    expect(MENU_PERMISSION_KEYS.filter((k) => permissionAllowedByPlan(essencial, k))).toHaveLength(9);
+  it('Essencial: menu com 10 itens (inclui Estoque)', () => {
+    expect(MENU_PERMISSION_KEYS.filter((k) => permissionAllowedByPlan(essencial, k))).toHaveLength(10);
   });
 
   it('abas de Configurações seguem o plano', () => {
