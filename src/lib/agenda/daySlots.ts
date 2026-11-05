@@ -19,6 +19,18 @@ export function dayHours(availability: Slot[], weekday: number, professionalId: 
   };
 }
 
+/** Horário da semana: do mais cedo ao mais tarde entre os dias mostrados. */
+export function weekHours(availability: Slot[], weekdays: number[], professionalId: string) {
+  const days = new Set(weekdays);
+  const slots = availability.filter((s) => s.is_active && days.has(s.day_of_week)
+    && (professionalId === 'all' || professionalId === 'unassigned' || s.professional_id === professionalId));
+  if (slots.length === 0) return DEFAULT_DAY_HOURS;
+  return {
+    start: toHHMM(Math.min(...slots.map((s) => toMinutes(s.start_time)))),
+    end: toHHMM(Math.max(...slots.map((s) => toMinutes(s.end_time)))),
+  };
+}
+
 /** Horário em que o agendamento cai na grade (arredonda para baixo). */
 export const slotOf = (hhmm: string, step = 30) => toHHMM(Math.floor(toMinutes(hhmm) / step) * step);
 
