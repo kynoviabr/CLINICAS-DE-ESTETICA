@@ -275,7 +275,7 @@ export default function SettingsPage() {
               <CardHeader><CardTitle>Seu plano</CardTitle></CardHeader>
               <CardContent className="space-y-1 text-sm">
                 <p><span className="font-semibold">{plan.planName}</span>{plan.maxUsers ? ` · até ${plan.maxUsers} usuários` : ' · usuários ilimitados'}</p>
-                <p className="text-muted-foreground">Para mudar de plano ou contratar extras (como o WhatsApp IA), fale com a Kynovia.</p>
+                <p className="text-muted-foreground">Para mudar de plano ou contratar extras (como a integração com o Aura, atendimento com IA), fale com a Kynovia.</p>
               </CardContent>
             </Card>
           )}
