@@ -181,38 +181,40 @@ export default function AppointmentsPage() {
         </Card>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-5 mb-6">
-        <Card className="shadow-card">
-          <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">WA pendente</p>
-            <p className="text-xl font-semibold">{whatsappOpsSummary.pending}</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card">
-          <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">WA enviado</p>
-            <p className="text-xl font-semibold">{whatsappOpsSummary.sent}</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card">
-          <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">WA falhou</p>
-            <p className="text-xl font-semibold">{whatsappOpsSummary.failed}</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card">
-          <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">Inbound aplicado</p>
-            <p className="text-xl font-semibold">{whatsappOpsSummary.inboundApplied}</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card">
-          <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">Jobs concluídos</p>
-            <p className="text-xl font-semibold">{whatsappOpsSummary.jobSuccess}</p>
-          </CardContent>
-        </Card>
-      </div>
+      {!lean && (
+        <div className="grid gap-3 md:grid-cols-5 mb-6">
+          <Card className="shadow-card">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground">WA pendente</p>
+              <p className="text-xl font-semibold">{whatsappOpsSummary.pending}</p>
+            </CardContent>
+          </Card>
+          <Card className="shadow-card">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground">WA enviado</p>
+              <p className="text-xl font-semibold">{whatsappOpsSummary.sent}</p>
+            </CardContent>
+          </Card>
+          <Card className="shadow-card">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground">WA falhou</p>
+              <p className="text-xl font-semibold">{whatsappOpsSummary.failed}</p>
+            </CardContent>
+          </Card>
+          <Card className="shadow-card">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground">Inbound aplicado</p>
+              <p className="text-xl font-semibold">{whatsappOpsSummary.inboundApplied}</p>
+            </CardContent>
+          </Card>
+          <Card className="shadow-card">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground">Jobs concluídos</p>
+              <p className="text-xl font-semibold">{whatsappOpsSummary.jobSuccess}</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Controls */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-4">

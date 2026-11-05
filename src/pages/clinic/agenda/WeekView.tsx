@@ -1,5 +1,6 @@
 import { format, isSameDay } from 'date-fns';
 import { statusConfig } from '@/lib/agenda/model';
+import { visibleWeekDays, workingWeekdays } from '@/lib/agenda/workDays';
 import type { AgendaPageController } from './useAgendaPage';
 
 export function WeekView({ ctx }: { ctx: AgendaPageController }) {
@@ -14,20 +15,24 @@ export function WeekView({ ctx }: { ctx: AgendaPageController }) {
     getProfColor,
     getApptsForDay,
     dayNames,
+    availability,
+    filterProfessional,
   } = ctx;
+  const workdays = workingWeekdays(availability, filterProfessional);
+  const days = visibleWeekDays(calendarDays, workdays, (day) => getApptsForDay(day).length > 0);
   return (
     <>
     {viewMode === 'week' && (
       <div className="bg-card rounded-xl shadow-card overflow-hidden animate-fade-in">
-        <div className="grid grid-cols-7">
-          {calendarDays.map((day, i) => {
+        <div className="grid" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
+          {days.map((day) => {
             const dayAppts = getApptsForDay(day);
             const dayBlocks = getBlocksForDay(day);
             const isToday = isSameDay(day, new Date());
             return (
-              <div key={i} className="border-r min-h-[300px]">
+              <div key={day.toISOString()} className="border-r min-h-[300px]">
                 <div className={`px-2 py-2 text-center border-b ${isToday ? 'bg-primary/10' : 'bg-secondary/50'}`}>
-                  <div className="text-xs text-muted-foreground">{dayNames[i]}</div>
+                  <div className="text-xs text-muted-foreground">{dayNames[day.getDay()]}</div>
                   <div className={`text-sm font-semibold ${isToday ? 'text-primary' : ''}`}>{format(day, 'd')}</div>
                 </div>
                 <div className="p-1 space-y-1">
