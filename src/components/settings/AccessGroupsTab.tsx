@@ -36,6 +36,7 @@ const LABELS: Record<MenuPermissionKey, string> = {
   'finance_contracts.view': 'Financeiro Contratos',
   'goals.view': 'Metas',
   'appointments.view': 'Agenda',
+  'stock.view': 'Estoque',
   'sessions.view': 'Sessões',
   'evolution.view': 'Evolução',
   'photos.view': 'Fotos',
