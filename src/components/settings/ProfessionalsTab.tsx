@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { NO_ENTITY, missingTemplates, templateFromValue, templateValue } from '@/lib/professionals/classEntities';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfessionals, Professional } from '@/hooks/useProfessionals';
 import { useRoles } from '@/hooks/useRoles';
@@ -105,11 +106,21 @@ export default function ProfessionalsTab() {
     if (cpfDigits.length === 11 && !isValidCPF(cpfDigits)) { setCpfError('CPF inválido'); return; }
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { toast.error('E-mail com formato inválido'); return; }
     setSaving(true);
+    // Conselho escolhido do modelo (a clínica ainda não tinha): cadastra agora e usa.
+    let classEntityId: string | null = form.class_entity_id && form.class_entity_id !== NO_ENTITY ? form.class_entity_id : null;
+    const template = templateFromValue(form.class_entity_id);
+    if (template) {
+      const { data: entity, error: entityError } = await supabase.from('class_entities')
+        .upsert({ clinic_id: clinicId!, abbreviation: template.abbreviation, name: template.name, description: template.description, linked_professionals: template.linked_professionals, status: 'active' }, { onConflict: 'clinic_id,abbreviation' })
+        .select('id').single();
+      if (entityError) { toast.error('Não foi possível usar essa entidade de classe', { description: entityError.message }); setSaving(false); return; }
+      classEntityId = entity.id;
+    }
     const result = await create({
       full_name: form.full_name, cpf: cpfDigits || null, email: form.email || null,
       phone: form.phone || null, specialty: form.specialty || null,
       registration_number: form.registration_number || null, user_id: form.user_id || null,
-      role_id: form.role_id || null, class_entity_id: form.class_entity_id || null, status: 'active',
+      role_id: form.role_id || null, class_entity_id: classEntityId, status: 'active',
     });
     if (result) {
       for (const tid of selectedTreatments) await linkTreatment(result.id, tid);
@@ -325,7 +336,11 @@ export default function ProfessionalsTab() {
                         <Label>Entidade de classe</Label>
                         <Select value={form.class_entity_id} onValueChange={v => setForm(f => ({ ...f, class_entity_id: v }))}>
                           <SelectTrigger className={!form.class_entity_id ? 'text-muted-foreground' : ''}><SelectValue placeholder="Selecione" /></SelectTrigger>
-                          <SelectContent>{activeEntities.map(e => <SelectItem key={e.id} value={e.id}>{e.abbreviation} — {e.name}</SelectItem>)}</SelectContent>
+                          <SelectContent>
+                            <SelectItem value={NO_ENTITY}>Nenhuma (esteticista / sem conselho)</SelectItem>
+                            {activeEntities.map(e => <SelectItem key={e.id} value={e.id}>{e.abbreviation} — {e.name}</SelectItem>)}
+                            {missingTemplates(entities.map(e => e.abbreviation)).map(t => <SelectItem key={t.abbreviation} value={templateValue(t.abbreviation)}>{t.abbreviation} — {t.name}</SelectItem>)}
+                          </SelectContent>
                         </Select>
                       </div>
                     </div>
@@ -360,7 +375,7 @@ export default function ProfessionalsTab() {
                     )}
                   </div>
                   <Separator />
-                  <Button type="submit" disabled={saving || !form.role_id || !form.class_entity_id} className="w-full gradient-primary text-primary-foreground shadow-glow">
+                  <Button type="submit" disabled={saving || !form.role_id} className="w-full gradient-primary text-primary-foreground shadow-glow">
                     {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : <><Plus className="w-4 h-4 mr-2" />Cadastrar Profissional</>}
                   </Button>
                 </form>
