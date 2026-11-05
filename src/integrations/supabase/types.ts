@@ -2935,6 +2935,27 @@ export type Database = {
           },
         ]
       }
+      treatment_catalog_areas: {
+        Row: {
+          description: string | null
+          name: string
+          notice: string | null
+          sort: number
+        }
+        Insert: {
+          description?: string | null
+          name: string
+          notice?: string | null
+          sort?: number
+        }
+        Update: {
+          description?: string | null
+          name?: string
+          notice?: string | null
+          sort?: number
+        }
+        Relationships: []
+      }
       treatment_catalog: {
         Row: {
           category_name: string
@@ -3942,7 +3963,7 @@ export type Database = {
         }[]
       }
       setup_clinic_defaults: {
-        Args: { p_clinic_id: string; p_categories: string[] }
+        Args: { p_clinic_id: string; p_categories: string[]; p_items?: Json | null }
         Returns: Json
       }
       my_professional_id: {

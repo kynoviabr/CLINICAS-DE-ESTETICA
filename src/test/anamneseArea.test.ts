@@ -16,3 +16,18 @@ describe('anamnese única: perguntas da área', () => {
     expect(Object.keys((area as { area_questions: Record<string, string> }).area_questions)).toHaveLength(template.specific_questions.length);
   });
 });
+
+import { questionsForCategory } from '@/lib/anamnese/templates';
+
+describe('modelo de anamnese por área do catálogo', () => {
+  const generic = questionsForCategory('Área qualquer');
+  it.each([
+    ['Estética Facial', 'facial'], ['Peelings', 'peeling'], ['Celulite e Flacidez', 'corporal'], ['Emagrecimento', 'emagrecimento'],
+    ['Injetáveis', 'injetaveis'], ['Laser e Depilação', 'laser'], ['Massagens e Drenagem', 'corporal'], ['Sobrancelhas e Cílios', 'sobrancelhas'], ['Capilar', 'capilar'],
+  ])('%s usa um modelo próprio, não o geral', (area) => {
+    expect(questionsForCategory(area)).not.toEqual(generic);
+  });
+  it('Celulite e Flacidez usa o modelo corporal', () => {
+    expect(questionsForCategory('Celulite e Flacidez')).toEqual(questionsForCategory('Corporal'));
+  });
+});

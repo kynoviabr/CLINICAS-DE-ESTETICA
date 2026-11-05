@@ -57,7 +57,18 @@ export function questionsForCategory(categoryName: string) {
       'Qual expectativa de resultado e prazo desejado?',
     ];
   }
-  if (normalized.includes('corporal') || normalized.includes('gordura')) {
+  if (normalized.includes('sobrancel') || normalized.includes('cílio') || normalized.includes('cilio') || normalized.includes('micropigment')) {
+    return [
+      'Tem alergia a henna, tintas, pigmentos, cola ou esmalte?',
+      'Usa lentes de contato ou tem irritação, conjuntivite ou cirurgia recente nos olhos?',
+      'Já fez micropigmentação, extensão ou lifting antes? Teve alguma reação?',
+      'Usa ácidos, retinoides ou isotretinoína na região?',
+      'Tem queloide, herpes labial recorrente ou cicatrização difícil?',
+      'Qual resultado espera (formato, cor, volume, curvatura)?',
+      'Consegue seguir os cuidados pós (não molhar, não coçar, retorno de retoque)?',
+    ];
+  }
+  if (normalized.includes('corporal') || normalized.includes('gordura') || normalized.includes('celulite') || normalized.includes('flacidez') || normalized.includes('massag') || normalized.includes('drenag')) {
     return [
       'Quais áreas corporais serão tratadas?',
       'Possui varizes, alterações circulatórias, linfedema ou retenção de líquidos?',

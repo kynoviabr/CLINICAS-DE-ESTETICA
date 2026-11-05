@@ -97,3 +97,25 @@ export async function ensureAnamneseTemplates(clinicId: string): Promise<number>
   if (added > 0) await upsertClinicSetting(clinicId, ANAMNESE_TEMPLATES_KEY, JSON.stringify(templates));
   return added;
 }
+
+// ---------- Tratamentos escolhidos na implantação ----------
+
+export type CatalogPick = { checked: boolean; price: string };
+export type CustomTreatment = { name: string; category: string; price: string; sessions: string };
+
+export const pickKey = (category: string, name: string) => `${category}::${name}`;
+
+/** Itens para setup_clinic_defaults: os marcados do catálogo (com o preço da clínica) e os próprios. */
+export function buildSetupItems(picks: Record<string, CatalogPick>, customs: CustomTreatment[]) {
+  const fromCatalog = Object.entries(picks)
+    .filter(([, p]) => p.checked)
+    .map(([key, p]) => {
+      const [category, name] = key.split('::');
+      return { name, category, price: p.price.replace(',', '.').trim() };
+    });
+  const own = customs
+    .filter((c) => c.name.trim() && c.category.trim())
+    .map((c) => ({ name: c.name.trim(), category: c.category.trim(), price: c.price.replace(',', '.').trim(), sessions: c.sessions.trim() || '1', custom: true }));
+  const areas = [...new Set([...fromCatalog, ...own].map((i) => i.category))];
+  return { items: [...fromCatalog, ...own], areas };
+}
