@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { DollarSign, Plus } from 'lucide-react';
 import { BrandButton } from '@/components/ui/brand-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -79,7 +79,7 @@ export function ProposalDialog({ ctx }: { ctx: CrmPageController }) {
                 const belowMinimum = treatment?.min_price && item.unit_price < Number(treatment.min_price);
                 return (
                   <div key={`${item.treatment_id}-${index}`} className="rounded-lg border p-3">
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_90px_130px_40px] md:items-end">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_90px_130px_40px_40px] md:items-end">
                       <div className="space-y-2">
                         <Label>Tratamento</Label>
                         <Select
@@ -129,6 +129,16 @@ export function ProposalDialog({ ctx }: { ctx: CrmPageController }) {
                           ))}
                         />
                       </div>
+                      <button
+                          type="button"
+                          onClick={() => { const min = Number(treatment?.min_price || 0); if (min) setProposalItems((current) => current.map((row, rowIndex) => (rowIndex === index ? { ...row, unit_price: min } : row))); }}
+                          disabled={!(treatment?.min_price)}
+                          title={(treatment?.min_price) ? `Usar preço mínimo (R$ ${Number(treatment?.min_price).toFixed(2)})` : 'Tratamento sem preço mínimo'}
+                          aria-label="Usar preço mínimo"
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border text-muted-foreground hover:bg-muted hover:text-primary disabled:opacity-40 self-end"
+                        >
+                          <DollarSign className="h-4 w-4" />
+                        </button>
                       <button
                         type="button"
                         className="rounded-md p-2 text-destructive hover:bg-destructive/10"

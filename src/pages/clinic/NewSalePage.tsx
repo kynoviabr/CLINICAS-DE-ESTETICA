@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Check, Download, FileSignature, Mail, MessageCircle, Plus, Printer, Search, Send, Trash2, UserPlus } from 'lucide-react';
+import { AlertTriangle, Check, DollarSign, Download, FileSignature, Mail, MessageCircle, Plus, Printer, Search, Send, Trash2, UserPlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -383,7 +383,7 @@ export default function NewSalePage() {
                   {items.map((item) => {
                     const low = item.min_price != null && item.unit_price < Number(item.min_price);
                     return (
-                      <li key={item.treatment_id} className="grid grid-cols-[minmax(0,1fr)_64px_110px_auto] items-center gap-2 p-3">
+                      <li key={item.treatment_id} className="grid grid-cols-[minmax(0,1fr)_64px_110px_auto_auto] items-center gap-2 p-3">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium" title={item.name}>{item.name}</p>
                           {low && <p className="flex items-center gap-1 text-xs text-warning"><AlertTriangle className="h-3 w-3" />Abaixo do mínimo ({formatBRL(Number(item.min_price))})</p>}
@@ -392,6 +392,16 @@ export default function NewSalePage() {
                           onChange={(e) => setItems((cur) => cur.map((i) => (i.treatment_id === item.treatment_id ? { ...i, quantity: Math.max(1, Number(e.target.value) || 1) } : i)))} />
                         <Input type="number" min={0} step="0.01" aria-label={`Valor de ${item.name}`} value={item.unit_price}
                           onChange={(e) => setItems((cur) => cur.map((i) => (i.treatment_id === item.treatment_id ? { ...i, unit_price: Math.max(0, Number(e.target.value) || 0) } : i)))} />
+                        <button
+                          type="button"
+                          onClick={() => { const min = Number(item.min_price || 0); if (min) setItems((cur) => cur.map((i) => (i.treatment_id === item.treatment_id ? { ...i, unit_price: min } : i))); }}
+                          disabled={!(item.min_price)}
+                          title={(item.min_price) ? `Usar preço mínimo (R$ ${Number(item.min_price).toFixed(2)})` : 'Tratamento sem preço mínimo'}
+                          aria-label="Usar preço mínimo"
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border text-muted-foreground hover:bg-muted hover:text-primary disabled:opacity-40"
+                        >
+                          <DollarSign className="h-4 w-4" />
+                        </button>
                         <button type="button" aria-label={`Remover ${item.name}`} className="flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive"
                           onClick={() => setItems((cur) => cur.filter((i) => i.treatment_id !== item.treatment_id))}>
                           <Trash2 className="h-4 w-4" />

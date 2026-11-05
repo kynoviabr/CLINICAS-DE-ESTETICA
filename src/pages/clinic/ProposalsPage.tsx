@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, FileText, Trash2, Search, Eye, Send, Check, X, Printer, Filter } from 'lucide-react';
+import { Plus, FileText, Trash2, Search, Eye, Send, Check, X, Printer, Filter, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -790,6 +790,16 @@ export default function ProposalsPage() {
                           newItems[idx] = { ...item, unit_price: parseFloat(e.target.value) || 0 };
                           setItems(newItems);
                         }} />
+                        <button
+                          type="button"
+                          onClick={() => { const min = Number(treatments.find((t) => t.id === item.treatment_id)?.min_price || 0); if (min) setItems(items.map((row, i) => (i === idx ? { ...row, unit_price: min } : row))); }}
+                          disabled={!(treatments.find((t) => t.id === item.treatment_id)?.min_price)}
+                          title={(treatments.find((t) => t.id === item.treatment_id)?.min_price) ? `Usar preço mínimo (R$ ${Number(treatments.find((t) => t.id === item.treatment_id)?.min_price).toFixed(2)})` : 'Tratamento sem preço mínimo'}
+                          aria-label="Usar preço mínimo"
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border text-muted-foreground hover:bg-muted hover:text-primary disabled:opacity-40"
+                        >
+                          <DollarSign className="h-4 w-4" />
+                        </button>
                         <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))} className="text-destructive p-2">
                           <Trash2 className="w-4 h-4" />
                         </button>
