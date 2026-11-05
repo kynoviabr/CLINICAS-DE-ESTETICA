@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
-import { ChevronLeft, ChevronRight, MessageCircle, Pencil, RotateCcw, Target } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileBarChart, MessageCircle, Pencil, Receipt, RotateCcw, Target } from 'lucide-react';
+import { useClinicFeatures } from '@/hooks/useClinicFeatures';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -47,6 +48,7 @@ export default function SimpleFinancePage() {
   const { clinicId, role } = useUserRole();
   const { clinicName } = useBranding();
   const { toast } = useToast();
+  const { isEnabled } = useClinicFeatures();
   const qc = useQueryClient();
   const today = todayIso();
   const [month, setMonth] = useUrlState<string>('mes', today.slice(0, 7));
@@ -117,6 +119,10 @@ export default function SimpleFinancePage() {
     <div className="space-y-5">
       <PageHeader title="Financeiro" description="O que entrou, o que vai entrar e quem está em atraso.">
         <Link to="/clinic/finance/contracts" className="text-sm font-medium text-primary underline-offset-2 hover:underline">Ver por contrato</Link>
+        {isEnabled('expenses') && (
+          <Link to="/clinic/despesas"><BrandButton variant="outline"><Receipt className="h-4 w-4" /> Despesas</BrandButton></Link>
+        )}
+        <Link to="/clinic/financeiro/dre"><BrandButton><FileBarChart className="h-4 w-4" /> DRE</BrandButton></Link>
       </PageHeader>
 
       <div className="flex items-center gap-2">
