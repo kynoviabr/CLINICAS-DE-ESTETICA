@@ -21,5 +21,3 @@ port = 55327
 [db.pooler]
 port = 55329
 
-[functions.whatsapp-ai-agent]
-verify_jwt = false

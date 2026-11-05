@@ -258,8 +258,6 @@ export function normalizeLeadSource(source?: string | null) {
   const normalized = source?.trim().toLowerCase();
   if (!normalized || normalized === 'sem origem' || normalized === 'nao informado' || normalized === 'não informado') return 'Sem origem';
   if (['google ads', 'ads google'].includes(normalized)) return 'google';
-  // Leads da antiga IA de WhatsApp aparecem como origem WhatsApp.
-  if (['whatsapp ia', 'whatsapp-ai', 'whatsapp_ai'].includes(normalized)) return 'whatsapp';
   if (['indicação', 'indicacao'].includes(normalized)) return 'indicacao';
   return normalized;
 }
