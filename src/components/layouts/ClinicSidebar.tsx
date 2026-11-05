@@ -25,15 +25,15 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { to: '/clinic', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'receptionist', 'professional', 'sales'], permissionKey: 'dashboard.view' },
+  { to: '/clinic/appointments', icon: CalendarDays, label: 'Agenda', roles: ['admin', 'receptionist', 'professional'], permissionKey: 'appointments.view' },
   { to: '/clinic/crm', icon: KanbanSquare, label: 'CRM', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'crm.view' },
-  { to: '/clinic/patients', icon: Users, label: 'Pacientes', roles: ['admin', 'receptionist', 'professional', 'sales'], permissionKey: 'patients.view' },
-  { to: '/clinic/treatments', icon: Stethoscope, label: 'Tratamentos', roles: ['admin', 'receptionist', 'professional', 'sales'], permissionKey: 'treatments.view' },
   { to: '/clinic/vendas/nova', icon: ShoppingBag, label: 'Nova venda', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'proposals.view' },
+  { to: '/clinic/patients', icon: Users, label: 'Pacientes', roles: ['admin', 'receptionist', 'professional', 'sales'], permissionKey: 'patients.view' },
   { to: '/clinic/proposals', icon: FileText, label: 'Propostas', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'proposals.view' },
   { to: '/clinic/contracts', icon: FileSignature, label: 'Contratos', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'contracts.view' },
   { to: '/clinic/financeiro', icon: Landmark, label: 'Financeiro', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'finance_contracts.view' },
   { to: '/clinic/metas/acompanhamento', icon: Goal, label: 'Metas', roles: ['admin', 'receptionist', 'sales', 'professional'], permissionKey: 'goals.view' },
-  { to: '/clinic/appointments', icon: CalendarDays, label: 'Agenda', roles: ['admin', 'receptionist', 'professional'], permissionKey: 'appointments.view' },
+  { to: '/clinic/treatments', icon: Stethoscope, label: 'Tratamentos', roles: ['admin', 'receptionist', 'professional', 'sales'], permissionKey: 'treatments.view' },
   { to: '/clinic/sessions', icon: ClipboardList, label: 'Sessões', roles: ['admin', 'professional'], permissionKey: 'sessions.view' },
   { to: '/clinic/evolution', icon: Activity, label: 'Evolução', roles: ['admin', 'professional'], permissionKey: 'evolution.view' },
   { to: '/clinic/photos', icon: Camera, label: 'Fotos', roles: ['admin', 'professional'], permissionKey: 'photos.view' },
