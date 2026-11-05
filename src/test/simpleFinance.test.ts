@@ -44,3 +44,27 @@ describe('financeiro simples', () => {
     expect(msg).toContain('venceu em 31/10');
   });
 });
+
+import { monthPotential, summarizeScheduled } from '@/lib/finance/simpleFinance';
+
+describe('previsto na agenda', () => {
+  const t = (name: string, price: number) => ({ name, price, default_price: price });
+  it('soma avulsos agendados, ignora pacote já vendido, avaliação e cancelados', () => {
+    const r = summarizeScheduled([
+      { id: '1', start_time: '', status: 'scheduled', appointment_type: 'session', contract_id: null, treatment: t('Toxina botulínica full face', 1800) },
+      { id: '2', start_time: '', status: 'confirmed', appointment_type: 'session', contract_id: null, treatment: t('Toxina botulínica full face', 1800) },
+      { id: '3', start_time: '', status: 'scheduled', appointment_type: 'session', contract_id: null, treatment: t('Toxina botulínica terço superior', 1200) },
+      { id: '4', start_time: '', status: 'scheduled', appointment_type: 'session', contract_id: 'c1', treatment: t('Radiofrequência', 220) },
+      { id: '5', start_time: '', status: 'scheduled', appointment_type: 'evaluation', contract_id: null, treatment: null },
+      { id: '6', start_time: '', status: 'cancelled', appointment_type: 'session', contract_id: null, treatment: t('Toxina botulínica full face', 1800) },
+    ]);
+    expect(r.total).toBe(4800);
+    expect(r.count).toBe(3);
+    expect(r.packageSessions).toBe(1);
+    expect(r.byTreatment[0]).toEqual({ name: 'Toxina botulínica full face', count: 2, total: 3600 });
+  });
+
+  it('potencial do mês', () => {
+    expect(monthPotential(11850, 3200, 4800)).toBe(19850);
+  });
+});

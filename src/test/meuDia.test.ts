@@ -60,3 +60,9 @@ describe('Meu dia', () => {
     expect(moneyInsight({ received: 1000, goal: 16000, toReceive: 1000, negotiating: 0, negotiatingCount: 0 })).toMatch(/Chame interessadas/);
   });
 });
+
+describe('frase do dinheiro com previsto na agenda', () => {
+  it('considera o que já está agendado', () => {
+    expect(moneyInsight({ received: 10000, goal: 16000, toReceive: 2000, negotiating: 0, negotiatingCount: 0, scheduled: 4800 })).toMatch(/já agendados, você bate a meta/);
+  });
+});

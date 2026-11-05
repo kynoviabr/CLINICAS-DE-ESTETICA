@@ -163,12 +163,16 @@ export function buildDayTasks(input: {
 
 // ---------- A frase do dinheiro ----------
 
-export function moneyInsight(p: { received: number; goal: number | null; toReceive: number; negotiating: number; negotiatingCount: number }) {
+export function moneyInsight(p: { received: number; goal: number | null; toReceive: number; negotiating: number; negotiatingCount: number; scheduled?: number }) {
   if (!p.goal) return 'Defina a meta do mês no Financeiro para acompanhar quanto falta.';
   const missing = p.goal - p.received;
   if (missing <= 0) return 'Meta do mês batida! Tudo o que entrar agora é extra.';
   const afterInstallments = missing - p.toReceive;
   if (afterInstallments <= 0) return `Faltam ${formatBRL(missing)}. As parcelas que vencem neste mês já cobrem a meta: acompanhe os recebimentos.`;
+  const scheduled = p.scheduled ?? 0;
+  if (scheduled > 0 && afterInstallments - scheduled <= 0) {
+    return `Faltam ${formatBRL(missing)}. Com as parcelas do mês e os ${formatBRL(scheduled)} já agendados, você bate a meta: foque em confirmar a agenda.`;
+  }
   if (p.negotiating >= afterInstallments && p.negotiatingCount > 0) {
     return `Recebendo as parcelas do mês, faltam ${formatBRL(afterInstallments)}. As ${p.negotiatingCount} propostas em aberto (${formatBRL(p.negotiating)}) cobrem isso: vale retomar hoje.`;
   }

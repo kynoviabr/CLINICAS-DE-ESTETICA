@@ -15,9 +15,10 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { RegisterPaymentDialog } from '@/components/finance/RegisterPaymentDialog';
 import { useInstallmentPayments } from '@/components/finance/useInstallmentPayments';
+import { useScheduledRevenue } from '@/hooks/useScheduledRevenue';
 import { paymentMethodLabel, todayIso, type ContractInstallment } from '@/lib/finance/installments';
 import {
-  MONTHLY_GOAL_KEY, chargeMessage, daysLate, goalProgress, monthBounds, monthLabel, parseGoal, shiftMonth, summarizeMonth,
+  MONTHLY_GOAL_KEY, chargeMessage, daysLate, goalProgress, monthBounds, monthLabel, monthPotential, parseGoal, shiftMonth, summarizeMonth,
 } from '@/lib/finance/simpleFinance';
 import { readClinicSetting, upsertClinicSetting } from '@/lib/setup/clinicSetup';
 import { formatBRL, whatsappLink } from '@/lib/proposals/sale';
@@ -29,7 +30,7 @@ type Row = ContractInstallment & {
   patient_phone: string | null;
 };
 
-const LISTS = ['atrasadas', 'receber', 'recebidas'] as const;
+const LISTS = ['atrasadas', 'receber', 'previsto', 'recebidas'] as const;
 type ListKey = (typeof LISTS)[number];
 
 const SELECT = 'id, contract_id, installment_number, installments_count, payment_method, due_date, amount, status, paid_at, paid_amount, paid_method, contracts!inner(contract_number, patients(full_name, phone))';
@@ -100,12 +101,17 @@ export default function SimpleFinancePage() {
     }
   };
 
-  const tabs: Array<{ key: ListKey; label: string; count: number; total: number }> = [
-    { key: 'atrasadas', label: 'Atrasadas', count: summary.overdueCount, total: summary.overdue },
-    { key: 'receber', label: 'A receber', count: summary.toReceiveCount, total: summary.toReceive },
-    { key: 'recebidas', label: 'Recebidas', count: summary.receivedCount, total: summary.received },
+  const scheduled = useScheduledRevenue(clinicId, start.slice(0, 7));
+  const potential = monthPotential(summary.received, summary.toReceive, scheduled.summary.total);
+  const potentialPct = goal ? Math.round((potential / goal) * 100) : null;
+
+  const tabs: Array<{ key: ListKey; label: string; count: number; total: number; hint: string }> = [
+    { key: 'atrasadas', label: 'Atrasadas', count: summary.overdueCount, total: summary.overdue, hint: 'parcela(s) até hoje' },
+    { key: 'receber', label: 'A receber', count: summary.toReceiveCount, total: summary.toReceive, hint: 'parcela(s) neste mês' },
+    { key: 'previsto', label: 'Previsto na agenda', count: scheduled.summary.count, total: scheduled.summary.total, hint: 'atendimento(s) agendado(s)' },
+    { key: 'recebidas', label: 'Recebidas', count: summary.receivedCount, total: summary.received, hint: 'parcela(s) neste mês' },
   ];
-  const current = lists[list];
+  const current = list === 'previsto' ? [] : lists[list];
 
   return (
     <div className="space-y-5">
@@ -157,23 +163,67 @@ export default function SimpleFinancePage() {
               </p>
             </>
           )}
+          <div className="rounded-lg bg-muted/60 px-4 py-3 text-sm">
+            <p>
+              <span className="font-semibold">Potencial do mês: {formatBRL(potential)}</span>
+              {potentialPct !== null && <span className="text-muted-foreground"> · {potentialPct}% da meta</span>}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Recebido {formatBRL(summary.received)} + a receber {formatBRL(summary.toReceive)} + previsto na agenda {formatBRL(scheduled.summary.total)}
+            </p>
+          </div>
         </CardContent>
       </Card>
 
-      <div role="tablist" aria-label="Parcelas" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div role="tablist" aria-label="Parcelas" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {tabs.map((t) => (
           <button key={t.key} type="button" role="tab" aria-selected={list === t.key} onClick={() => setList(t.key)}
             className={`rounded-xl border p-4 text-left transition-colors ${list === t.key ? 'border-primary ring-2 ring-primary/30 bg-card' : 'bg-card hover:bg-muted/50'} ${t.key === 'atrasadas' && t.count > 0 ? 'border-destructive/40' : ''}`}>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.label}</p>
             <p className={`text-2xl font-heading font-semibold ${t.key === 'atrasadas' && t.count > 0 ? 'text-destructive' : ''}`}>{formatBRL(t.total)}</p>
-            <p className="text-xs text-muted-foreground">{t.count} parcela(s){t.key === 'atrasadas' ? ' até hoje' : t.key === 'receber' ? ' neste mês' : ' neste mês'}</p>
+            <p className="text-xs text-muted-foreground">{t.count} {t.hint}</p>
           </button>
         ))}
       </div>
 
       <Card className="shadow-card">
         <CardContent className="p-0">
-          {isLoading ? (
+          {list === 'previsto' ? (
+            scheduled.rows.length === 0 && scheduled.summary.packageSessions === 0 ? (
+              <p className="p-5 text-sm text-muted-foreground">Nenhum atendimento agendado daqui até o fim do mês.</p>
+            ) : (
+              <div className="divide-y">
+                <div className="space-y-1 p-4 text-sm">
+                  <p className="font-semibold">Por tratamento (avulsos agendados, pelo preço do tratamento)</p>
+                  {scheduled.summary.byTreatment.length === 0 && <p className="text-muted-foreground">Nenhum avulso com valor agendado.</p>}
+                  {scheduled.summary.byTreatment.map((t) => (
+                    <p key={t.name} className="flex justify-between gap-2"><span>{t.count}× {t.name}</span><span className="font-medium">{formatBRL(t.total)}</span></p>
+                  ))}
+                  {scheduled.summary.packageSessions > 0 && (
+                    <p className="pt-1 text-xs text-muted-foreground">
+                      + {scheduled.summary.packageSessions} sessão(ões) de pacotes já vendidos: o valor delas já está nas parcelas a receber.
+                    </p>
+                  )}
+                </div>
+                <ul className="divide-y">
+                  {scheduled.rows.map((a) => (
+                    <li key={a.id} className="flex items-center justify-between gap-3 p-4 text-sm">
+                      <div className="min-w-0">
+                        <p className="font-medium">{a.client || 'Cliente'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(a.start_time), 'dd/MM HH:mm')} · {a.treatment?.name || (a.appointment_type === 'evaluation' ? 'Avaliação' : 'Atendimento')}
+                          {a.contract_id ? ' · pacote já vendido' : a.appointment_type === 'evaluation' ? ' · sem valor' : ''}
+                        </p>
+                      </div>
+                      <span className={a.contract_id || a.appointment_type === 'evaluation' ? 'text-muted-foreground' : 'font-semibold'}>
+                        {a.contract_id || a.appointment_type === 'evaluation' || !a.treatment ? '—' : formatBRL(Number(a.treatment.default_price ?? a.treatment.price ?? 0))}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          ) : isLoading ? (
             <p className="p-5 text-sm text-muted-foreground">Carregando...</p>
           ) : current.length === 0 ? (
             <p className="p-5 text-sm text-muted-foreground">
