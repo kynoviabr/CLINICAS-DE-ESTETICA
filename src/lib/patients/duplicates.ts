@@ -19,3 +19,17 @@ export async function findPatientDuplicates(
   if (error) throw error;
   return (data || []) as PatientDuplicate[];
 }
+
+/**
+ * Qual cliente já existente é a mesma pessoa do lead.
+ * - Mesmo CPF: é ela.
+ * - Lead sem CPF e um único cliente com o mesmo celular: é ela.
+ * - Lead com CPF que não bate, ou celular de mais de um cliente (ex.: mãe e filha): cliente novo.
+ */
+export function pickExistingPatient(duplicates: PatientDuplicate[], leadHasCpf: boolean): string | null {
+  const byCpf = duplicates.find((d) => d.match_type === 'cpf');
+  if (byCpf) return byCpf.patient_id;
+  if (leadHasCpf) return null;
+  const byPhone = [...new Set(duplicates.filter((d) => d.match_type === 'phone').map((d) => d.patient_id))];
+  return byPhone.length === 1 ? byPhone[0] : null;
+}
