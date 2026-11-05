@@ -10,6 +10,7 @@ import { useBranding } from '@/contexts/BrandingContext';
 import { useUserRole, type AppRole } from '@/hooks/useUserRole';
 import { useAccessControl } from '@/hooks/useAccessControl';
 import { useClinicPlan } from '@/hooks/useClinicPlan';
+import { isLeanPlan } from '@/lib/plans';
 import type { MenuPermissionKey } from '@/lib/accessPermissions';
 import { cn } from '@/lib/utils';
 import NotificationBell from '@/components/NotificationBell';
@@ -53,7 +54,8 @@ export default function ClinicSidebar() {
   const { clinicName, logoUrl } = useBranding();
   const { role } = useUserRole();
   const { has, loading: accessLoading } = useAccessControl();
-  const { planName } = useClinicPlan();
+  const { planName, modules } = useClinicPlan();
+  const lean = isLeanPlan(modules);
   const location = useLocation();
 
   const filteredNav = navItems.filter((item) => {
@@ -128,7 +130,8 @@ export default function ClinicSidebar() {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-          {filteredNav.map(({ to, icon: Icon, label }) => {
+          {filteredNav.map(({ to, icon: Icon, label: rawLabel }) => {
+            const label = to === '/clinic' && lean ? 'Meu dia' : rawLabel;
             const isActive = location.pathname === to || (to !== '/clinic' && location.pathname.startsWith(to));
             return (
               <NavLink
