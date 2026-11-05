@@ -10,7 +10,8 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, Edit, Tags } from 'lucide-react';
+import { Plus, Search, Edit, Tags, Trash2 } from 'lucide-react';
+import { syncCategoryTreatments, syncMessage } from '@/lib/setup/categorySync';
 import { Textarea } from '@/components/ui/textarea';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -71,6 +72,22 @@ export default function CategoriesTab() {
     enabled: !!clinicId,
   });
 
+  // Áreas do catálogo: escolher uma traz os tratamentos dela para o rol.
+  const { data: catalog = { areas: [] as Array<{ name: string; description: string | null }>, counts: {} as Record<string, number> } } = useQuery({
+    queryKey: ['treatment-catalog-areas'],
+    queryFn: async () => {
+      const [areasRes, itemsRes] = await Promise.all([
+        supabase.from('treatment_catalog_areas').select('name, description').order('sort'),
+        supabase.from('treatment_catalog').select('category_name'),
+      ]);
+      const counts: Record<string, number> = {};
+      (itemsRes.data || []).forEach((row: { category_name: string }) => { counts[row.category_name] = (counts[row.category_name] || 0) + 1; });
+      return { areas: (areasRes.data || []) as Array<{ name: string; description: string | null }>, counts };
+    },
+    staleTime: 60 * 60 * 1000,
+  });
+  const catalogAreaNames = catalog.areas.map((area) => area.name);
+
   // Check if category is in use
   const checkCategoryInUse = async (categoryId: string) => {
     const { count } = await supabase.from('treatments').select('id', { count: 'exact', head: true }).eq('category_id', categoryId);
@@ -79,23 +96,53 @@ export default function CategoriesTab() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: CategoryForm) => {
-      const payload = { name: data.name, description: data.description || null, status: data.status, clinic_id: clinicId! };
+      const payload = { name: data.name.trim(), description: data.description || null, status: data.status, clinic_id: clinicId! };
+      let id = editingId;
+      const previousStatus = editingId ? categories.find((c) => c.id === editingId)?.status ?? null : null;
       if (editingId) {
         const { error } = await supabase.from('treatment_categories').update(payload).eq('id', editingId);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('treatment_categories').insert(payload);
+        const { data: created, error } = await supabase.from('treatment_categories').insert(payload).select('id').single();
         if (error) throw error;
+        id = created.id;
       }
+      // Rol de serviços acompanha a categoria (catálogo, ativar/desativar, renomear).
+      return syncCategoryTreatments(clinicId!, { id: id!, name: payload.name, status: payload.status }, previousStatus, catalogAreaNames);
     },
-    onSuccess: () => {
+    onSuccess: (sync) => {
       qc.invalidateQueries({ queryKey: ['treatment-categories'] });
+      qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0] ?? '').includes('treatment') });
       setDialogOpen(false);
       setEditingId(null);
       setForm(emptyForm);
-      toast({ title: editingId ? 'Categoria atualizada!' : 'Categoria criada!' });
+      toast({ title: editingId ? 'Categoria atualizada!' : 'Categoria criada!', description: syncMessage(sync) ?? undefined });
     },
     onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+  });
+
+  // Remover: sem tratamentos, apaga; com tratamentos, desativa a categoria e tira os tratamentos do rol (histórico fica).
+  const removeMutation = useMutation({
+    mutationFn: async (cat: Tables<'treatment_categories'>) => {
+      if (!(await checkCategoryInUse(cat.id))) {
+        const { error } = await supabase.from('treatment_categories').delete().eq('id', cat.id);
+        if (error) throw error;
+        return 'Categoria removida.';
+      }
+      const { error } = await supabase.from('treatment_categories').update({ status: 'inactive' }).eq('id', cat.id);
+      if (error) throw error;
+      const sync = await syncCategoryTreatments(clinicId!, { id: cat.id, name: cat.name, status: 'inactive' }, cat.status, catalogAreaNames);
+      return `Categoria desativada. ${syncMessage(sync) ?? ''}`.trim();
+    },
+    onSuccess: (message) => {
+      qc.invalidateQueries({ queryKey: ['treatment-categories'] });
+      qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0] ?? '').includes('treatment') });
+      setDialogOpen(false);
+      setEditingId(null);
+      setForm(emptyForm);
+      toast({ title: message });
+    },
+    onError: (err: Error) => toast({ title: 'Erro ao remover', description: err.message, variant: 'destructive' }),
   });
 
   const openEdit = (cat: Tables<'treatment_categories'>) => {
@@ -105,6 +152,11 @@ export default function CategoriesTab() {
   };
 
   const applyCategoryPreset = (categoryName: string) => {
+    const area = catalog.areas.find((item) => item.name === categoryName);
+    if (area) {
+      setForm((prev) => ({ ...prev, name: area.name, description: area.description || prev.description }));
+      return;
+    }
     const preset = CATEGORY_PRESETS.find((item) => item.name === categoryName);
     if (!preset) return;
     setForm((prev) => ({ ...prev, name: preset.name, description: preset.description }));
@@ -178,10 +230,22 @@ export default function CategoriesTab() {
                 onChange={(e) => applyCategoryPreset(e.target.value)}
               >
                 <option value="">Selecionar modelo</option>
-                {CATEGORY_PRESETS.map((preset) => (
-                  <option key={preset.name} value={preset.name}>{preset.name}</option>
-                ))}
+                {catalog.areas.length > 0 && (
+                  <optgroup label="Do catálogo (já vem com tratamentos)">
+                    {catalog.areas.map((area) => (
+                      <option key={area.name} value={area.name}>{area.name} · {catalog.counts[area.name] || 0} tratamentos</option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="Só a categoria">
+                  {CATEGORY_PRESETS.filter((preset) => !catalogAreaNames.includes(preset.name)).map((preset) => (
+                    <option key={preset.name} value={preset.name}>{preset.name}</option>
+                  ))}
+                </optgroup>
               </select>
+              <p className="text-xs text-muted-foreground">
+                Categoria do catálogo adiciona os tratamentos dela ao rol de serviços. Desativar a categoria tira os tratamentos dela do rol.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Nome *</Label>
@@ -207,6 +271,20 @@ export default function CategoriesTab() {
               </div>
             </div>
             <div className="flex gap-3 pt-2">
+              {editingId && (
+                <BrandButton
+                  type="button"
+                  variant="outline"
+                  className="text-destructive"
+                  disabled={removeMutation.isPending}
+                  onClick={() => {
+                    const cat = categories.find((c) => c.id === editingId);
+                    if (cat && window.confirm(`Remover a categoria "${cat.name}"? Os tratamentos dela saem do rol de serviços.`)) removeMutation.mutate(cat);
+                  }}
+                >
+                  <Trash2 className="w-4 h-4" /> Remover
+                </BrandButton>
+              )}
               <BrandButton type="button" variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">Cancelar</BrandButton>
               <BrandButton type="submit" className="flex-1" disabled={saveMutation.isPending}>
                 {saveMutation.isPending ? 'Salvando...' : 'Salvar'}
