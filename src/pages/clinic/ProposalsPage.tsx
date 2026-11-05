@@ -1,3 +1,4 @@
+import { defaultValidUntil } from '@/lib/proposals/sale';
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -75,7 +76,7 @@ export default function ProposalsPage() {
   // Form state
   const [selectedPatient, setSelectedPatient] = useState('');
   const [notes, setNotes] = useState('');
-  const [validUntil, setValidUntil] = useState('');
+  const [validUntil, setValidUntil] = useState(defaultValidUntil());
   const [items, setItems] = useState<ProposalItem[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [itemTab, setItemTab] = useState('treatment');
@@ -380,7 +381,7 @@ export default function ProposalsPage() {
   const resetForm = () => {
     setSelectedPatient('');
     setNotes('');
-    setValidUntil('');
+    setValidUntil(defaultValidUntil());
     setItems([]);
     setEditingId(null);
     setProposalPaymentEnabled(false);

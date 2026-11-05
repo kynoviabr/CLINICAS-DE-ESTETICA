@@ -1,3 +1,4 @@
+import { defaultValidUntil } from '@/lib/proposals/sale';
 import { useEffect, useMemo, useState } from 'react';
 import { findPatientDuplicates } from '@/lib/patients/duplicates';
 import { onlyDigits } from '@/lib/patients/validation';
@@ -72,7 +73,7 @@ export function useCrmPage() {
   const [proposalDialogOpen, setProposalDialogOpen] = useState(false);
   const [proposalLead, setProposalLead] = useState<LeadRow | null>(null);
   const [proposalPatientId, setProposalPatientId] = useState('');
-  const [proposalValidUntil, setProposalValidUntil] = useState('');
+  const [proposalValidUntil, setProposalValidUntil] = useState(defaultValidUntil());
   const [proposalNotes, setProposalNotes] = useState('');
   const [proposalItems, setProposalItems] = useState<LeadProposalItem[]>([]);
   const [proposalViewDialog, setProposalViewDialog] = useState<LeadProposalView | null>(null);
@@ -290,7 +291,7 @@ export function useCrmPage() {
     setProposalDialogOpen(false);
     setProposalLead(null);
     setProposalPatientId('');
-    setProposalValidUntil('');
+    setProposalValidUntil(defaultValidUntil());
     setProposalNotes('');
     setProposalItems([]);
   };
@@ -332,7 +333,7 @@ export function useCrmPage() {
       setLeadDrawer((current) => current?.id === lead.id ? { ...current, patient_id: patientId } : current);
       setProposalLead(leadWithPatient);
       setProposalPatientId(patientId);
-      setProposalValidUntil('');
+      setProposalValidUntil(defaultValidUntil());
       setProposalNotes('');
       setProposalItems(defaultProposalItemForLead(lead));
       setProposalDialogOpen(true);
