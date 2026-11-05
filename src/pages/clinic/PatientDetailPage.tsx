@@ -38,8 +38,7 @@ import {
   paymentConditionLabels,
   type PaymentCondition,
   type PaymentConfig,
-  type PaymentMethod,
-} from '@/components/contracts/ContractPaymentConfigurator';
+  type PaymentMethod, isInstallmentMethod } from '@/components/contracts/ContractPaymentConfigurator';
 import type { Database } from '@/integrations/supabase/types';
 import { formatCep, lookupCepAddress } from '@/lib/cep';
 import { formatCpf, formatPatientAddress, formatPhone, onlyDigits, patientSaveErrorMessage, validatePatientFields, type PatientFieldErrors } from '@/lib/patients/validation';
@@ -451,10 +450,6 @@ export default function PatientDetailPage() {
   const togglePaymentMethod = (method: PaymentMethod, checked: boolean) => {
     if (checked) {
       if (selectedPaymentMethods.includes(method)) return;
-      if (selectedPaymentMethods.length >= 2) {
-        toast.error('Você pode selecionar no máximo 2 formas de pagamento.');
-        return;
-      }
       setSelectedPaymentMethods((current) => [...current, method]);
       return;
     }
@@ -483,7 +478,7 @@ export default function PatientDetailPage() {
         throw new Error('Informe um valor válido para cada forma selecionada.');
       }
 
-      const installmentMethods = selectedPaymentMethods.filter((method) => method === 'card' || method === 'boleto');
+      const installmentMethods = selectedPaymentMethods.filter((method) => isInstallmentMethod(method));
       if (installmentMethods.some((method) => Number(paymentConfig[method]?.installments || 0) <= 0)) {
         throw new Error('Cartão e boleto exigem quantidade de parcelas maior que zero.');
       }

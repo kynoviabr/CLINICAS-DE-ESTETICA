@@ -1,12 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
-import type { PaymentConfig, PaymentMethod } from '@/components/contracts/ContractPaymentConfigurator';
+import { PAYMENT_METHOD_NAMES, isInstallmentMethod, type PaymentConfig, type PaymentMethod } from '@/components/contracts/ContractPaymentConfigurator';
 
-const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  cash: 'Dinheiro',
-  pix: 'Pix',
-  card: 'Cartão',
-  boleto: 'Boleto',
-};
+const PAYMENT_METHOD_LABELS = PAYMENT_METHOD_NAMES;
 
 export function buildContractPaymentNotes(
   selectedPaymentMethods: PaymentMethod[],
@@ -26,7 +21,7 @@ export function buildContractPaymentNotes(
           ? amount / installments
           : 0;
       const details = paymentDetails[method]?.trim();
-      if (method === 'card' || method === 'boleto') {
+      if (isInstallmentMethod(method)) {
         const base = `${label}: valor R$ ${amount.toFixed(2)} | ${installments}x de R$ ${installmentAmount.toFixed(2)}`;
         return details ? `${base} (${details})` : base;
       }

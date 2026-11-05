@@ -17,7 +17,7 @@ import { monthLabel, shiftMonth } from '@/lib/finance/simpleFinance';
 import { exportReportExcel, exportReportPdf, type ExportReport } from '@/lib/exportTable';
 import { formatBRL } from '@/lib/proposals/sale';
 
-const ICONS: Record<string, LucideIcon> = { pix: QrCode, card: CreditCard, cash: Banknote, boleto: Landmark };
+const ICONS: Record<string, LucideIcon> = { pix: QrCode, card: CreditCard, credit: CreditCard, debit: CreditCard, cash: Banknote, boleto: Landmark, transfer: Landmark };
 
 type PaidDetail = {
   id: string; paid_at: string | null; paid_amount: number | null; paid_method: string | null; payment_method: string | null;

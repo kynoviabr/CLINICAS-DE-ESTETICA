@@ -168,10 +168,6 @@ export default function NewSalePage() {
   const togglePaymentMethod = (method: PaymentMethod, checked: boolean) => {
     if (checked) {
       if (methods.includes(method)) return;
-      if (methods.length >= 2) {
-        toast({ title: 'No máximo 2 formas de pagamento', variant: 'destructive' });
-        return;
-      }
       setMethods((cur) => [...cur, method]);
       // Uma forma só: já preenche com o total.
       if (methods.length === 0) setConfig((cur) => ({ ...cur, [method]: { ...cur[method], amount: total ? total.toFixed(2) : '' } }));

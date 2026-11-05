@@ -17,7 +17,7 @@ export type MethodSummary = {
   toReceive: number;
 };
 
-const ORDER = ['pix', 'card', 'cash', 'boleto', 'other'];
+const ORDER = ['pix', 'credit', 'debit', 'card', 'cash', 'boleto', 'transfer', 'other'];
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Forma de pagamento do recebimento: a informada no pagamento; se faltar, a combinada no contrato. */

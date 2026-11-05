@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BrandButton } from '@/components/ui/brand-button';
-import { PAYMENT_METHOD_LABELS, todayIso, type ContractInstallment } from '@/lib/finance/installments';
+import { PAYMENT_METHOD_LABELS, RECEIPT_METHODS, todayIso, type ContractInstallment } from '@/lib/finance/installments';
 
 type Props = {
   installment: ContractInstallment | null;
@@ -50,8 +50,8 @@ export function RegisterPaymentDialog({ installment, saving, onClose, onConfirm 
             <Select value={method} onValueChange={setMethod}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                {[...RECEIPT_METHODS, ...(method === 'card' ? ['card'] : [])].map((value) => (
+                  <SelectItem key={value} value={value}>{PAYMENT_METHOD_LABELS[value]}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
