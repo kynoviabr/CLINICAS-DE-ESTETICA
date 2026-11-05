@@ -60,7 +60,7 @@ export default function CrmPage() {
       <div className="mb-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
         <Card className="overflow-hidden border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-100/70 shadow-sm">
           <CardContent className="p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">Leads no pipeline</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">Leads no funil</p>
             <div className="mt-2 flex items-end justify-between">
               <p className="text-xl font-semibold tracking-tight text-slate-900">{topKpis.total}</p>
               <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-sm">Em aberto</span>
@@ -87,7 +87,7 @@ export default function CrmPage() {
         </Card>
         <Card className="overflow-hidden border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-emerald-100/70 shadow-sm">
           <CardContent className="p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-600">Receita no pipeline</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-600">Receita no funil</p>
             <div className="mt-2 flex items-end justify-between gap-3">
               <p className="text-xl font-semibold tracking-tight text-slate-900">R$ {topKpis.pipelineValue.toFixed(0)}</p>
               <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium text-emerald-700 shadow-sm">Potencial</span>
