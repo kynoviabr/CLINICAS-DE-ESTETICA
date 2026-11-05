@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
-import { ChevronLeft, ChevronRight, FileBarChart, MessageCircle, Pencil, Receipt, RotateCcw, Target } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileBarChart, Wallet, MessageCircle, Pencil, Receipt, RotateCcw, Target } from 'lucide-react';
 import { useClinicFeatures } from '@/hooks/useClinicFeatures';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -122,6 +122,7 @@ export default function SimpleFinancePage() {
         {isEnabled('expenses') && (
           <Link to="/clinic/despesas"><BrandButton variant="outline"><Receipt className="h-4 w-4" /> Despesas</BrandButton></Link>
         )}
+        <Link to="/clinic/financeiro/recebimentos"><BrandButton variant="outline"><Wallet className="h-4 w-4" /> Por forma de pagamento</BrandButton></Link>
         <Link to="/clinic/financeiro/dre"><BrandButton><FileBarChart className="h-4 w-4" /> DRE</BrandButton></Link>
       </PageHeader>
 
