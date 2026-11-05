@@ -3,7 +3,7 @@ import { BrandButton } from '@/components/ui/brand-button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, ChevronLeft, ChevronRight, AlertTriangle, CalendarCheck2, Clock3, CheckCircle2, CalendarCog, Lock, BellRing, CalendarDays } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, AlertTriangle, CalendarCheck2, Clock3, CheckCircle2, CalendarCog, Lock, BellRing, CalendarDays, CalendarRange } from 'lucide-react';
 import QuickPatientModal from '@/components/patient/QuickPatientModal';
 import { format } from 'date-fns';
 import { useEffect, useRef } from 'react';
@@ -76,12 +76,20 @@ export default function AppointmentsPage() {
     setViewMode('day');
   };
 
+  const goThisWeek = () => {
+    setCurrentDate(new Date());
+    setViewMode('week');
+  };
+
   return (
     <div>
       <PageHeader title="Agenda" description="Gerencie os agendamentos da clínica">
         <div className="flex flex-wrap gap-2">
           <BrandButton variant="outline" onClick={goToday}>
             <CalendarDays className="w-4 h-4" /> Hoje
+          </BrandButton>
+          <BrandButton variant="outline" onClick={goThisWeek}>
+            <CalendarRange className="w-4 h-4" /> Semana
           </BrandButton>
           <BrandButton variant="outline" onClick={() => setAvailabilityDialogOpen(true)}>
             <CalendarCog className="w-4 h-4" /> Disponibilidade
