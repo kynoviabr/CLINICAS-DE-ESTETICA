@@ -58,3 +58,8 @@ export function settingsTabVisible(modules: ModuleSet, tab: string): boolean {
   const module = SETTINGS_TAB_MODULE[tab];
   return !module || hasModule(modules, module);
 }
+
+/** Plano enxuto (Essencial): sem os módulos de gestão comercial. Usa o "Meu dia" como início. */
+export function isLeanPlan(modules: ModuleSet): boolean {
+  return modules !== null && !modules.has('performance');
+}

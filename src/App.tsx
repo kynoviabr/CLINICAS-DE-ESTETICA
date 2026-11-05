@@ -16,7 +16,8 @@ import { PageLoader } from "./components/PageLoader";
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
 const NoAccessPage = lazy(() => import("./pages/NoAccessPage"));
-const ClinicDashboard = lazy(() => import("./pages/clinic/DashboardPage"));
+const ClinicHome = lazy(() => import("./pages/clinic/HomePage"));
+const MeuDiaPage = lazy(() => import("./pages/clinic/MeuDiaPage"));
 const CrmPage = lazy(() => import("./pages/clinic/CrmPage"));
 const PatientsPage = lazy(() => import("./pages/clinic/PatientsPage"));
 const PatientDetailPage = lazy(() => import("./pages/clinic/PatientDetailPage"));
@@ -75,7 +76,8 @@ const App = () => (
                   <ClinicLayout />
                 </ProtectedRoute>
               }>
-                <Route index element={<ClinicDashboard />} />
+                <Route index element={<ClinicHome />} />
+                <Route path="meu-dia" element={<MeuDiaPage />} />
                 <Route path="implantacao" element={<SetupPage />} />
                 <Route path="crm" element={<CrmPage />} />
                 <Route path="patients" element={<PatientsPage />} />
