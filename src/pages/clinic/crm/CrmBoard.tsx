@@ -1,6 +1,8 @@
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useState } from 'react';
 import { GripVertical } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { BrandButton } from '@/components/ui/brand-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,7 +24,8 @@ export function CrmBoard({ ctx }: { ctx: CrmPageController }) {
     bulkStageValue,
     setBulkStageValue,
     leads,
-    configuredStages,
+    visibleStages,
+    displayStageOf,
     staff,
     stageMap,
     filteredLeads,
@@ -35,6 +38,9 @@ export function CrmBoard({ ctx }: { ctx: CrmPageController }) {
     bulkCompleteFollowUpMutation,
     canOpenWhatsApp,
   } = ctx;
+  // Soltar na coluna "Finalizado": a pessoa escolhe se fechou ou perdeu.
+  const [finishLead, setFinishLead] = useState<(typeof leads)[number] | null>(null);
+  const stageLabel = (code: string) => stageMap[code]?.label || code;
   return (
     <>
     {viewMode === 'kanban' ? (
@@ -48,8 +54,9 @@ export function CrmBoard({ ctx }: { ctx: CrmPageController }) {
             onDrop={() => {
               if (!dragLeadId) return;
               const dragged = leads.find((lead) => lead.id === dragLeadId);
-              if (!dragged || dragged.kanban_stage === stage.code) return;
-              requestLeadStageMove(dragged, stage.code);
+              if (!dragged || stage.stageCodes.includes(dragged.kanban_stage)) return;
+              if (stage.isFinal) setFinishLead(dragged);
+              else requestLeadStageMove(dragged, stage.code);
             }}
           >
             <CardHeader className="space-y-1.5 border-b border-black/5 px-2.5 py-2">
@@ -89,6 +96,11 @@ export function CrmBoard({ ctx }: { ctx: CrmPageController }) {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1 pr-2">
                         <p className="truncate text-[13px] font-semibold tracking-tight text-slate-900">{lead.full_name}</p>
+                        {stage.isFinal && (
+                          <span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${lead.kanban_stage === 'closed_won' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                            {stageLabel(lead.kanban_stage)}
+                          </span>
+                        )}
                         {lead.next_action && (
                           <p className="mt-0.5 truncate text-[10px] text-slate-500">{lead.next_action}</p>
                         )}
@@ -191,7 +203,7 @@ export function CrmBoard({ ctx }: { ctx: CrmPageController }) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Selecionar etapa</SelectItem>
-                    {configuredStages.map((stage) => (
+                    {visibleStages.map((stage) => (
                       <SelectItem key={stage.code} value={stage.code}>
                         {stage.label}
                       </SelectItem>
@@ -243,7 +255,7 @@ export function CrmBoard({ ctx }: { ctx: CrmPageController }) {
             </thead>
             <tbody>
               {filteredLeads.map((lead) => {
-                const stage = stageMap[lead.kanban_stage] || stageAppearance({ code: lead.kanban_stage, label: lead.kanban_stage, description: '' }, 0);
+                const stage = stageMap[displayStageOf(lead.kanban_stage)] || stageAppearance({ code: lead.kanban_stage, label: lead.kanban_stage, description: '' }, 0);
                 const risk = getRiskLabel(lead.last_credit_risk_level);
                 const followUp = getFollowUpStatus(lead.next_action_at);
                 const priority = getPriorityBadge(lead.priority_level);
@@ -330,6 +342,22 @@ export function CrmBoard({ ctx }: { ctx: CrmPageController }) {
         </CardContent>
       </Card>
     )}
+    <Dialog open={!!finishLead} onOpenChange={(open) => { if (!open) setFinishLead(null); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Finalizar {finishLead?.full_name}</DialogTitle>
+          <DialogDescription>Esse lead fechou ou foi perdido?</DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-2">
+          <BrandButton onClick={() => { if (finishLead) requestLeadStageMove(finishLead, 'closed_won'); setFinishLead(null); }}>
+            {stageLabel('closed_won')}
+          </BrandButton>
+          <BrandButton variant="outline" className="border-rose-200 text-rose-700" onClick={() => { if (finishLead) requestLeadStageMove(finishLead, 'closed_lost'); setFinishLead(null); }}>
+            {stageLabel('closed_lost')}
+          </BrandButton>
+        </div>
+      </DialogContent>
+    </Dialog>
     </>
   );
 }
