@@ -333,6 +333,15 @@ export default function ProfessionalsTab() {
                   <div className="space-y-3">
                     <p className="text-sm font-semibold text-foreground flex items-center gap-2"><Stethoscope className="w-4 h-4 text-primary" />Tratamentos Realizados</p>
                     <Separator />
+                    {treatments.length > 0 && (
+                      <label className="flex items-center gap-2.5 text-sm font-medium cursor-pointer rounded-md px-2 py-1.5 hover:bg-muted/50">
+                        <Checkbox
+                          checked={selectedTreatments.length === treatments.length}
+                          onCheckedChange={() => setSelectedTreatments(selectedTreatments.length === treatments.length ? [] : treatments.map(t => t.id))}
+                        />
+                        Todos os tratamentos ({treatments.length})
+                      </label>
+                    )}
                     <div className="border rounded-lg p-3 max-h-44 overflow-y-auto space-y-1.5 bg-muted/30">
                       {treatments.length === 0 ? (
                         <p className="text-xs text-muted-foreground text-center py-3">Nenhum tratamento ativo.</p>
