@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayHours, daySlots, slotOf, weekHours } from '@/lib/agenda/daySlots';
+import { dayHours, dayHoursForMany, daySlots, professionalWorksAt, slotOf, weekHours } from '@/lib/agenda/daySlots';
 
 const av = (professional_id: string, day_of_week: number, start_time: string, end_time: string) =>
   ({ professional_id, day_of_week, start_time, end_time, is_active: true });
@@ -29,5 +29,14 @@ describe('grade de horários do dia', () => {
     expect(weekHours(list, [1, 3], 'all')).toEqual({ start: '09:00', end: '19:00' });
     expect(weekHours(list, [1, 3, 6], 'all')).toEqual({ start: '08:00', end: '19:00' });
     expect(weekHours([], [1], 'all')).toEqual({ start: '08:00', end: '20:00' });
+  });
+
+  it('várias profissionais: horário somado e quem atende em cada hora', () => {
+    const list = [av('ana', 4, '09:00', '13:00'), av('bia', 4, '12:00', '18:00')];
+    expect(dayHoursForMany(list, 4, ['ana', 'bia'])).toEqual({ start: '09:00', end: '18:00' });
+    expect(professionalWorksAt(list, 4, 'ana', '12:30')).toBe(true);
+    expect(professionalWorksAt(list, 4, 'ana', '14:00')).toBe(false);
+    expect(professionalWorksAt(list, 4, 'bia', '09:00')).toBe(false);
+    expect(professionalWorksAt(list, 4, 'sem-horario', '07:00')).toBe(true);
   });
 });

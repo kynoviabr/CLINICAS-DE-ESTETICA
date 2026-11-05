@@ -35,7 +35,11 @@ export function useAgendaPage() {
   const [selectedLead, setSelectedLead] = useState('');
   const [selectedTreatment, setSelectedTreatment] = useState('');
   const [selectedProfessional, setSelectedProfessional] = useState('');
-  const [filterProfessional, setFilterProfessional] = useState('all');
+  // Profissionais escolhidas no filtro (cadastro professionals.id; 'unassigned' = sem profissional). Vazio = todas.
+  const [filterProfessionals, setFilterProfessionals] = useState<string[]>([]);
+  // Compatível com quem usa uma só: a escolhida, ou 'all' quando são várias/nenhuma.
+  const filterProfessional = filterProfessionals.length === 1 ? filterProfessionals[0] : 'all';
+  const setFilterProfessional = (value: string) => setFilterProfessionals(value === 'all' ? [] : [value]);
   const [filterStatus, setFilterStatus] = useState('all');
   const [queueExpanded, setQueueExpanded] = useState(true);
   const [createFormError, setCreateFormError] = useState('');
@@ -586,16 +590,16 @@ export function useAgendaPage() {
 
   const filteredAppointments = useMemo(() => {
     let filtered = appointments;
-    if (filterProfessional === 'unassigned') {
-      filtered = filtered.filter((appointment) => !appointment.professional_id);
-    } else if (filterProfessional !== 'all') {
-      filtered = filtered.filter((a) => a.professional_id === filterProfessional);
+    if (filterProfessionals.length > 0) {
+      filtered = filtered.filter((a) => (a.professional_id
+        ? filterProfessionals.includes(a.professional_id)
+        : filterProfessionals.includes('unassigned')));
     }
     if (filterStatus !== 'all') {
       filtered = filtered.filter((a) => a.status === filterStatus);
     }
     return filtered;
-  }, [appointments, filterProfessional, filterStatus]);
+  }, [appointments, filterProfessionals, filterStatus]);
 
   const operationalSummary = useMemo(() => {
     const todayAppointments = filteredAppointments.filter((appointment) =>
@@ -1375,6 +1379,8 @@ export function useAgendaPage() {
     setSelectedProfessional,
     filterProfessional,
     setFilterProfessional,
+    filterProfessionals,
+    setFilterProfessionals,
     filterStatus,
     setFilterStatus,
     queueExpanded,

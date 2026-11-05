@@ -31,6 +31,28 @@ export function weekHours(availability: Slot[], weekdays: number[], professional
   };
 }
 
+/** Horário do dia somando várias profissionais (do mais cedo ao mais tarde). Sem horário: 08h às 20h. */
+export function dayHoursForMany(availability: Slot[], weekday: number, professionalIds: string[]) {
+  const ids = new Set(professionalIds);
+  const slots = availability.filter((s) => s.is_active && s.day_of_week === weekday && s.professional_id && ids.has(s.professional_id));
+  if (slots.length === 0) return DEFAULT_DAY_HOURS;
+  return {
+    start: toHHMM(Math.min(...slots.map((s) => toMinutes(s.start_time)))),
+    end: toHHMM(Math.max(...slots.map((s) => toMinutes(s.end_time)))),
+  };
+}
+
+/**
+ * A profissional atende neste horário? Sem nenhum horário cadastrado para ela, considera que sim
+ * (a clínica ainda não configurou).
+ */
+export function professionalWorksAt(availability: Slot[], weekday: number, professionalId: string, hhmm: string): boolean {
+  const own = availability.filter((s) => s.is_active && s.professional_id === professionalId);
+  if (own.length === 0) return true;
+  const minutes = toMinutes(hhmm);
+  return own.some((s) => s.day_of_week === weekday && toMinutes(s.start_time) <= minutes && toMinutes(s.end_time) > minutes);
+}
+
 /** Horário em que o agendamento cai na grade (arredonda para baixo). */
 export const slotOf = (hhmm: string, step = 30) => toHHMM(Math.floor(toMinutes(hhmm) / step) * step);
 
