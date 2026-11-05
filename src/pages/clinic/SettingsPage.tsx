@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
+import { FeaturesCard } from '@/components/settings/FeaturesCard';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -256,6 +257,7 @@ export default function SettingsPage() {
 
         {/* ===== GENERAL ===== */}
         <TabsContent value="general">
+          <div className="mb-4"><FeaturesCard /></div>
           <Card className="shadow-card">
             <CardHeader><CardTitle>Dados da Clínica</CardTitle></CardHeader>
             <CardContent className="space-y-4">

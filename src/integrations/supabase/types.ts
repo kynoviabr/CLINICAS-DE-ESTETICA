@@ -1410,6 +1410,51 @@ export type Database = {
           },
         ]
       }
+      expenses: {
+        Row: {
+          amount: number
+          category: string
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          expense_date: string
+          id: string
+          paid: boolean
+          recurrence_parent: string | null
+          recurring: boolean
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          category: string
+          clinic_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          expense_date: string
+          id?: string
+          paid?: boolean
+          recurrence_parent?: string | null
+          recurring?: boolean
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          expense_date?: string
+          id?: string
+          paid?: boolean
+          recurrence_parent?: string | null
+          recurring?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           address: string | null
@@ -3634,6 +3679,10 @@ export type Database = {
       }
     }
     Functions: {
+      ensure_recurring_expenses: {
+        Args: { p_clinic_id: string; p_month: string }
+        Returns: number
+      }
       can_manage_stock: {
         Args: { _clinic_id: string; _user_id: string }
         Returns: boolean

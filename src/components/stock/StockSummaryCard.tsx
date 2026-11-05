@@ -2,12 +2,14 @@ import { Link } from 'react-router-dom';
 import { Package } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useStock } from '@/hooks/useStock';
+import { useClinicFeatures } from '@/hooks/useClinicFeatures';
 import { formatQty } from '@/lib/stock/forecast';
 
 /** Meu dia: o estoque dá conta da agenda de hoje e da semana? */
 export function StockSummaryCard({ clinicId }: { clinicId: string | null | undefined }) {
   const stock = useStock(clinicId);
-  if (stock.isLoading || stock.materials.length === 0) return null;
+  const { isEnabled } = useClinicFeatures();
+  if (!isEnabled('stock') || stock.isLoading || stock.materials.length === 0) return null;
 
   const todayShort = stock.day.filter((i) => i.status === 'vai_faltar');
   const weekShort = stock.week.filter((i) => i.status === 'vai_faltar');

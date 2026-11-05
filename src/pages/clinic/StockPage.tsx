@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStock, type StockMaterial } from '@/hooks/useStock';
+import { useClinicFeatures } from '@/hooks/useClinicFeatures';
 import { supabase } from '@/integrations/supabase/client';
 import { STATUS_LABEL, formatQty, type ItemForecast, type ItemStatus } from '@/lib/stock/forecast';
 
@@ -39,6 +40,7 @@ export default function StockPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const stock = useStock(clinicId);
+  const { isEnabled } = useClinicFeatures();
   const [period, setPeriod] = useState<'week' | 'day'>('week');
   const [material, setMaterial] = useState<MaterialForm | null>(null);
   const [entry, setEntry] = useState<EntryForm | null>(null);
@@ -122,6 +124,15 @@ export default function StockPage() {
 
   const unit = (id: string) => byId.get(id)?.unit || 'un';
   const kindLabel: Record<string, string> = { entrada: 'Entrada', consumo: 'Sessão', perda: 'Perda', ajuste: 'Contagem' };
+
+  if (!isEnabled('stock')) {
+    return (
+      <div>
+        <PageHeader title="Estoque" />
+        <p className="text-sm text-muted-foreground">Estoque está desligado. Para usar, ligue em Configurações › Geral › Funcionalidades.</p>
+      </div>
+    );
+  }
 
   return (
     <div>
