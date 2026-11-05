@@ -25,6 +25,7 @@ export const EXPENSE_CATEGORIES = [
   'Brindes',
   'Refeições',
   'Manutenção e equipamentos',
+  'Sistemas e TI',
   'Outros',
 ] as const;
 

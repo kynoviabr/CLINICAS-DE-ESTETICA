@@ -20,7 +20,7 @@ function download(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const isBold = (kind: DreTableRow['kind']) => kind === 'subtotal' || kind === 'result' || kind === 'revenue';
+const isBold = (kind: DreTableRow['kind']) => kind === 'subtotal' || kind === 'result' || kind === 'revenue' || kind === 'deduction';
 const signed = (row: DreTableRow, v: number) => (['deduction', 'cost', 'expense'].includes(row.kind) && v !== 0 ? -v : v);
 
 export async function exportDreExcel(e: DreExport) {
@@ -35,6 +35,7 @@ export async function exportDreExcel(e: DreExport) {
   e.rows.forEach((row) => {
     const r = ws.addRow([row.label, ...row.values.map((v) => signed(row, v))]);
     if (isBold(row.kind)) r.font = { bold: true };
+    if (row.kind === 'deduction') r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF4E0' } };
     if (row.kind === 'info') r.font = { italic: true, color: { argb: 'FF666666' } };
   });
   ws.addRow([]);
@@ -68,6 +69,7 @@ export async function exportDrePdf(e: DreExport) {
     didParseCell: (data) => {
       const row = e.rows[data.row.index];
       if (data.section === 'body' && row && isBold(row.kind)) data.cell.styles.fontStyle = 'bold';
+      if (data.section === 'body' && row?.kind === 'deduction') data.cell.styles.fillColor = [255, 244, 224];
       if (data.section === 'body' && row?.kind === 'info') data.cell.styles.textColor = [120, 120, 120];
     },
   });
