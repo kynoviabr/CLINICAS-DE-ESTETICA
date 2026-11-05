@@ -94,3 +94,52 @@ export function parseGoal(value: string | null | undefined): number | null {
   const n = Number(String(value).replace(/\./g, '').replace(',', '.'));
   return Number.isFinite(n) && n > 0 ? n : null;
 }
+
+// ---------- Previsto na agenda ----------
+
+export interface ScheduledAppt {
+  id: string;
+  start_time: string;
+  status: string;
+  appointment_type: string | null;
+  contract_id: string | null;
+  treatment: { name: string | null; price: number | null; default_price: number | null } | null;
+}
+
+const OPEN_STATUSES = ['scheduled', 'confirmed', 'in_progress'];
+
+/**
+ * Valor dos atendimentos agendados que ainda vão virar faturamento.
+ * - Sessão de pacote já vendido (com contrato) não soma: já está nas parcelas "a receber".
+ * - Avaliação e atendimento sem tratamento não somam.
+ * - Avulso agendado soma pelo preço do tratamento.
+ */
+export function summarizeScheduled(appts: ScheduledAppt[]) {
+  let total = 0;
+  let count = 0;
+  let packageSessions = 0;
+  const byTreatment = new Map<string, { name: string; count: number; total: number }>();
+  for (const a of appts) {
+    if (!OPEN_STATUSES.includes(a.status)) continue;
+    if (a.contract_id) { packageSessions += 1; continue; }
+    if (a.appointment_type === 'evaluation' || !a.treatment) continue;
+    const value = Number(a.treatment.default_price ?? a.treatment.price ?? 0);
+    if (value <= 0) continue;
+    total += value;
+    count += 1;
+    const name = a.treatment.name || 'Tratamento';
+    const cur = byTreatment.get(name) || { name, count: 0, total: 0 };
+    byTreatment.set(name, { name, count: cur.count + 1, total: cur.total + value });
+  }
+  return {
+    total: Math.round(total * 100) / 100,
+    count,
+    packageSessions,
+    byTreatment: [...byTreatment.values()].sort((a, b) => b.total - a.total),
+  };
+}
+
+/** Potencial do mês = recebido + a receber + previsto na agenda. */
+export function monthPotential(received: number, toReceive: number, scheduled: number) {
+  return Math.round((received + toReceive + scheduled) * 100) / 100;
+}

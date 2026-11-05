@@ -10,6 +10,7 @@ import { useBranding } from '@/contexts/BrandingContext';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useToast } from '@/hooks/use-toast';
 import { useAgendaProfessionals } from '@/hooks/useAgendaProfessionals';
+import { useScheduledRevenue } from '@/hooks/useScheduledRevenue';
 import { BrandButton } from '@/components/ui/brand-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -181,6 +182,7 @@ export default function MeuDiaPage() {
   const negotiatingList = openProposals.filter((p) => !p.valid_until || p.valid_until >= today);
   const negotiating = negotiatingList.reduce((s, p) => s + Number(p.final_amount || 0), 0);
   const progress = goalProgress(money.received, goal);
+  const scheduled = useScheduledRevenue(clinicId, month);
 
   const columns = useMemo(() => {
     const map: Record<FunnelColumnKey, LeadRow[]> = { interessada: [], avaliacao: [], proposta: [], fechou: [] };
@@ -335,6 +337,7 @@ export default function MeuDiaPage() {
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">A receber no mês</p>
               <p className="text-3xl font-heading font-semibold">{formatBRL(money.toReceive)}</p>
               <p className="mt-1 text-xs text-muted-foreground">{money.toReceiveCount} parcela(s){money.overdueCount ? ` · ${money.overdueCount} atrasada(s): ${formatBRL(money.overdue)}` : ''}</p>
+              {scheduled.summary.total > 0 && <p className="text-xs text-muted-foreground">+ {formatBRL(scheduled.summary.total)} previsto na agenda ({scheduled.summary.count} atendimento(s))</p>}
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Em negociação</p>
@@ -343,7 +346,7 @@ export default function MeuDiaPage() {
             </div>
           </div>
           <p className="rounded-lg bg-primary/5 px-4 py-3 text-sm font-medium text-foreground">
-            {moneyInsight({ received: money.received, goal, toReceive: money.toReceive, negotiating, negotiatingCount: negotiatingList.length })}
+            {moneyInsight({ received: money.received, goal, toReceive: money.toReceive, negotiating, negotiatingCount: negotiatingList.length, scheduled: scheduled.summary.total })}
           </p>
         </CardContent>
       </Card>
