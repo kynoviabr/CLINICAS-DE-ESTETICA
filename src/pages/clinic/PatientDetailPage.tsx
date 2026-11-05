@@ -47,6 +47,8 @@ import { PatientDuplicateAlert } from '@/components/patient/PatientDuplicateAler
 import { usePatientDuplicateCheck } from '@/hooks/usePatientDuplicateCheck';
 import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
 import { functionError } from '@/lib/errors';
+import { useClinicPlan } from '@/hooks/useClinicPlan';
+import { isLeanPlan } from '@/lib/plans';
 
 const PATIENT_FILES_BUCKET = 'patient-files';
 const typeLabels: Record<string, string> = { before: 'Antes', during: 'Durante', after: 'Depois', progress: 'Progresso' };
@@ -107,6 +109,9 @@ function getPatientFilePath(value?: string | null) {
 
 export default function PatientDetailPage() {
   const [patientTab, setPatientTab] = useUrlState<string>('aba', 'data');
+  // Essencial: sem Satisfação/Feedback.
+  const { modules } = useClinicPlan();
+  const lean = isLeanPlan(modules);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -794,23 +799,23 @@ export default function PatientDetailPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 mb-6 lg:grid-cols-5">
+      <div className={`grid grid-cols-2 gap-2 mb-6 sm:gap-3 ${lean ? 'lg:grid-cols-4' : 'lg:grid-cols-5'}`}>
         <Card className="shadow-card">
-          <CardContent className="p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Próximo passo</p>
-            <p className="mt-2 text-lg font-semibold text-foreground">{operationalStep}</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">{operationalHint}</p>
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wide text-muted-foreground">Próximo passo</p>
+            <p className="mt-1 sm:mt-2 text-sm sm:text-base font-semibold text-foreground">{operationalStep}</p>
+            <p className="mt-1 hidden text-xs leading-5 text-muted-foreground sm:block">{operationalHint}</p>
           </CardContent>
         </Card>
         <Card className="shadow-card">
-          <CardContent className="p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Agenda</p>
-            <p className="mt-2 text-sm font-semibold text-foreground">
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wide text-muted-foreground">Agenda</p>
+            <p className="mt-1 sm:mt-2 text-sm font-semibold text-foreground">
               {nextAppointment
                 ? format(new Date(nextAppointment.start_time), "dd 'de' MMM, HH:mm", { locale: ptBR })
                 : 'Sem atendimento futuro'}
             </p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            <p className="mt-1 hidden text-xs leading-5 text-muted-foreground sm:block">
               {nextAppointment
                 ? `${nextAppointment.treatments?.name || 'Tratamento'} • ${nextAppointment.status || 'agendado'}`
                 : 'Agende a próxima avaliação ou sessão para manter o paciente ativo.'}
@@ -818,14 +823,14 @@ export default function PatientDetailPage() {
           </CardContent>
         </Card>
         <Card className="shadow-card">
-          <CardContent className="p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Última sessão</p>
-            <p className="mt-2 text-sm font-semibold text-foreground">
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wide text-muted-foreground">Última sessão</p>
+            <p className="mt-1 sm:mt-2 text-sm font-semibold text-foreground">
               {lastSession
                 ? format(new Date(lastSession.performed_at), "dd 'de' MMM", { locale: ptBR })
                 : 'Nenhuma sessão registrada'}
             </p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            <p className="mt-1 hidden text-xs leading-5 text-muted-foreground sm:block">
               {lastSession
                 ? `${lastSession.treatments?.name || 'Tratamento'} • Sessão ${lastSession.session_number || '—'}`
                 : 'Quando a execução começar, o histórico de sessões aparece aqui.'}
@@ -833,25 +838,27 @@ export default function PatientDetailPage() {
           </CardContent>
         </Card>
         <Card className="shadow-card">
-          <CardContent className="p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Comercial</p>
-            <p className="mt-2 text-sm font-semibold text-foreground">{commercialSummary}</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">{commercialDetail}</p>
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wide text-muted-foreground">Comercial</p>
+            <p className="mt-1 sm:mt-2 text-sm font-semibold text-foreground">{commercialSummary}</p>
+            <p className="mt-1 hidden text-xs leading-5 text-muted-foreground sm:block">{commercialDetail}</p>
           </CardContent>
         </Card>
-        <Card className="shadow-card">
-          <CardContent className="p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Satisfação</p>
-            <p className="mt-2 text-lg font-semibold text-foreground">
-              {averageFeedback ? `${averageFeedback.toFixed(1)} / 5` : 'Sem feedback'}
-            </p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              {feedbacks.length
-                ? `${feedbacks.length} feedback${feedbacks.length > 1 ? 's' : ''} registrado${feedbacks.length > 1 ? 's' : ''}.`
-                : 'Os próximos retornos do paciente ajudam a medir satisfação e risco.'}
-            </p>
-          </CardContent>
-        </Card>
+        {!lean && (
+          <Card className="shadow-card">
+            <CardContent className="p-3 sm:p-4">
+              <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wide text-muted-foreground">Satisfação</p>
+              <p className="mt-1 sm:mt-2 text-sm sm:text-base font-semibold text-foreground">
+                {averageFeedback ? `${averageFeedback.toFixed(1)} / 5` : 'Sem feedback'}
+              </p>
+              <p className="mt-1 hidden text-xs leading-5 text-muted-foreground sm:block">
+                {feedbacks.length
+                  ? `${feedbacks.length} feedback${feedbacks.length > 1 ? 's' : ''} registrado${feedbacks.length > 1 ? 's' : ''}.`
+                  : 'Os próximos retornos do paciente ajudam a medir satisfação e risco.'}
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Dissatisfaction Alert */}
@@ -880,7 +887,7 @@ export default function PatientDetailPage() {
           <TabsTrigger value="sessions" className="flex items-center gap-1"><ClipboardList className="w-3.5 h-3.5" />Sessões</TabsTrigger>
           <TabsTrigger value="evolution" className="flex items-center gap-1"><Activity className="w-3.5 h-3.5" />Evolução</TabsTrigger>
           <TabsTrigger value="photos" className="flex items-center gap-1"><Camera className="w-3.5 h-3.5" />Fotos</TabsTrigger>
-          <TabsTrigger value="feedback" className="flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5" />Feedback</TabsTrigger>
+          {!lean && <TabsTrigger value="feedback" className="flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5" />Feedback</TabsTrigger>}
         </TabsList>
 
         {/* Data tab */}
