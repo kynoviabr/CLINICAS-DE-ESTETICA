@@ -20,6 +20,7 @@ const NoAccessPage = lazy(() => import("./pages/NoAccessPage"));
 const ClinicHome = lazy(() => import("./pages/clinic/HomePage"));
 const MeuDiaPage = lazy(() => import("./pages/clinic/MeuDiaPage"));
 const CrmPage = lazy(() => import("./pages/clinic/CrmPage"));
+const ConversationsPage = lazy(() => import("./pages/clinic/ConversationsPage"));
 const PatientsPage = lazy(() => import("./pages/clinic/PatientsPage"));
 const PatientDetailPage = lazy(() => import("./pages/clinic/PatientDetailPage"));
 const TreatmentsPage = lazy(() => import("./pages/clinic/TreatmentsPage"));
@@ -86,6 +87,7 @@ const App = () => (
                 <Route path="meu-dia" element={<MeuDiaPage />} />
                 <Route path="implantacao" element={<SetupPage />} />
                 <Route path="crm" element={<CrmPage />} />
+                <Route path="conversas" element={<ConversationsPage />} />
                 <Route path="patients" element={<PatientsPage />} />
                 <Route path="patients/:id" element={<PatientDetailPage />} />
                 <Route path="treatments" element={<TreatmentsPage readOnly />} />

@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BrandBadge } from '@/components/ui/brand-badge';
 import { interactionTypes, relativeDate, normalizePhone, buildEvaluationScheduleLink, getRiskLabel, getFollowUpStatus, getPriorityBadge, normalizeLeadSource, getLeadSourceMeta, type StageCode } from '@/lib/crm/model';
 import type { CrmPageController } from './useCrmPage';
+import ContactWhatsappPanel from '@/components/whatsapp/ContactWhatsappPanel';
 
 export function LeadDrawerDialog({ ctx }: { ctx: CrmPageController }) {
   const {
@@ -172,6 +173,7 @@ export function LeadDrawerDialog({ ctx }: { ctx: CrmPageController }) {
               <Tabs defaultValue="general">
                 <TabsList className="mb-3 w-full justify-start overflow-x-auto rounded-lg bg-slate-100/80 p-1">
                   <TabsTrigger value="general">Dados Gerais</TabsTrigger>
+                  <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
                   <TabsTrigger value="interactions">Interações</TabsTrigger>
                   <TabsTrigger value="proposals">Propostas</TabsTrigger>
                   <TabsTrigger value="contracts">Contratos</TabsTrigger>
@@ -407,6 +409,17 @@ export function LeadDrawerDialog({ ctx }: { ctx: CrmPageController }) {
                       </div>
                     ))}
                   </div>
+                </TabsContent>
+                <TabsContent value="whatsapp">
+                  {leadDrawer.clinic_id && (
+                    <ContactWhatsappPanel
+                      clinicId={leadDrawer.clinic_id}
+                      leadId={leadDrawer.id}
+                      patientId={leadDrawer.patient_id}
+                      phone={leadDrawer.phone}
+                      name={leadDrawer.full_name}
+                    />
+                  )}
                 </TabsContent>
                 <TabsContent value="appointments">
                   <div className="space-y-3">

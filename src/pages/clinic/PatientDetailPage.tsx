@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import {
   ArrowLeft, User, Phone, Mail, Calendar, ClipboardList, Activity, Camera,
-  MessageSquare, Star, ExternalLink, Loader2, AlertTriangle, FileSignature, Upload, Edit
+  MessageSquare, Star, ExternalLink, Loader2, AlertTriangle, FileSignature, Upload, Edit, MessageCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { getSignedContractUrl } from '@/lib/storageHelper';
@@ -47,6 +47,7 @@ import { usePatientDuplicateCheck } from '@/hooks/usePatientDuplicateCheck';
 import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
 import { functionError } from '@/lib/errors';
 import { PatientPhotosTab } from '@/components/photos/PatientPhotosTab';
+import ContactWhatsappPanel from '@/components/whatsapp/ContactWhatsappPanel';
 import { useClinicPlan } from '@/hooks/useClinicPlan';
 import { isLeanPlan } from '@/lib/plans';
 
@@ -882,6 +883,7 @@ export default function PatientDetailPage() {
           <TabsTrigger value="sessions" className="flex items-center gap-1"><ClipboardList className="w-3.5 h-3.5" />Sessões</TabsTrigger>
           <TabsTrigger value="evolution" className="flex items-center gap-1"><Activity className="w-3.5 h-3.5" />Evolução</TabsTrigger>
           <TabsTrigger value="photos" className="flex items-center gap-1"><Camera className="w-3.5 h-3.5" />Fotos</TabsTrigger>
+          <TabsTrigger value="whatsapp" className="flex items-center gap-1"><MessageCircle className="w-3.5 h-3.5" />WhatsApp</TabsTrigger>
           {!lean && <TabsTrigger value="feedback" className="flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5" />Feedback</TabsTrigger>}
         </TabsList>
 
@@ -1226,6 +1228,10 @@ export default function PatientDetailPage() {
         {/* Photos tab */}
         <TabsContent value="photos">
           {clinicId && id && <PatientPhotosTab clinicId={clinicId} patientId={id} />}
+        </TabsContent>
+
+        <TabsContent value="whatsapp">
+          {clinicId && id && <ContactWhatsappPanel clinicId={clinicId} patientId={id} phone={patient?.phone} name={patient?.full_name} />}
         </TabsContent>
 
         {/* Feedback tab */}
