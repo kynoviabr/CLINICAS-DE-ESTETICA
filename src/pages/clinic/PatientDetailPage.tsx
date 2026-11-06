@@ -47,6 +47,7 @@ import { PatientDuplicateAlert } from '@/components/patient/PatientDuplicateAler
 import { usePatientDuplicateCheck } from '@/hooks/usePatientDuplicateCheck';
 import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
 import { functionError } from '@/lib/errors';
+import { PatientPhotosTab } from '@/components/photos/PatientPhotosTab';
 import { useClinicPlan } from '@/hooks/useClinicPlan';
 import { isLeanPlan } from '@/lib/plans';
 
@@ -125,7 +126,6 @@ export default function PatientDetailPage() {
     session_records?: { performed_at?: string | null; treatments?: { name?: string | null } | null } | null;
   };
   type ProposalRow = Pick<Database['public']['Tables']['proposals']['Row'], 'id' | 'proposal_number' | 'status' | 'final_amount' | 'created_at' | 'valid_until' | 'patient_id'>;
-  const [viewPhoto, setViewPhoto] = useState<PhotoRow | null>(null);
   const [grantingAccess, setGrantingAccess] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -1230,29 +1230,7 @@ export default function PatientDetailPage() {
 
         {/* Photos tab */}
         <TabsContent value="photos">
-          {photos.length === 0 ? (
-            <Card className="shadow-card">
-              <CardContent className="py-12 text-center">
-                <Camera className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Nenhuma foto registrada</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {photos.map((p: PhotoRow) => (
-                <Card key={p.id} className="shadow-card overflow-hidden cursor-pointer hover:shadow-card-hover transition-all" onClick={() => setViewPhoto(p)}>
-                  <div className="relative aspect-square">
-                    <img src={p.photo_url} alt={p.description || ''} className="w-full h-full object-cover" />
-                    <Badge className={`absolute top-2 left-2 text-xs ${typeColors[p.photo_type]}`}>{typeLabels[p.photo_type]}</Badge>
-                  </div>
-                  <CardContent className="p-2">
-                    <p className="text-xs text-muted-foreground">{format(new Date(p.taken_at), 'dd/MM/yyyy', { locale: ptBR })}</p>
-                    {p.description && <p className="text-xs text-foreground truncate">{p.description}</p>}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+          {clinicId && id && <PatientPhotosTab clinicId={clinicId} patientId={id} />}
         </TabsContent>
 
         {/* Feedback tab */}
@@ -1294,22 +1272,6 @@ export default function PatientDetailPage() {
           )}
         </TabsContent>
       </Tabs>
-
-      {/* Photo lightbox */}
-      <Dialog open={!!viewPhoto} onOpenChange={() => setViewPhoto(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>{viewPhoto?.description || 'Foto'}</DialogTitle></DialogHeader>
-          {viewPhoto && (
-            <>
-              <img src={viewPhoto.photo_url} alt="" className="w-full rounded-xl" />
-              <div className="flex items-center gap-2 mt-2">
-                <Badge className={typeColors[viewPhoto.photo_type]}>{typeLabels[viewPhoto.photo_type]}</Badge>
-                <span className="text-sm text-muted-foreground">{format(new Date(viewPhoto.taken_at), 'dd/MM/yyyy', { locale: ptBR })}</span>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
 
       <Dialog
         open={!!contractDialogProposal}
