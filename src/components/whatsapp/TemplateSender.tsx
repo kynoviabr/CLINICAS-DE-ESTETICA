@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { callWhatsapp, useWhatsappTemplates } from '@/hooks/useWhatsapp';
-import { renderTemplate } from '@/lib/whatsapp/inbox';
+import { prefillTemplateParams, renderTemplate, templateFieldLabel, templateLabel } from '@/lib/whatsapp/inbox';
+import { useBranding } from '@/contexts/BrandingContext';
 
 type Props = {
   clinicId: string;
@@ -26,12 +27,12 @@ export default function TemplateSender({ clinicId, conversationId, phone, leadId
   const [params, setParams] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const template = templates?.find((t) => `${t.name}|${t.language}` === selected);
-  const firstName = (contactName || '').split(' ')[0];
+  const { clinicName } = useBranding();
 
   const pick = (value: string) => {
     setSelected(value);
     const t = templates?.find((x) => `${x.name}|${x.language}` === value);
-    setParams(Array.from({ length: t?.variables || 0 }, (_, i) => (i === 0 ? firstName : '')));
+    setParams(t ? prefillTemplateParams(t.name, t.variables, { contactName, clinicName }) : []);
   };
 
   const send = async () => {
@@ -66,7 +67,7 @@ export default function TemplateSender({ clinicId, conversationId, phone, leadId
           <SelectTrigger><SelectValue placeholder="Escolha o modelo" /></SelectTrigger>
           <SelectContent>
             {templates.map((t) => (
-              <SelectItem key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>{t.name} ({t.language})</SelectItem>
+              <SelectItem key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>{templateLabel(t.name)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -75,7 +76,7 @@ export default function TemplateSender({ clinicId, conversationId, phone, leadId
         <>
           {params.map((value, i) => (
             <div key={i} className="space-y-1.5">
-              <Label>Campo {`{{${i + 1}}}`}</Label>
+              <Label>{templateFieldLabel(template.name, i)}</Label>
               <Input value={value} onChange={(e) => setParams(params.map((p, j) => (j === i ? e.target.value : p)))} />
             </div>
           ))}
