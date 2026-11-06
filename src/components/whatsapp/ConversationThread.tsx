@@ -68,7 +68,7 @@ export default function ConversationThread({ conversation, className = 'h-[60vh]
 
   return (
     <div className={`flex flex-col ${className}`}>
-      <div className="flex-1 space-y-1.5 overflow-y-auto bg-[#efeae2] p-3">
+      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto bg-[#efeae2] p-3">
         {isLoading ? (
           <p className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</p>
         ) : !messages?.length ? (
@@ -99,7 +99,7 @@ export default function ConversationThread({ conversation, className = 'h-[60vh]
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t bg-card p-3">
+      <div className="shrink-0 border-t bg-card p-3">
         {open ? (
           <>
             <div className="flex items-end gap-2">
@@ -107,7 +107,7 @@ export default function ConversationThread({ conversation, className = 'h-[60vh]
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-                placeholder="Escreva a resposta… (Enter envia, Shift+Enter quebra linha)"
+                placeholder="Digite sua resposta aqui…"
                 rows={2}
                 className="min-h-[44px] resize-none"
               />
@@ -115,7 +115,7 @@ export default function ConversationThread({ conversation, className = 'h-[60vh]
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </BrandButton>
             </div>
-            {leftLabel && <p className="mt-1 text-[11px] text-muted-foreground">{leftLabel} com texto livre.</p>}
+            <p className="mt-1 text-[11px] text-muted-foreground">Enter envia · Shift+Enter quebra linha{leftLabel ? ` · ${leftLabel}` : ''}</p>
           </>
         ) : (
           <div className="space-y-2">
