@@ -94,7 +94,7 @@ export function useWhatsappMessages(conversationId: string | null | undefined) {
     queryKey: ['wa-messages', conversationId],
     queryFn: async () => {
       const { data, error } = await supabase.from('whatsapp_messages')
-        .select('id, conversation_id, direction, body, attachments, status, error, sent_at')
+        .select('id, conversation_id, direction, body, attachments, status, error, sent_at, sent_by_ai')
         .eq('conversation_id', conversationId!).order('sent_at', { ascending: true }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as WaMessage[];

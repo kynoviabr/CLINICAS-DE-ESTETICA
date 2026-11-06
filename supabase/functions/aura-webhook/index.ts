@@ -73,5 +73,11 @@ Deno.serve(async (req) => {
   const result = data as IngestResult;
   if (result?.ok === false) console.warn("aura webhook ignorado", event?.type, result);
   await syncContactRef(result);
+  // Mensagem escrita pela IA da Aura: marca para a tela mostrar "Aura IA".
+  const msg = (event.data as { message?: { id?: string; source?: string } } | undefined)?.message;
+  const clinicId = (event.data as { workspace?: { external_id?: string } } | undefined)?.workspace?.external_id;
+  if (event.type === "message.sent" && msg?.source === "ai" && msg.id && clinicId) {
+    await admin.from("whatsapp_messages").update({ sent_by_ai: true }).eq("clinic_id", clinicId).eq("external_id", msg.id);
+  }
   return json({ ok: true });
 });

@@ -26,6 +26,7 @@ export type WaMessage = {
   body: string | null;
   attachments: Array<{ type?: string }> | null;
   status: 'received' | 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+  sent_by_ai?: boolean;
   error: string | null;
   sent_at: string;
 };

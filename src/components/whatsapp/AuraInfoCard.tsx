@@ -9,7 +9,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Save, Sparkles, Trash2 } from 'lucide-react';
+import { Bot, Loader2, Plus, Save, Sparkles, Trash2 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { useAuraMode } from '@/hooks/useAuraMode';
+import { callWhatsapp } from '@/hooks/useWhatsapp';
 import { type AuraInfo, type PriceDisplay, PRICE_DISPLAY_LABEL, parseAuraInfo } from '@/lib/whatsapp/auraInfo';
 
 const SETTING_KEY = 'aura_info';
@@ -33,6 +36,16 @@ export default function AuraInfoCard() {
     },
   });
   useEffect(() => { if (data) setInfo(data.info); }, [data]);
+
+  const mode = useAuraMode(clinicId);
+  const changeMode = useMutation({
+    mutationFn: (auto: boolean) => callWhatsapp('ai_mode', { clinicId, mode: auto ? 'auto' : 'copilot' }),
+    onSuccess: (_d, auto) => {
+      qc.invalidateQueries({ queryKey: ['aura-mode'] });
+      toast({ title: auto ? 'Atendimento automático ligado' : 'Atendimento automático desligado', description: auto ? 'A IA responde sozinha e marca horários na agenda.' : 'A equipe responde, com o botão Sugerir resposta.' });
+    },
+    onError: (e: Error) => toast({ title: 'Não foi possível mudar', description: e.message, variant: 'destructive' }),
+  });
 
   const set = <K extends keyof AuraInfo>(k: K, v: AuraInfo[K]) => setInfo((p) => ({ ...p, [k]: v }));
   const faq = info.faq || [];
@@ -58,6 +71,20 @@ export default function AuraInfoCard() {
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
+          <div className="space-y-1">
+            <p className="flex items-center gap-2 font-medium"><Bot className="h-4 w-4" /> Atendimento automático</p>
+            <p className="text-sm text-muted-foreground">
+              Ligado: a IA responde sozinha no WhatsApp, consulta a agenda, oferece horários, confirma com o cliente e marca
+              (como avaliação). Se alguém da equipe responder numa conversa, a IA pausa nela por 12 horas.
+              Desligado: a equipe responde, com o botão "Sugerir resposta".
+            </p>
+          </div>
+          {changeMode.isPending ? <Loader2 className="mt-1 h-5 w-5 animate-spin" /> : (
+            <Switch aria-label="Atendimento automático" checked={mode.data === 'auto'} disabled={!clinicId || mode.isLoading}
+              onCheckedChange={(v) => changeMode.mutate(v)} />
+          )}
+        </div>
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Horário de funcionamento" placeholder="Seg a sex, 9h às 19h; sáb, 9h às 13h" value={info.hours} onChange={(v) => set('hours', v)} />
           <Field label="Formas de pagamento" placeholder="Pix, débito, crédito em até 10x sem juros acima de R$ 1.000" value={info.payment} onChange={(v) => set('payment', v)} />

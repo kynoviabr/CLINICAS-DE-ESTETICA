@@ -3726,6 +3726,7 @@ export type Database = {
           id: string
           sent_at: string
           sent_by: string | null
+          sent_by_ai: boolean
           status: string
         }
         Insert: {
@@ -3740,6 +3741,7 @@ export type Database = {
           id?: string
           sent_at?: string
           sent_by?: string | null
+          sent_by_ai?: boolean
           status?: string
         }
         Update: {
@@ -3754,6 +3756,7 @@ export type Database = {
           id?: string
           sent_at?: string
           sent_by?: string | null
+          sent_by_ai?: boolean
           status?: string
         }
         Relationships: []

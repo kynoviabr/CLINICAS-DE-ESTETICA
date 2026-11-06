@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { format, isSameDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { AlertCircle, AlertTriangle, Check, CheckCheck, Clock, Loader2, Send, Sparkles, UserRound } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { AlertCircle, AlertTriangle, Bot, Check, CheckCheck, Clock, Loader2, Pause, Play, Send, Sparkles, UserRound } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuraMode } from '@/hooks/useAuraMode';
 import { BrandButton } from '@/components/ui/brand-button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
@@ -33,6 +34,27 @@ export default function ConversationThread({ conversation, className = 'h-[60vh]
   const [, setTick] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const open = isWindowOpen(conversation.last_incoming_at);
+  const { data: aiMode } = useAuraMode(conversation.clinic_id);
+  const auto = aiMode === 'auto';
+  const aiStatus = useQuery({
+    queryKey: ['wa-ai-status', conversation.id],
+    enabled: auto,
+    refetchInterval: 60_000,
+    queryFn: () => callWhatsapp<{ pausedUntil: string | null; reason: string | null }>('ai_status', { conversationId: conversation.id }),
+  });
+  const [toggling, setToggling] = useState(false);
+  const toggleAi = async (paused: boolean) => {
+    setToggling(true);
+    try {
+      await callWhatsapp('ai_pause', { conversationId: conversation.id, paused });
+      await aiStatus.refetch();
+    } catch (err) {
+      toast({ title: 'Não foi possível', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setToggling(false);
+    }
+  };
+  const aiPaused = !!aiStatus.data?.pausedUntil;
   const leftLabel = windowLeftLabel(conversation.last_incoming_at);
 
   // Recalcula a janela de 24h a cada minuto.
@@ -66,6 +88,7 @@ export default function ConversationThread({ conversation, className = 'h-[60vh]
       setSuggestion(null);
       qc.invalidateQueries({ queryKey: ['wa-messages', conversation.id] });
       qc.invalidateQueries({ queryKey: ['wa-conversations', conversation.clinic_id] });
+      if (auto) aiStatus.refetch();
     } catch (err) {
       toast({ title: 'Não foi possível enviar', description: (err as Error).message, variant: 'destructive' });
     } finally {
@@ -108,6 +131,7 @@ export default function ConversationThread({ conversation, className = 'h-[60vh]
                 )}
                 <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[85%] rounded-lg px-2.5 py-1.5 text-sm shadow-sm ${mine ? 'bg-[#d9fdd3]' : 'bg-white'}`}>
+                    {m.sent_by_ai && <p className="mb-0.5 flex items-center gap-1 text-[10px] font-medium text-emerald-700"><Bot className="h-3 w-3" /> Aura IA</p>}
                     <p className="whitespace-pre-wrap break-words">{messageText(m)}</p>
                     <p className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
                       {format(at, 'HH:mm')} <StatusIcon m={m} />
@@ -134,12 +158,26 @@ export default function ConversationThread({ conversation, className = 'h-[60vh]
                 {missing && <p className="flex items-start gap-1.5"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {missing}</p>}
               </div>
             )}
-            <div className="mb-2 flex items-center justify-between gap-2">
+            {auto && (
+              <div className={`mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2 text-xs ${aiPaused ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}>
+                <p className="flex items-center gap-1.5">
+                  <Bot className="h-3.5 w-3.5 shrink-0" />
+                  {aiPaused
+                    ? <>IA pausada nesta conversa{aiStatus.data?.reason ? ` (${aiStatus.data.reason})` : ''}. A equipe responde.</>
+                    : <>A Aura IA está respondendo esta conversa. Se você enviar uma mensagem, ela pausa por 12 horas.</>}
+                </p>
+                <BrandButton type="button" size="sm" variant="outline" disabled={toggling || aiStatus.isLoading} onClick={() => toggleAi(!aiPaused)}>
+                  {toggling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : aiPaused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+                  {aiPaused ? 'Devolver para a IA' : 'Pausar IA'}
+                </BrandButton>
+              </div>
+            )}
+            {!auto && <div className="mb-2 flex items-center justify-between gap-2">
               <BrandButton type="button" size="sm" variant="outline" onClick={suggest} disabled={suggesting || sending}>
                 {suggesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Sugerir resposta
               </BrandButton>
               {suggestion?.text && <span className="text-[11px] text-muted-foreground">Sugestão da IA: revise antes de enviar.</span>}
-            </div>
+            </div>}
             <div className="flex items-end gap-2">
               <Textarea
                 value={text}

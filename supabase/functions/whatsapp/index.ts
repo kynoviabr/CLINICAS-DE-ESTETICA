@@ -1,7 +1,8 @@
 // WhatsApp da clínica, chamado pelo app com o login da equipe.
 // O canal é da Aura IA (plataforma de WhatsApp e IA da Kynovia): o Clinova não fala com a Zernio,
 // fala com a API da Aura (AURA_API_URL + AURA_API_KEY). Cada clínica é uma "empresa" na Aura (id = clinic_id).
-// Ações: connect_start / connect_finish (admin), templates, send_text, send_template, suggest (copiloto da Aura IA).
+// Ações: connect_start / connect_finish (admin), templates, send_text, send_template, suggest (copiloto da Aura IA),
+// ai_mode (admin: copilot = sugerir resposta, auto = IA responde sozinha), ai_status / ai_pause (IA numa conversa).
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -151,6 +152,38 @@ Deno.serve(async (req) => {
       await requireConnected(admin, conv.clinic_id);
       const res = await aura(`/v1/conversations/${conv.external_id}/suggest`, { method: "POST", body: "{}" });
       return reply({ suggestion: res.suggestion });
+    }
+
+    // ---------- Modo da IA da clínica (guardado no Clinova e na Aura) ----------
+    if (action === "ai_mode") {
+      const clinicId = String(body.clinicId || "");
+      await requireAdmin(admin, user.id, clinicId);
+      const mode = String(body.mode || "");
+      if (!["copilot", "auto", "off"].includes(mode)) throw new HttpError(400, "Modo inválido.");
+      if (mode === "auto") await requireConnected(admin, clinicId);
+      const { data: clinic } = await admin.from("clinics").select("name").eq("id", clinicId).single();
+      await aura(`/v1/workspaces/${clinicId}`, { method: "PUT", body: JSON.stringify({ name: clinic?.name || "Clínica" }) });
+      await aura(`/v1/workspaces/${clinicId}/ai`, { method: "PUT", body: JSON.stringify({ mode }) });
+      const { error } = await admin.from("clinic_settings").upsert({ clinic_id: clinicId, key: "aura_ai_mode", value: mode }, { onConflict: "clinic_id,key" });
+      if (error) throw new HttpError(500, error.message);
+      return reply({ mode });
+    }
+
+    // ---------- IA numa conversa: ver se está pausada, pausar ou devolver ----------
+    if (action === "ai_status" || action === "ai_pause") {
+      const { data: conv } = await admin.from("whatsapp_conversations").select("id, clinic_id, external_id").eq("id", String(body.conversationId || "")).maybeSingle();
+      if (!conv) throw new HttpError(404, "Conversa não encontrada.");
+      await requireStaff(admin, user.id, conv.clinic_id);
+      if (action === "ai_pause") {
+        const res = await aura(`/v1/conversations/${conv.external_id}/ai`, {
+          method: "POST", body: JSON.stringify({ paused: body.paused !== false, hours: 24, reason: "Pausada pela equipe no Clinova" }),
+        }) as { ai?: { ai_paused_until?: string | null; ai_pause_reason?: string | null } };
+        return reply({ pausedUntil: res.ai?.ai_paused_until || null, reason: res.ai?.ai_pause_reason || null });
+      }
+      const res = await aura(`/v1/conversations/${conv.external_id}`) as { conversation?: { ai_paused_until?: string | null; ai_pause_reason?: string | null } };
+      const until = res.conversation?.ai_paused_until || null;
+      const active = until && new Date(until).getTime() > Date.now();
+      return reply({ pausedUntil: active ? until : null, reason: active ? res.conversation?.ai_pause_reason || null : null });
     }
 
     // ---------- Modelo aprovado: abre conversa nova ou reabre depois de 24h ----------
