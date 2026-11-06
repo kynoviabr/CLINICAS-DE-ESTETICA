@@ -24,3 +24,6 @@ port = 55329
 
 [functions.aura-webhook]
 verify_jwt = false
+
+[functions.aura-api]
+verify_jwt = false

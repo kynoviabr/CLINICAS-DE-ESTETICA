@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { format, isSameDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { AlertCircle, Check, CheckCheck, Clock, Loader2, Send } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Check, CheckCheck, Clock, Loader2, Send, Sparkles, UserRound } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { BrandButton } from '@/components/ui/brand-button';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { callWhatsapp, useWhatsappMessages } from '@/hooks/useWhatsapp';
 import { isWindowOpen, messageText, windowLeftLabel, type WaConversation, type WaMessage } from '@/lib/whatsapp/inbox';
+import { missingSourcesText, type Suggestion } from '@/lib/whatsapp/auraInfo';
 import TemplateSender from './TemplateSender';
 
 function StatusIcon({ m }: { m: WaMessage }) {
@@ -27,6 +28,8 @@ export default function ConversationThread({ conversation, className = 'h-[60vh]
   const { data: messages, isLoading } = useWhatsappMessages(conversation.id);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   const [, setTick] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const open = isWindowOpen(conversation.last_incoming_at);
@@ -37,6 +40,9 @@ export default function ConversationThread({ conversation, className = 'h-[60vh]
     const t = setInterval(() => setTick((n) => n + 1), 60_000);
     return () => clearInterval(t);
   }, []);
+
+  // Sugestão vale só para a conversa em que foi pedida.
+  useEffect(() => { setSuggestion(null); setText(''); }, [conversation.id]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' });
@@ -55,8 +61,9 @@ export default function ConversationThread({ conversation, className = 'h-[60vh]
     if (!body) return;
     setSending(true);
     try {
-      await callWhatsapp('send_text', { conversationId: conversation.id, text: body });
+      await callWhatsapp('send_text', { conversationId: conversation.id, text: body, suggestionId: suggestion?.id || undefined });
       setText('');
+      setSuggestion(null);
       qc.invalidateQueries({ queryKey: ['wa-messages', conversation.id] });
       qc.invalidateQueries({ queryKey: ['wa-conversations', conversation.clinic_id] });
     } catch (err) {
@@ -65,6 +72,22 @@ export default function ConversationThread({ conversation, className = 'h-[60vh]
       setSending(false);
     }
   };
+
+  /** Copiloto da Aura IA: preenche a caixa com uma sugestão; a pessoa revisa e envia. */
+  const suggest = async () => {
+    setSuggesting(true);
+    try {
+      const { suggestion: s } = await callWhatsapp<{ suggestion: Suggestion }>('suggest', { conversationId: conversation.id });
+      setSuggestion(s);
+      if (s.text) setText(s.text);
+      else toast({ title: 'A IA não sugeriu resposta', description: 'Por segurança, escreva esta resposta manualmente.' });
+    } catch (err) {
+      toast({ title: 'Não foi possível sugerir', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setSuggesting(false);
+    }
+  };
+  const missing = suggestion ? missingSourcesText(suggestion) : null;
 
   return (
     <div className={`flex flex-col ${className}`}>
@@ -102,6 +125,21 @@ export default function ConversationThread({ conversation, className = 'h-[60vh]
       <div className="shrink-0 border-t bg-card p-3">
         {open ? (
           <>
+            {suggestion && (suggestion.flags.length > 0 || suggestion.handoff || missing) && (
+              <div className="mb-2 space-y-1 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                {suggestion.handoff && <p className="flex items-center gap-1.5 font-medium"><UserRound className="h-3.5 w-3.5" /> Atenção: a cliente precisa de uma pessoa da equipe.</p>}
+                {suggestion.flags.filter((f) => f.code !== 'wants_human').map((f) => (
+                  <p key={f.code} className="flex items-start gap-1.5"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {f.text}</p>
+                ))}
+                {missing && <p className="flex items-start gap-1.5"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {missing}</p>}
+              </div>
+            )}
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <BrandButton type="button" size="sm" variant="outline" onClick={suggest} disabled={suggesting || sending}>
+                {suggesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Sugerir resposta
+              </BrandButton>
+              {suggestion?.text && <span className="text-[11px] text-muted-foreground">Sugestão da IA: revise antes de enviar.</span>}
+            </div>
             <div className="flex items-end gap-2">
               <Textarea
                 value={text}
