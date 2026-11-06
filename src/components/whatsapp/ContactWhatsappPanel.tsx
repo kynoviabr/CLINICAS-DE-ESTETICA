@@ -25,7 +25,7 @@ export default function ContactWhatsappPanel({ clinicId, leadId, patientId, phon
   if (conversation) {
     return (
       <div className="overflow-hidden rounded-lg border">
-        <ConversationThread conversation={conversation} className="h-[55vh] min-h-[360px]" />
+        <ConversationThread conversation={conversation} className="h-[340px] sm:h-[380px]" />
       </div>
     );
   }
