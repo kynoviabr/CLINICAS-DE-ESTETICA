@@ -21,3 +21,6 @@ port = 55327
 [db.pooler]
 port = 55329
 
+
+[functions.aura-webhook]
+verify_jwt = false

@@ -1,4 +1,6 @@
-// WhatsApp da clínica (provedor Zernio), chamado pelo app com o login da equipe.
+// WhatsApp da clínica, chamado pelo app com o login da equipe.
+// O canal é da Aura IA (plataforma de WhatsApp e IA da Kynovia): o Clinova não fala com a Zernio,
+// fala com a API da Aura (AURA_API_URL + AURA_API_KEY). Cada clínica é uma "empresa" na Aura (id = clinic_id).
 // Ações: connect_start / connect_finish (admin), templates, send_text, send_template.
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -6,7 +8,6 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-const ZERNIO = "https://zernio.com/api/v1";
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 
 class HttpError extends Error {
@@ -16,20 +17,23 @@ class HttpError extends Error {
 const reply = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-async function zernio(path: string, init: RequestInit = {}) {
-  const key = Deno.env.get("ZERNIO_API_KEY");
-  if (!key) throw new HttpError(500, "WhatsApp ainda não configurado no servidor (chave da Zernio).");
-  const res = await fetch(`${ZERNIO}${path}`, {
+/** Chamada à API da Aura IA. Erros da Aura viram mensagem legível para a tela. */
+async function aura(path: string, init: RequestInit = {}) {
+  const base = (Deno.env.get("AURA_API_URL") || "").replace(/\/$/, "");
+  const key = (Deno.env.get("AURA_API_KEY") || "").trim();
+  if (!base || !key) throw new HttpError(500, "WhatsApp ainda não configurado no servidor (Aura IA).");
+  const res = await fetch(`${base}${path}`, {
     ...init,
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", ...(init.headers || {}) },
+    signal: AbortSignal.timeout(20000),
   });
   const text = await res.text();
   let data: Record<string, unknown> = {};
   try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
   if (!res.ok) {
-    console.error("zernio", path, res.status, text.slice(0, 500));
-    const message = String(data.error || data.message || `Erro ${res.status} no WhatsApp`);
-    throw new HttpError(res.status === 402 ? 402 : 502, message, String(data.code || ""));
+    console.error("aura", path, res.status, text.slice(0, 500));
+    const err = (data.error || {}) as { code?: string; message?: string };
+    throw new HttpError(res.status === 402 ? 402 : res.status === 409 ? 409 : 502, err.message || `Erro ${res.status} no WhatsApp`, err.code);
   }
   return data;
 }
@@ -38,7 +42,7 @@ function digits(v: unknown) {
   return String(v ?? "").replace(/\D/g, "");
 }
 
-/** Número para a API: só dígitos, com 55 quando vier sem o código do país. */
+/** Número para o WhatsApp: só dígitos, com 55 quando vier sem o código do país. */
 function waNumber(phone: unknown) {
   const d = digits(phone);
   if (d.length === 10 || d.length === 11) return `55${d}`;
@@ -53,10 +57,6 @@ function phoneKey(phone: unknown) {
   return d.length < 8 ? null : d;
 }
 
-function renderTemplate(body: string, params: string[]) {
-  return body.replace(/\{\{(\d+)\}\}/g, (_, n) => params[Number(n) - 1] ?? `{{${n}}}`);
-}
-
 async function requireStaff(admin: SupabaseClient, userId: string, clinicId: string) {
   const { data } = await admin.rpc("is_clinic_staff", { _user_id: userId, _clinic_id: clinicId });
   if (!data) throw new HttpError(403, "Sem acesso a esta clínica.");
@@ -67,10 +67,9 @@ async function requireAdmin(admin: SupabaseClient, userId: string, clinicId: str
   if (!data) throw new HttpError(403, "Só o administrador da clínica pode conectar o WhatsApp.");
 }
 
-async function channelOf(admin: SupabaseClient, clinicId: string) {
-  const { data } = await admin.from("whatsapp_channels").select("*").eq("clinic_id", clinicId).maybeSingle();
-  if (!data?.account_id || data.status !== "connected") throw new HttpError(409, "Conecte o WhatsApp da clínica em Configurações.", "not_connected");
-  return data;
+async function requireConnected(admin: SupabaseClient, clinicId: string) {
+  const { data } = await admin.from("whatsapp_channels").select("status").eq("clinic_id", clinicId).maybeSingle();
+  if (data?.status !== "connected") throw new HttpError(409, "Conecte o WhatsApp da clínica em Configurações.", "not_connected");
 }
 
 Deno.serve(async (req) => {
@@ -92,47 +91,26 @@ Deno.serve(async (req) => {
       const clinicId = String(body.clinicId || "");
       await requireAdmin(admin, user.id, clinicId);
       const redirectUrl = String(body.redirectUrl || "");
-      if (!/^https?:\/\//.test(redirectUrl)) throw new HttpError(400, "Endereço de retorno inválido.");
+      if (!/^https:\/\//.test(redirectUrl)) throw new HttpError(400, "Endereço de retorno inválido.");
       const { data: clinic } = await admin.from("clinics").select("name").eq("id", clinicId).single();
-      const { data: channel } = await admin.from("whatsapp_channels").select("*").eq("clinic_id", clinicId).maybeSingle();
-
-      let profileId: string | null = channel?.profile_id || null;
-      if (!profileId) {
-        const found = await zernio(`/profiles?externalId=${encodeURIComponent(clinicId)}`);
-        profileId = ((found.profiles as Array<{ _id: string }>) || [])[0]?._id || null;
-      }
-      if (!profileId) {
-        const created = await zernio("/profiles", {
-          method: "POST",
-          body: JSON.stringify({ name: (clinic?.name || "Clínica").slice(0, 80), externalId: clinicId, timezone: "America/Sao_Paulo" }),
-        });
-        profileId = (created.profile as { _id: string })?._id;
-      }
+      await aura(`/v1/workspaces/${clinicId}`, { method: "PUT", body: JSON.stringify({ name: clinic?.name || "Clínica" }) });
+      const { data: channel } = await admin.from("whatsapp_channels").select("status").eq("clinic_id", clinicId).maybeSingle();
       await admin.from("whatsapp_channels").upsert(
-        { clinic_id: clinicId, profile_id: profileId, status: channel?.status === "connected" ? "connected" : "pending", updated_at: new Date().toISOString() },
+        { clinic_id: clinicId, provider: "aura", status: channel?.status === "connected" ? "connected" : "pending", updated_at: new Date().toISOString() },
         { onConflict: "clinic_id" },
       );
-      const connect = await zernio(`/connect/whatsapp?profileId=${profileId}&redirect_url=${encodeURIComponent(redirectUrl)}`);
+      const connect = await aura(`/v1/workspaces/${clinicId}/channel/connect`, { method: "POST", body: JSON.stringify({ redirectUrl }) });
       return reply({ authUrl: connect.authUrl });
     }
 
     if (action === "connect_finish") {
       const clinicId = String(body.clinicId || "");
       await requireAdmin(admin, user.id, clinicId);
-      const { data: channel } = await admin.from("whatsapp_channels").select("*").eq("clinic_id", clinicId).maybeSingle();
-      if (!channel?.profile_id) throw new HttpError(409, "Comece a conexão pelo botão Conectar WhatsApp.");
-      const list = await zernio(`/accounts?profileId=${channel.profile_id}&platform=whatsapp`);
-      const accounts = (list.accounts as Array<Record<string, unknown>>) || [];
-      const wanted = String(body.accountId || "");
-      const account = accounts.find((a) => a._id === wanted) || (!wanted ? accounts[0] : undefined);
-      if (!account) throw new HttpError(404, "Não encontramos o número conectado. Tente conectar de novo.");
+      await aura(`/v1/workspaces/${clinicId}/channel/finish`, { method: "POST", body: JSON.stringify({ accountId: String(body.accountId || "") }) });
+      const { channel } = await aura(`/v1/workspaces/${clinicId}/channel`) as { channel?: { phone_number?: string; display_name?: string } };
       await admin.from("whatsapp_channels").update({
-        account_id: account._id,
-        phone_number: (account.metadata as Record<string, unknown>)?.displayPhoneNumber || account.username || null,
-        display_name: account.displayName || null,
-        status: "connected",
-        connected_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        provider: "aura", phone_number: channel?.phone_number || null, display_name: channel?.display_name || null,
+        status: "connected", connected_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       }).eq("clinic_id", clinicId);
       return reply({ ok: true });
     }
@@ -141,15 +119,9 @@ Deno.serve(async (req) => {
     if (action === "templates") {
       const clinicId = String(body.clinicId || "");
       await requireStaff(admin, user.id, clinicId);
-      const channel = await channelOf(admin, clinicId);
-      const res = await zernio(`/whatsapp/templates?accountId=${channel.account_id}&status=APPROVED`);
-      const templates = ((res.templates as Array<Record<string, unknown>>) || []).map((t) => {
-        const comps = (t.components as Array<Record<string, unknown>>) || [];
-        const text = String(comps.find((c) => c.type === "BODY")?.text || "");
-        const vars = new Set(text.match(/\{\{\d+\}\}/g) || []).size;
-        return { name: t.name, language: t.language, category: t.category, body: text, variables: vars };
-      });
-      return reply({ templates });
+      await requireConnected(admin, clinicId);
+      const res = await aura(`/v1/workspaces/${clinicId}/templates`);
+      return reply({ templates: res.templates || [] });
     }
 
     // ---------- Responder dentro da janela de 24h ----------
@@ -160,16 +132,14 @@ Deno.serve(async (req) => {
       const { data: conv } = await admin.from("whatsapp_conversations").select("*").eq("id", String(body.conversationId || "")).maybeSingle();
       if (!conv) throw new HttpError(404, "Conversa não encontrada.");
       await requireStaff(admin, user.id, conv.clinic_id);
-      const channel = await channelOf(admin, conv.clinic_id);
+      await requireConnected(admin, conv.clinic_id);
       if (!conv.last_incoming_at || Date.now() - new Date(conv.last_incoming_at).getTime() > WINDOW_MS) {
         throw new HttpError(409, "Passaram 24h desde a última mensagem da cliente. Envie um modelo aprovado.", "window_closed");
       }
-      const sent = await zernio(`/inbox/conversations/${conv.external_id}/messages`, {
-        method: "POST",
-        body: JSON.stringify({ accountId: channel.account_id, message: text }),
-      });
-      const messageId = (sent.data as { messageId?: string })?.messageId || null;
-      await admin.rpc("whatsapp_record_outgoing", { p_conversation_id: conv.id, p_external_id: messageId, p_body: text, p_user: user.id });
+      const sent = await aura(`/v1/conversations/${conv.external_id}/messages`, {
+        method: "POST", body: JSON.stringify({ text, sentBy: user.id }),
+      }) as { message?: { id?: string } };
+      await admin.rpc("whatsapp_record_outgoing", { p_conversation_id: conv.id, p_external_id: sent.message?.id || null, p_body: text, p_user: user.id });
       return reply({ ok: true });
     }
 
@@ -177,12 +147,10 @@ Deno.serve(async (req) => {
     if (action === "send_template") {
       const clinicId = String(body.clinicId || "");
       await requireStaff(admin, user.id, clinicId);
-      const channel = await channelOf(admin, clinicId);
+      await requireConnected(admin, clinicId);
       const name = String(body.templateName || "");
-      const language = String(body.language || "pt_BR");
-      const params = ((body.params as unknown[]) || []).map((p) => String(p ?? "").slice(0, 500));
-      const preview = renderTemplate(String(body.templateBody || `[modelo ${name}]`), params);
       if (!name) throw new HttpError(400, "Escolha o modelo.");
+      const params = ((body.params as unknown[]) || []).map((p) => String(p ?? "").slice(0, 500));
 
       let conv: Record<string, unknown> | null = null;
       if (body.conversationId) {
@@ -196,45 +164,46 @@ Deno.serve(async (req) => {
         conv = data;
       }
 
-      let messageId: string | null = null;
-      if (conv) {
-        const sent = await zernio(`/inbox/conversations/${conv.external_id}/messages`, {
-          method: "POST",
-          body: JSON.stringify({
-            accountId: channel.account_id,
-            template: { elements: [{ name, language, components: params.length ? [{ type: "body", parameters: params.map((text) => ({ type: "text", text })) }] : [] }] },
-          }),
-        });
-        messageId = (sent.data as { messageId?: string })?.messageId || null;
-      } else {
-        const phone = waNumber(body.phone);
-        if (phone.length < 12) throw new HttpError(400, "Telefone inválido. Use DDD + número.");
-        const leadId = body.leadId ? String(body.leadId) : null;
-        const patientId = body.patientId ? String(body.patientId) : null;
-        if (leadId) {
-          const { data } = await admin.from("leads").select("id").eq("id", leadId).eq("clinic_id", clinicId).maybeSingle();
-          if (!data) throw new HttpError(404, "Lead não encontrado.");
-        }
-        if (patientId) {
-          const { data } = await admin.from("patients").select("id").eq("id", patientId).eq("clinic_id", clinicId).maybeSingle();
-          if (!data) throw new HttpError(404, "Paciente não encontrada.");
-        }
-        const opened = await zernio("/inbox/conversations", {
-          method: "POST",
-          body: JSON.stringify({ accountId: channel.account_id, participantId: phone, templateName: name, templateLanguage: language, templateParams: params }),
-        });
-        const data = opened.data as { conversationId?: string; messageId?: string };
-        messageId = data?.messageId || null;
-        if (!data?.conversationId) throw new HttpError(502, "O WhatsApp não devolveu a conversa.");
+      const leadId = body.leadId ? String(body.leadId) : null;
+      const patientId = body.patientId ? String(body.patientId) : null;
+      if (leadId) {
+        const { data } = await admin.from("leads").select("id").eq("id", leadId).eq("clinic_id", clinicId).maybeSingle();
+        if (!data) throw new HttpError(404, "Lead não encontrado.");
+      }
+      if (patientId) {
+        const { data } = await admin.from("patients").select("id").eq("id", patientId).eq("clinic_id", clinicId).maybeSingle();
+        if (!data) throw new HttpError(404, "Paciente não encontrada.");
+      }
+
+      const phone = conv ? null : waNumber(body.phone);
+      if (!conv && (!phone || phone.length < 12)) throw new HttpError(400, "Telefone inválido. Use DDD + número.");
+      const sent = await aura(`/v1/workspaces/${clinicId}/templates/send`, {
+        method: "POST",
+        body: JSON.stringify({
+          ...(conv ? { conversationId: conv.external_id } : { phone }),
+          templateName: name, language: String(body.language || "pt_BR"), params,
+          templateBody: String(body.templateBody || ""), sentBy: user.id,
+          contact: {
+            name: body.contactName ? String(body.contactName) : undefined,
+            externalType: patientId ? "patient" : leadId ? "lead" : undefined,
+            externalRef: patientId || leadId || undefined,
+          },
+        }),
+      }) as { conversationId: string; contactId?: string; message?: { id?: string; body?: string } };
+
+      if (!conv) {
         const { data: upserted, error } = await admin.from("whatsapp_conversations").upsert({
-          clinic_id: clinicId, external_id: data.conversationId, account_id: channel.account_id,
-          contact_phone: phone, contact_key: phoneKey(phone), contact_name: body.contactName ? String(body.contactName) : null,
+          clinic_id: clinicId, external_id: sent.conversationId, contact_phone: phone, contact_key: phoneKey(phone),
+          contact_name: body.contactName ? String(body.contactName) : null, aura_contact_id: sent.contactId || null,
           ...(leadId ? { lead_id: leadId } : {}), ...(patientId ? { patient_id: patientId } : {}),
         }, { onConflict: "clinic_id,external_id", ignoreDuplicates: false }).select("*").single();
         if (error) throw new HttpError(500, error.message);
         conv = upserted;
       }
-      await admin.rpc("whatsapp_record_outgoing", { p_conversation_id: conv!.id, p_external_id: messageId, p_body: preview, p_user: user.id });
+      await admin.rpc("whatsapp_record_outgoing", {
+        p_conversation_id: conv!.id, p_external_id: sent.message?.id || null,
+        p_body: sent.message?.body || `[modelo ${name}]`, p_user: user.id,
+      });
       return reply({ ok: true, conversationId: conv!.id });
     }
 
