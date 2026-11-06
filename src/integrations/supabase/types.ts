@@ -3614,6 +3614,150 @@ export type Database = {
           },
         ]
       }
+      whatsapp_channels: {
+        Row: {
+          account_id: string | null
+          clinic_id: string
+          connected_at: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          phone_number: string | null
+          profile_id: string | null
+          provider: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          account_id?: string | null
+          clinic_id: string
+          connected_at?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          phone_number?: string | null
+          profile_id?: string | null
+          provider?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string | null
+          clinic_id?: string
+          connected_at?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          phone_number?: string | null
+          profile_id?: string | null
+          provider?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      whatsapp_conversations: {
+        Row: {
+          account_id: string | null
+          assigned_to: string | null
+          clinic_id: string
+          contact_key: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          external_id: string
+          id: string
+          last_incoming_at: string | null
+          last_message_at: string | null
+          last_message_direction: string | null
+          last_message_preview: string | null
+          lead_id: string | null
+          patient_id: string | null
+          unread_count: number
+        }
+        Insert: {
+          account_id?: string | null
+          assigned_to?: string | null
+          clinic_id: string
+          contact_key?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          external_id: string
+          id?: string
+          last_incoming_at?: string | null
+          last_message_at?: string | null
+          last_message_direction?: string | null
+          last_message_preview?: string | null
+          lead_id?: string | null
+          patient_id?: string | null
+          unread_count?: number
+        }
+        Update: {
+          account_id?: string | null
+          assigned_to?: string | null
+          clinic_id?: string
+          contact_key?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          external_id?: string
+          id?: string
+          last_incoming_at?: string | null
+          last_message_at?: string | null
+          last_message_direction?: string | null
+          last_message_preview?: string | null
+          lead_id?: string | null
+          patient_id?: string | null
+          unread_count?: number
+        }
+        Relationships: []
+      }
+      whatsapp_messages: {
+        Row: {
+          attachments: Json
+          body: string | null
+          clinic_id: string
+          conversation_id: string
+          created_at: string
+          direction: string
+          error: string | null
+          external_id: string | null
+          id: string
+          sent_at: string
+          sent_by: string | null
+          status: string
+        }
+        Insert: {
+          attachments?: Json
+          body?: string | null
+          clinic_id: string
+          conversation_id: string
+          created_at?: string
+          direction: string
+          error?: string | null
+          external_id?: string | null
+          id?: string
+          sent_at?: string
+          sent_by?: string | null
+          status?: string
+        }
+        Update: {
+          attachments?: Json
+          body?: string | null
+          clinic_id?: string
+          conversation_id?: string
+          created_at?: string
+          direction?: string
+          error?: string | null
+          external_id?: string | null
+          id?: string
+          sent_at?: string
+          sent_by?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       stock_balances: {
@@ -3718,6 +3862,14 @@ export type Database = {
       }
     }
     Functions: {
+      whatsapp_link_conversation: {
+        Args: { p_conversation_id: string; p_lead_id: string | null; p_patient_id: string | null }
+        Returns: undefined
+      }
+      whatsapp_mark_read: {
+        Args: { p_conversation_id: string }
+        Returns: undefined
+      }
       create_anamnese_link: {
         Args: { p_patient_id: string }
         Returns: Json

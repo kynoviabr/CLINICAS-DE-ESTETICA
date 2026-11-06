@@ -10,12 +10,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import WhatsappConnectCard from '@/components/whatsapp/WhatsappConnectCard';
 import { Switch } from '@/components/ui/switch';
 import { FeaturesCard } from '@/components/settings/FeaturesCard';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, ClipboardList, FileText } from 'lucide-react';
+import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, ClipboardList, FileText, MessageCircle } from 'lucide-react';
 import CategoriesTab from '@/components/settings/CategoriesTab';
 import CostItemsTab from '@/components/settings/CostItemsTab';
 import ParametersTab from '@/components/settings/ParametersTab';
@@ -253,7 +254,14 @@ export default function SettingsPage() {
           {show('crm-kanban') && <TabsTrigger value="crm-kanban"><Settings className="w-4 h-4 mr-1" />CRM Kanban</TabsTrigger>}
           {show('goals') && <TabsTrigger value="goals"><Target className="w-4 h-4 mr-1" />Metas</TabsTrigger>}
           <TabsTrigger value="parameters"><SlidersHorizontal className="w-4 h-4 mr-1" />Parâmetros</TabsTrigger>
+          {role === 'admin' && <TabsTrigger value="whatsapp"><MessageCircle className="w-4 h-4 mr-1" />WhatsApp</TabsTrigger>}
         </TabsList>
+
+        {role === 'admin' && (
+          <TabsContent value="whatsapp">
+            <WhatsappConnectCard />
+          </TabsContent>
+        )}
 
         {/* ===== GENERAL ===== */}
         <TabsContent value="general">
