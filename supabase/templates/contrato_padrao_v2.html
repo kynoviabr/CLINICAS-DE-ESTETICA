@@ -1,0 +1,89 @@
+<h2>Contrato de Prestação de Serviços Estéticos</h2>
+<p><strong>Nº {{contract.number}}</strong> · Proposta/orçamento nº {{proposal.number}}</p>
+
+<h3>1. Partes</h3>
+<p><strong>CONTRATADA:</strong> {{clinic.name}}, inscrita no CNPJ/CPF sob o nº {{clinic.cnpj}}, com endereço em {{clinic.address}}, {{clinic.city}}/{{clinic.state}}, telefone {{clinic.phone}}, e-mail {{clinic.email}}.</p>
+<p><strong>CONTRATANTE:</strong> {{patient.name}}, CPF nº {{patient.cpf}}, nascido(a) em {{patient.birth_date}}, residente em {{patient.address}}.</p>
+{{#if payer}}
+<p><strong>RESPONSÁVEL FINANCEIRO:</strong> {{payer.name}}, CPF nº {{payer.cpf}}, nascido(a) em {{payer.birth_date}}, que assume solidariamente as obrigações de pagamento deste contrato.</p>
+{{/if}}
+
+<h3>2. Objeto</h3>
+<p>Prestação dos seguintes serviços estéticos, conforme avaliação prévia e anamnese da CONTRATANTE:</p>
+<ul>
+  <li><strong>Tratamento(s):</strong> {{treatments.summary}}</li>
+  <li><strong>Total de sessões:</strong> {{treatments.total_sessions}}</li>
+  <li><strong>Anamnese de referência:</strong> {{anamnesis.number}}</li>
+</ul>
+<p>O protocolo (técnica, intervalo entre sessões e produtos) é definido pelo(a) profissional responsável e pode ser ajustado ao longo do tratamento, sempre com ciência da CONTRATANTE, sem custo adicional quando não houver acréscimo de sessões ou de produtos.</p>
+
+<h3>3. Preço e forma de pagamento</h3>
+<p>Valor total: <strong>{{payment.total_value}}</strong> ({{payment.condition}}).</p>
+<p>Forma(s) de pagamento: {{payment.methods}}.</p>
+<p>Vencimentos: {{payment.due_dates}}.</p>
+<p>O atraso no pagamento sujeita o valor em atraso a multa de 2% (dois por cento) e juros de 1% (um por cento) ao mês, conforme o art. 52, §1º, do Código de Defesa do Consumidor. A CONTRATADA pode suspender novos agendamentos enquanto houver parcela vencida, sem prejuízo das sessões já pagas.</p>
+
+<h3>4. Prazo para realização das sessões</h3>
+<p>As sessões contratadas devem ser realizadas em até 12 (doze) meses contados da assinatura deste contrato. O prazo fica suspenso enquanto houver impedimento de saúde da CONTRATANTE comprovado por atestado, ou impedimento da CONTRATADA.</p>
+
+<h3>5. Agendamentos, atrasos e faltas</h3>
+<ul>
+  <li>As sessões são agendadas conforme a disponibilidade da agenda da CONTRATADA.</li>
+  <li>Remarcações devem ser solicitadas com pelo menos 24 (vinte e quatro) horas de antecedência.</li>
+  <li>Atrasos podem reduzir o tempo da sessão, para não prejudicar os próximos atendimentos.</li>
+  <li>A falta sem aviso com 24 horas de antecedência poderá ser considerada como sessão realizada quando houver produto preparado, reservado ou manipulado exclusivamente para a CONTRATANTE. Nos demais casos, a sessão será remarcada conforme a disponibilidade da agenda.</li>
+</ul>
+
+<h3>6. Natureza do serviço e riscos</h3>
+<p>Os procedimentos estéticos constituem obrigação de meio: a CONTRATADA se obriga a empregar técnica adequada, profissionais habilitados e produtos regularizados, mas os resultados variam conforme as características biológicas, os hábitos e a adesão de cada pessoa aos cuidados indicados, não podendo ser garantidos. A CONTRATANTE declara ter sido informada dos benefícios, limitações, riscos e possíveis efeitos adversos do(s) tratamento(s), em linguagem clara, e que pôde esclarecer suas dúvidas. Procedimentos que exigirem termo de consentimento específico terão termo próprio, assinado antes da sua realização.</p>
+
+<h3>7. Obrigações da CONTRATANTE</h3>
+<ul>
+  <li>Prestar informações verdadeiras e completas na anamnese e comunicar qualquer alteração de saúde, uso de medicamentos, gestação ou amamentação.</li>
+  <li>Seguir as orientações pré e pós-procedimento.</li>
+  <li>Comunicar imediatamente qualquer reação ou intercorrência.</li>
+  <li>Efetuar os pagamentos nas datas combinadas.</li>
+</ul>
+
+<h3>8. Obrigações da CONTRATADA</h3>
+<ul>
+  <li>Prestar os serviços com profissionais legalmente habilitados para cada procedimento.</li>
+  <li>Utilizar produtos e equipamentos regularizados na ANVISA e observar as normas de biossegurança.</li>
+  <li>Manter registro (prontuário) dos atendimentos e orientar a CONTRATANTE sobre cuidados e riscos.</li>
+  <li>Prestar assistência em caso de intercorrência relacionada ao procedimento realizado.</li>
+</ul>
+
+<h3>9. Cancelamento e reembolso</h3>
+<p>A CONTRATANTE pode cancelar este contrato a qualquer tempo, mediante comunicação à CONTRATADA. Nesse caso, será devolvido o valor correspondente às sessões não realizadas, calculado pelo preço proporcional do pacote, descontados: (a) produtos adquiridos, preparados ou manipulados exclusivamente para a CONTRATANTE e ainda não utilizados; e (b) multa compensatória de 10% (dez por cento) sobre o valor a devolver. A devolução ocorrerá em até 30 (trinta) dias, pela mesma forma de pagamento sempre que possível.</p>
+<p>Se o tratamento precisar ser interrompido por contraindicação de saúde comprovada, ou por motivo atribuível à CONTRATADA, não será aplicada multa.</p>
+<p>Quando a contratação ocorrer fora do estabelecimento (por telefone, mensagem ou internet), a CONTRATANTE pode desistir em até 7 (sete) dias, com devolução integral dos valores pagos, conforme o art. 49 do Código de Defesa do Consumidor, desde que nenhuma sessão tenha sido realizada a seu pedido nesse período.</p>
+
+<h3>10. Imagens</h3>
+<p>Fotografias de acompanhamento (antes, durante e depois) integram o prontuário e são de uso clínico e restrito. Qualquer divulgação, inclusive em redes sociais, depende de autorização específica, expressa e revogável da CONTRATANTE, e será feita preferencialmente sem identificação.</p>
+
+<h3>11. Proteção de dados pessoais (LGPD)</h3>
+<p>Os dados pessoais e os dados de saúde da CONTRATANTE serão tratados para a execução deste contrato, a tutela da saúde e o cumprimento de obrigações legais e regulatórias, nos termos dos arts. 7º e 11 da Lei nº 13.709/2018. Os dados são mantidos em sistema com acesso restrito e pelo prazo exigido para a guarda do prontuário. A CONTRATANTE pode solicitar acesso, correção e demais direitos previstos em lei pelos contatos da CONTRATADA.</p>
+
+<h3>12. Disposições gerais</h3>
+<ul>
+  <li>As sessões são pessoais e intransferíveis, salvo concordância por escrito da CONTRATADA.</li>
+  <li>Se a CONTRATANTE for menor de idade ou incapaz, este contrato deve ser assinado também pelo responsável legal.</li>
+  <li>A proposta/orçamento nº {{proposal.number}} e a anamnese integram este contrato.</li>
+  <li>As partes admitem a assinatura eletrônica deste contrato.</li>
+  <li>Fica eleito o foro do domicílio da CONTRATANTE para dirimir questões deste contrato.</li>
+</ul>
+
+<p>{{clinic.city}}, {{contract.date}}.</p>
+
+<table>
+  <tr>
+    <td><br><br>______________________________________<br><strong>{{patient.name}}</strong><br>CONTRATANTE</td>
+    <td><br><br>______________________________________<br><strong>{{clinic.name}}</strong><br>CONTRATADA</td>
+  </tr>
+  {{#if payer}}
+  <tr>
+    <td><br><br>______________________________________<br><strong>{{payer.name}}</strong><br>RESPONSÁVEL FINANCEIRO</td>
+    <td></td>
+  </tr>
+  {{/if}}
+</table>

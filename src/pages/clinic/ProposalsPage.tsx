@@ -1,4 +1,5 @@
-import { defaultValidUntil } from '@/lib/proposals/sale';
+import { buildProposalHtml, defaultValidUntil } from '@/lib/proposals/sale';
+import { useClinicLetterhead } from '@/hooks/useClinicLetterhead';
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -49,7 +50,7 @@ type ProposalStatus = Database['public']['Enums']['proposal_status'];
 type ProposalRow = Database['public']['Tables']['proposals']['Row'];
 type ProposalInsert = Database['public']['Tables']['proposals']['Insert'];
 type ProposalItemRow = Database['public']['Tables']['proposal_items']['Row'];
-type PatientLite = Pick<Database['public']['Tables']['patients']['Row'], 'id' | 'full_name' | 'payer_id' | 'is_self_payer'>;
+type PatientLite = Pick<Database['public']['Tables']['patients']['Row'], 'id' | 'full_name' | 'payer_id' | 'is_self_payer' | 'phone'>;
 type TreatmentLite = Pick<Database['public']['Tables']['treatments']['Row'], 'id' | 'name' | 'price' | 'min_price' | 'default_price'>;
 type LeadLite = Pick<Database['public']['Tables']['leads']['Row'], 'id' | 'full_name' | 'kanban_stage' | 'patient_id' | 'proposal_id'>;
 type ProposalWithPatient = ProposalRow & { patients?: { full_name?: string | null; cpf?: string | null } | null };
@@ -59,6 +60,7 @@ type ComboLite = { id: string; name: string; promotional_price: number | null; t
 
 export default function ProposalsPage() {
   const { clinicId, clinicName } = useBranding();
+  const { data: letterhead } = useClinicLetterhead(clinicId);
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -113,7 +115,7 @@ export default function ProposalsPage() {
   const { data: patients = [] } = useQuery({
     queryKey: ['patients-list', clinicId],
     queryFn: async () => {
-      const { data } = await supabase.from('patients').select('id, full_name, payer_id, is_self_payer').eq('clinic_id', clinicId!).eq('status', 'active').order('full_name');
+      const { data } = await supabase.from('patients').select('id, full_name, payer_id, is_self_payer, phone').eq('clinic_id', clinicId!).eq('status', 'active').order('full_name');
       return ((data || []) as PatientLite[]);
     },
     enabled: !!clinicId,
@@ -460,27 +462,24 @@ export default function ProposalsPage() {
     const paymentSummary = buildPaymentPresetSummary(parsed.paymentPreset);
     const w = window.open('', '_blank');
     if (!w) return;
-    w.document.write(`<!DOCTYPE html><html><head><title>Proposta ${proposal.proposal_number}</title>
-      <style>body{font-family:Arial,sans-serif;padding:40px;color:#333}
-      h1{font-size:24px;margin-bottom:4px}h2{font-size:14px;color:#666;margin-top:0}
-      table{width:100%;border-collapse:collapse;margin-top:20px}
-      th,td{border:1px solid #ddd;padding:10px;text-align:left;font-size:13px}
-      th{background:#f5f5f5;font-weight:600}.total{text-align:right;font-size:18px;font-weight:bold;margin-top:20px}
-      .signature{margin-top:80px;border-top:1px solid #333;width:300px;text-align:center;padding-top:8px;font-size:12px}
-      </style></head><body>
-      <h1>${clinicName}</h1><h2>Proposta Comercial</h2>
-      <p><strong>Nº:</strong> ${proposal.proposal_number}</p>
-      <p><strong>Paciente:</strong> ${patient?.full_name || proposal.patients?.full_name || '—'}</p>
-      <p><strong>Data:</strong> ${format(new Date(proposal.created_at), 'dd/MM/yyyy', { locale: ptBR })}</p>
-      ${proposal.valid_until ? `<p><strong>Validade:</strong> ${format(new Date(proposal.valid_until + 'T12:00'), 'dd/MM/yyyy', { locale: ptBR })}</p>` : ''}
-      <table><thead><tr><th>Tratamento</th><th>Qtd</th><th>Valor Unit.</th><th>Subtotal</th></tr></thead><tbody>
-      ${printItems.map((i) => `<tr><td>${i.treatments?.name || '—'}</td><td>${i.quantity}</td><td>R$ ${Number(i.unit_price).toFixed(2)}</td><td>R$ ${Number(i.subtotal).toFixed(2)}</td></tr>`).join('')}
-      </tbody></table>
-      <p class="total">Total: R$ ${Number(proposal.final_amount).toFixed(2)}</p>
-      ${parsed.plainNotes ? `<p style="margin-top:20px"><strong>Observações:</strong> ${parsed.plainNotes}</p>` : ''}
-      ${paymentSummary ? `<p style="margin-top:8px"><strong>Condições comerciais sugeridas:</strong> ${paymentSummary}</p>` : ''}
-      <div class="signature">Assinatura do paciente</div>
-      </body></html>`);
+    const body = buildProposalHtml({
+      clinicName,
+      clinic: letterhead ?? null,
+      number: proposal.proposal_number,
+      date: new Date(proposal.created_at),
+      validUntil: proposal.valid_until,
+      clientName: patient?.full_name || proposal.patients?.full_name || '—',
+      clientPhone: patient?.phone ?? null,
+      items: printItems.map((i) => ({
+        treatment_id: i.treatment_id, name: i.treatments?.name || '—', quantity: i.quantity,
+        unit_price: Number(i.unit_price), min_price: null,
+      })),
+      total: Number(proposal.final_amount),
+      paymentSummary,
+      notes: parsed.plainNotes || undefined,
+    });
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Orçamento ${proposal.proposal_number}</title>
+      <style>body{padding:32px;margin:0}@media print{body{padding:0}}</style></head><body>${body}</body></html>`);
     w.document.close();
     w.print();
   };

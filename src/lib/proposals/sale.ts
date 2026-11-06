@@ -1,6 +1,7 @@
 import { addBusinessDays, format } from 'date-fns';
 import { isInstallmentMethod, type PaymentConfig, type PaymentMethod } from '@/components/contracts/ContractPaymentConfigurator';
 import { onlyDigits } from '@/lib/patients/validation';
+import { accentOf, buildLetterhead, escapeHtml, type ClinicLetterhead } from '@/lib/documents/letterhead';
 
 export interface SaleItem {
   treatment_id: string;
@@ -45,61 +46,86 @@ export function validateSalePayment(methods: PaymentMethod[], config: PaymentCon
   return null;
 }
 
-const escapeHtml = (value: string) =>
-  value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
 export interface ProposalDocument {
   clinicName: string;
   clinicContact?: string | null;
   logoUrl?: string | null;
   accentColor?: string;
+  /** Dados completos da clínica para o papel timbrado (CNPJ, endereço...). */
+  clinic?: ClinicLetterhead | null;
   number: string;
   date: Date;
   validUntil?: string | null;
   clientName: string;
+  clientPhone?: string | null;
+  clientEmail?: string | null;
   items: SaleItem[];
   total: number;
   paymentSummary?: string;
   notes?: string;
 }
 
-/** HTML da proposta (para PDF e impressão). Todo texto digitado é escapado. */
+/**
+ * Orçamento (proposta) para PDF e impressão. Segue o art. 40 do CDC: serviços e valores discriminados,
+ * condições de pagamento, validade e prazo. Todo texto digitado é escapado.
+ */
 export function buildProposalHtml(doc: ProposalDocument): string {
-  const accent = /^#[0-9a-f]{6}$/i.test(doc.accentColor || '') ? doc.accentColor : '#1a7a6d';
+  const clinic: ClinicLetterhead = doc.clinic ?? { name: doc.clinicName, logoUrl: doc.logoUrl, accentColor: doc.accentColor };
+  const accent = accentOf(clinic.accentColor ?? doc.accentColor);
+  const td = 'padding:9px 10px;border-bottom:1px solid #e5e7eb';
   const rows = doc.items.map((item) => `
       <tr>
-        <td style="padding:10px;border-bottom:1px solid #e5e7eb">${escapeHtml(item.name)}${item.num_sessions && item.num_sessions > 1 ? `<br><span style="color:#6b7280;font-size:12px">${item.num_sessions} sessões</span>` : ''}</td>
-        <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:center">${item.quantity}</td>
-        <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:right">${formatBRL(item.unit_price)}</td>
-        <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:right">${formatBRL(item.quantity * item.unit_price)}</td>
+        <td style="${td}">${escapeHtml(item.name)}</td>
+        <td style="${td};text-align:center">${item.num_sessions && item.num_sessions > 1 ? `${item.num_sessions}` : '1'}</td>
+        <td style="${td};text-align:center">${item.quantity}</td>
+        <td style="${td};text-align:right">${formatBRL(item.unit_price)}</td>
+        <td style="${td};text-align:right">${formatBRL(item.quantity * item.unit_price)}</td>
       </tr>`).join('');
-  const logo = doc.logoUrl && /^https:\/\//.test(doc.logoUrl)
-    ? `<img src="${escapeHtml(doc.logoUrl)}" alt="" style="height:48px;max-width:160px;object-fit:contain" crossorigin="anonymous">`
-    : '';
   const validity = doc.validUntil ? format(new Date(`${doc.validUntil}T12:00:00`), 'dd/MM/yyyy') : '';
+  const contactLine = [doc.clientPhone, doc.clientEmail].filter(Boolean).join(' · ');
+  const header = doc.clinic
+    ? buildLetterhead(clinic)
+    : `<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid ${accent};padding-bottom:14px;margin-bottom:18px">
+        <div><div style="font-size:22px;font-weight:bold">${escapeHtml(doc.clinicName)}</div>
+        ${doc.clinicContact ? `<div style="color:#6b7280;font-size:12px">${escapeHtml(doc.clinicContact)}</div>` : ''}</div>
+        ${clinic.logoUrl && /^https:\/\//.test(clinic.logoUrl) ? `<img src="${escapeHtml(clinic.logoUrl)}" alt="" style="height:48px;max-width:160px;object-fit:contain" crossorigin="anonymous">` : ''}
+      </div>`;
+  const conditions = [
+    validity ? `Este orçamento é válido até <strong>${validity}</strong>. Após essa data, valores e condições podem ser revistos.` : 'Este orçamento é válido por 10 (dez) dias a contar da emissão.',
+    'Os valores incluem os produtos e materiais utilizados nas sessões descritas.',
+    'A realização dos procedimentos depende de avaliação e anamnese, que podem indicar ajustes no protocolo.',
+    'O intervalo entre as sessões é definido pelo(a) profissional responsável. O tratamento começa após a assinatura do contrato e a confirmação do pagamento ou da primeira parcela.',
+    'Este orçamento não constitui contrato. As condições completas (cancelamento, faltas, prazos e proteção de dados) constam do contrato de prestação de serviços.',
+  ];
   return `
   <div style="font-family:Arial,sans-serif;color:#1f2937;max-width:720px">
-    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid ${accent};padding-bottom:14px">
-      <div>
-        <div style="font-size:22px;font-weight:bold">${escapeHtml(doc.clinicName)}</div>
-        ${doc.clinicContact ? `<div style="color:#6b7280;font-size:12px">${escapeHtml(doc.clinicContact)}</div>` : ''}
-      </div>
-      ${logo}
+    ${header}
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+      <h2 style="margin:0;font-size:19px">Orçamento de tratamento</h2>
+      <div style="color:#4b5563;font-size:12px">Nº ${escapeHtml(doc.number)} · Emitido em ${format(doc.date, 'dd/MM/yyyy')}${validity ? ` · Válido até ${validity}` : ''}</div>
     </div>
-    <h2 style="margin:20px 0 4px;font-size:18px">Proposta de tratamento</h2>
-    <div style="color:#4b5563;font-size:13px">Nº ${escapeHtml(doc.number)} · ${format(doc.date, 'dd/MM/yyyy')}${validity ? ` · Válida até ${validity}` : ''}</div>
-    <p style="margin:16px 0">Para: <strong>${escapeHtml(doc.clientName)}</strong></p>
-    <table style="width:100%;border-collapse:collapse;font-size:14px">
-      <thead><tr style="background:#f3f4f6">
-        <th style="padding:10px;text-align:left">Tratamento</th><th style="padding:10px">Qtd</th>
-        <th style="padding:10px;text-align:right">Valor</th><th style="padding:10px;text-align:right">Subtotal</th>
+    <div style="margin:14px 0;padding:10px 12px;background:#f9fafb;border-radius:8px;font-size:13px">
+      <div><strong>Cliente:</strong> ${escapeHtml(doc.clientName)}</div>
+      ${contactLine ? `<div style="color:#4b5563">${escapeHtml(contactLine)}</div>` : ''}
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:${accent};color:#fff">
+        <th style="padding:9px 10px;text-align:left">Tratamento / procedimento</th><th style="padding:9px 10px">Sessões</th><th style="padding:9px 10px">Qtd</th>
+        <th style="padding:9px 10px;text-align:right">Valor unit.</th><th style="padding:9px 10px;text-align:right">Subtotal</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <p style="text-align:right;font-size:20px;font-weight:bold;margin:16px 0">Total: ${formatBRL(doc.total)}</p>
-    ${doc.paymentSummary ? `<p style="font-size:13px"><strong>Pagamento:</strong> ${escapeHtml(doc.paymentSummary)}</p>` : ''}
-    ${doc.notes ? `<p style="font-size:13px;white-space:pre-line"><strong>Observações:</strong> ${escapeHtml(doc.notes)}</p>` : ''}
-    <p style="margin-top:32px;color:#6b7280;font-size:12px">Os valores valem até a data de validade. Para aceitar, é só responder a mensagem ou falar com a clínica.</p>
+    <p style="text-align:right;font-size:20px;font-weight:bold;margin:14px 0">Total: ${formatBRL(doc.total)}</p>
+    ${doc.paymentSummary ? `<div style="font-size:13px;margin:10px 0"><strong>Condições de pagamento:</strong> ${escapeHtml(doc.paymentSummary)}</div>` : ''}
+    ${doc.notes ? `<div style="font-size:13px;white-space:pre-line;margin:10px 0"><strong>Observações:</strong> ${escapeHtml(doc.notes)}</div>` : ''}
+    <div style="margin-top:16px;font-size:12px;color:#374151">
+      <strong>Condições gerais</strong>
+      <ul style="margin:6px 0 0 18px;padding:0">${conditions.map((c) => `<li style="margin:3px 0">${c}</li>`).join('')}</ul>
+    </div>
+    <div style="display:flex;gap:32px;margin-top:44px;font-size:12px">
+      <div style="flex:1;border-top:1px solid #9ca3af;padding-top:6px">De acordo: ${escapeHtml(doc.clientName)}<br><span style="color:#6b7280">Data: ____/____/______</span></div>
+      <div style="flex:1;border-top:1px solid #9ca3af;padding-top:6px">${escapeHtml(clinic.name)}</div>
+    </div>
   </div>`;
 }
 
