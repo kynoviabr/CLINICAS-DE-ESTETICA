@@ -25,12 +25,13 @@ const json = (body: unknown, status = 200) =>
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ ok: false }, 405);
 
-  const secret = Deno.env.get("ZERNIO_WEBHOOK_SECRET") || "";
+  const secret = (Deno.env.get("ZERNIO_WEBHOOK_SECRET") || "").trim();
   if (!secret) return json({ ok: false, reason: "secret_not_configured" }, 500);
 
   const raw = await req.text();
   const signature = (req.headers.get("x-zernio-signature") || req.headers.get("x-late-signature") || "").trim().toLowerCase();
   if (!signature || !safeEqual(signature, await hmacHex(secret, raw))) {
+    console.warn("whatsapp webhook invalid signature", { hasSignature: !!signature, secretLength: secret.length });
     return json({ ok: false, reason: "invalid_signature" }, 401);
   }
 
