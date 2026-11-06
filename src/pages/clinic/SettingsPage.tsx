@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import WhatsappConnectCard from '@/components/whatsapp/WhatsappConnectCard';
+import AuraInfoCard from '@/components/whatsapp/AuraInfoCard';
 import { Switch } from '@/components/ui/switch';
 import { FeaturesCard } from '@/components/settings/FeaturesCard';
 import { Badge } from '@/components/ui/badge';
@@ -260,6 +261,7 @@ export default function SettingsPage() {
         {role === 'admin' && (
           <TabsContent value="whatsapp">
             <WhatsappConnectCard />
+            <AuraInfoCard />
           </TabsContent>
         )}
 

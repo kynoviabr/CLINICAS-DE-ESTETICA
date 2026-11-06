@@ -1,7 +1,7 @@
 // WhatsApp da clínica, chamado pelo app com o login da equipe.
 // O canal é da Aura IA (plataforma de WhatsApp e IA da Kynovia): o Clinova não fala com a Zernio,
 // fala com a API da Aura (AURA_API_URL + AURA_API_KEY). Cada clínica é uma "empresa" na Aura (id = clinic_id).
-// Ações: connect_start / connect_finish (admin), templates, send_text, send_template.
+// Ações: connect_start / connect_finish (admin), templates, send_text, send_template, suggest (copiloto da Aura IA).
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -137,10 +137,20 @@ Deno.serve(async (req) => {
         throw new HttpError(409, "Passaram 24h desde a última mensagem da cliente. Envie um modelo aprovado.", "window_closed");
       }
       const sent = await aura(`/v1/conversations/${conv.external_id}/messages`, {
-        method: "POST", body: JSON.stringify({ text, sentBy: user.id }),
+        method: "POST", body: JSON.stringify({ text, sentBy: user.id, ...(body.suggestionId ? { suggestionId: String(body.suggestionId) } : {}) }),
       }) as { message?: { id?: string } };
       await admin.rpc("whatsapp_record_outgoing", { p_conversation_id: conv.id, p_external_id: sent.message?.id || null, p_body: text, p_user: user.id });
       return reply({ ok: true });
+    }
+
+    // ---------- Copiloto: a Aura IA sugere a resposta (a pessoa revisa e envia) ----------
+    if (action === "suggest") {
+      const { data: conv } = await admin.from("whatsapp_conversations").select("id, clinic_id, external_id").eq("id", String(body.conversationId || "")).maybeSingle();
+      if (!conv) throw new HttpError(404, "Conversa não encontrada.");
+      await requireStaff(admin, user.id, conv.clinic_id);
+      await requireConnected(admin, conv.clinic_id);
+      const res = await aura(`/v1/conversations/${conv.external_id}/suggest`, { method: "POST", body: "{}" });
+      return reply({ suggestion: res.suggestion });
     }
 
     // ---------- Modelo aprovado: abre conversa nova ou reabre depois de 24h ----------
