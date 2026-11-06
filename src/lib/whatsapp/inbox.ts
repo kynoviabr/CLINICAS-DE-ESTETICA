@@ -72,3 +72,30 @@ export function messageText(m: Pick<WaMessage, 'body' | 'attachments'>): string 
   const labels: Record<string, string> = { image: '📷 Foto', video: '🎬 Vídeo', audio: '🎤 Áudio', file: '📎 Arquivo', sticker: 'Figurinha' };
   return (type && labels[type]) || '📎 Anexo';
 }
+
+/** Nomes amigáveis dos modelos padrão criados pela Aura IA. */
+const STANDARD_TEMPLATE_LABELS: Record<string, string> = {
+  aura_retomar_atendimento: 'Retomar atendimento',
+  aura_confirmacao_agendamento: 'Confirmação de agendamento',
+  aura_lembrete_horario: 'Lembrete de horário',
+};
+
+export function templateLabel(name: string): string {
+  return STANDARD_TEMPLATE_LABELS[name] || name.replace(/_/g, ' ');
+}
+
+/** Rótulo de cada campo: nos modelos padrão {{1}} = cliente, {{2}} = clínica, {{3}} = data/hora. */
+export function templateFieldLabel(name: string, index: number): string {
+  if (STANDARD_TEMPLATE_LABELS[name]) return ['Nome do cliente', 'Nome da clínica', 'Data e hora'][index] || `Campo {{${index + 1}}}`;
+  return `Campo {{${index + 1}}}`;
+}
+
+/** Já preenche o que o sistema sabe: primeiro nome do cliente e, nos modelos padrão, o nome da clínica. */
+export function prefillTemplateParams(name: string, count: number, info: { contactName?: string | null; clinicName?: string | null }): string[] {
+  const firstName = (info.contactName || '').trim().split(/\s+/)[0] || '';
+  return Array.from({ length: count }, (_, i) => {
+    if (i === 0) return firstName;
+    if (i === 1 && STANDARD_TEMPLATE_LABELS[name]) return info.clinicName || '';
+    return '';
+  });
+}

@@ -25,3 +25,19 @@ describe('whatsapp inbox', () => {
     expect(messageText({ body: null, attachments: [{ type: 'audio' }] })).toBe('🎤 Áudio');
   });
 });
+
+import { prefillTemplateParams, templateFieldLabel, templateLabel } from '@/lib/whatsapp/inbox';
+
+describe('modelos padrão da Aura', () => {
+  it('nomes e campos amigáveis', () => {
+    expect(templateLabel('aura_lembrete_horario')).toBe('Lembrete de horário');
+    expect(templateLabel('meu_modelo')).toBe('meu modelo');
+    expect(templateFieldLabel('aura_lembrete_horario', 2)).toBe('Data e hora');
+    expect(templateFieldLabel('meu_modelo', 0)).toBe('Campo {{1}}');
+  });
+  it('preenche cliente e clínica', () => {
+    expect(prefillTemplateParams('aura_confirmacao_agendamento', 3, { contactName: 'Maria Souza', clinicName: 'Clínica Bella' }))
+      .toEqual(['Maria', 'Clínica Bella', '']);
+    expect(prefillTemplateParams('meu_modelo', 2, { contactName: 'Maria', clinicName: 'X' })).toEqual(['Maria', '']);
+  });
+});
