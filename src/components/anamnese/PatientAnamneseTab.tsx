@@ -12,7 +12,9 @@ import EditAnamneseModal from './EditAnamneseModal';
 import AnamneseDetailDrawer from './AnamneseDetailDrawer';
 import AnamnesisFormModal from '@/components/patient/AnamnesisFormModal';
 import { toast } from 'sonner';
-import { FileText, ClipboardEdit } from 'lucide-react';
+import { FileText, ClipboardEdit, Smartphone } from 'lucide-react';
+import { SendAnamneseLink } from './SendAnamneseLink';
+import { useBranding } from '@/contexts/BrandingContext';
 import type { Database } from '@/integrations/supabase/types';
 
 type AnamneseRow = Database['public']['Tables']['patient_anamneses']['Row'];
@@ -25,6 +27,7 @@ interface Props {
 
 export default function PatientAnamneseTab({ patientId, clinicId, patientAnamneseStatus }: Props) {
   const { user } = useAuth();
+  const { clinicName } = useBranding();
   const qc = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
   const [editAnamnese, setEditAnamnese] = useState<AnamneseRow | null>(null);
@@ -122,7 +125,9 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
               <BrandButton onClick={() => setFormOpen(true)}>
                 <ClipboardEdit className="w-4 h-4" /> Preencher anamnese
               </BrandButton>
+              <SendAnamneseLink patientId={patientId} clinicName={clinicName} />
             </div>
+            <p className="mt-3 text-xs text-muted-foreground">Por link, a própria paciente preenche no celular antes de vir.</p>
           </CardContent>
         </Card>
         <AnamnesisFormModal open={formOpen} onOpenChange={setFormOpen} patientId={patientId} clinicId={clinicId} validityDays={validityDays} />
@@ -138,12 +143,23 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
           <h3 className="text-lg font-semibold text-foreground">Anamnese</h3>
           <AnamneseStatusBadge status={patientAnamneseStatus || (current?.status)} />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <SendAnamneseLink patientId={patientId} clinicName={clinicName} />
           <BrandButton onClick={() => setFormOpen(true)}>
             <ClipboardEdit className="w-4 h-4" /> Preencher anamnese
           </BrandButton>
         </div>
       </div>
+
+      {current && current.status === 'filled' && current.source_type === 'patient_link' && (
+        <div className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          <Smartphone className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>
+            <strong>Preenchida pela paciente pelo link</strong>
+            {current.filled_at ? ` em ${new Date(current.filled_at).toLocaleDateString('pt-BR')}` : ''}. Revise as respostas e valide.
+          </p>
+        </div>
+      )}
 
       {/* Current anamnese card */}
       {current && (

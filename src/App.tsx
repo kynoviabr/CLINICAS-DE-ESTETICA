@@ -14,6 +14,7 @@ import NotFound from "./pages/NotFound";
 import { PageLoader } from "./components/PageLoader";
 
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
+const PublicAnamnesePage = lazy(() => import("./pages/PublicAnamnesePage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
 const NoAccessPage = lazy(() => import("./pages/NoAccessPage"));
 const ClinicHome = lazy(() => import("./pages/clinic/HomePage"));
@@ -63,6 +64,7 @@ const App = () => (
               <Route path="/" element={<Navigate to="/login" replace />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/anamnese/:token" element={<PublicAnamnesePage />} />
               <Route path="/sem-acesso" element={
                 <ProtectedRoute>
                   <NoAccessPage />
