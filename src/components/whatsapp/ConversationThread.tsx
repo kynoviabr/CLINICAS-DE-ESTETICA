@@ -146,8 +146,8 @@ export default function ConversationThread({ conversation, className = 'h-[60vh]
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
                 placeholder="Digite sua resposta aqui…"
-                rows={2}
-                className="min-h-[44px] resize-none"
+                rows={4}
+                className="min-h-[88px] resize-y"
               />
               <BrandButton onClick={send} disabled={sending || !text.trim()} aria-label="Enviar">
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
