@@ -462,8 +462,11 @@ export default function FinanceContractsPage() {
                 <SelectItem value="all">Todas</SelectItem>
                 <SelectItem value="cash">Dinheiro</SelectItem>
                 <SelectItem value="pix">Pix</SelectItem>
-                <SelectItem value="card">Cartão</SelectItem>
+                <SelectItem value="credit">Cartão de crédito</SelectItem>
+                <SelectItem value="debit">Cartão de débito</SelectItem>
+                <SelectItem value="card">Cartão (antigo)</SelectItem>
                 <SelectItem value="boleto">Boleto</SelectItem>
+                <SelectItem value="transfer">Transferência</SelectItem>
                 <SelectItem value="other">Outros</SelectItem>
               </SelectContent>
             </Select>

@@ -17,12 +17,18 @@ export type ContractInstallment = {
 };
 
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  cash: 'Dinheiro',
   pix: 'Pix',
-  card: 'Cartão',
+  credit: 'Cartão de crédito',
+  debit: 'Cartão de débito',
+  cash: 'Dinheiro',
   boleto: 'Boleto',
+  transfer: 'Transferência',
+  card: 'Cartão',
   other: 'Outro',
 };
+
+/** Formas para registrar um recebimento ('card' antigo só aparece se a parcela já for dele). */
+export const RECEIPT_METHODS = ['pix', 'credit', 'debit', 'cash', 'boleto', 'transfer', 'other'];
 
 export const SITUATION_LABELS: Record<InstallmentSituation, string> = {
   paga: 'Paga',

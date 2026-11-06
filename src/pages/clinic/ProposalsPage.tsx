@@ -26,8 +26,7 @@ import {
   paymentMethodOptions,
   type PaymentCondition,
   type PaymentConfig,
-  type PaymentMethod,
-} from '@/components/contracts/ContractPaymentConfigurator';
+  type PaymentMethod, isInstallmentMethod } from '@/components/contracts/ContractPaymentConfigurator';
 import { buildPaymentPresetSummary, composeProposalNotesPayload, parseProposalNotesPayload, type PaymentPresetSnapshot } from '@/lib/proposals/paymentPreset';
 
 const statusMap: Record<string, { label: string; badge: BadgeStatus }> = {
@@ -228,7 +227,7 @@ export default function ProposalsPage() {
       return { ok: false as const, message: 'Informe um valor maior que zero para cada forma de pagamento selecionada.' };
     }
 
-    const installmentMethods = proposalSelectedPaymentMethods.filter((method) => method === 'card' || method === 'boleto');
+    const installmentMethods = proposalSelectedPaymentMethods.filter((method) => isInstallmentMethod(method));
     const invalidInstallments = installmentMethods.some((method) => Number(proposalPaymentConfig[method]?.installments || 0) <= 0);
     if (invalidInstallments) {
       return { ok: false as const, message: 'Informe número de parcelas válido para cartão/boleto.' };
@@ -512,14 +511,6 @@ export default function ProposalsPage() {
   const toggleProposalPaymentMethod = (method: PaymentMethod, checked: boolean) => {
     if (checked) {
       if (proposalSelectedPaymentMethods.includes(method)) return;
-      if (proposalSelectedPaymentMethods.length >= 2) {
-        toast({
-          title: 'Limite de formas de pagamento',
-          description: 'Você pode selecionar no máximo 2 formas de pagamento.',
-          variant: 'destructive',
-        });
-        return;
-      }
       setProposalSelectedPaymentMethods((current) => [...current, method]);
       return;
     }

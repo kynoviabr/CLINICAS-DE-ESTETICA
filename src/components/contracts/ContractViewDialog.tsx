@@ -34,8 +34,8 @@ type AuditLogRow = {
   new_data: Record<string, unknown> | null;
 };
 
+import { PAYMENT_METHOD_NAMES, isInstallmentMethod, paymentMethodOptions, type PaymentMethod } from '@/components/contracts/ContractPaymentConfigurator';
 type PaymentCondition = 'cash' | 'installments';
-type PaymentMethod = 'cash' | 'pix' | 'card' | 'boleto';
 type CardBrand = 'visa' | 'mastercard' | 'elo' | 'amex' | 'hipercard' | 'cabal' | 'diners' | 'outro';
 type ReviewPaymentConfig = Partial<Record<PaymentMethod, { amount: string; installments?: string; installmentAmount?: string; brand?: CardBrand; last4?: string }>>;
 type TimelineEvent = { key: string; label: string; date: Date; tone: string };
@@ -45,12 +45,6 @@ const paymentConditionLabels: Record<PaymentCondition, string> = {
   installments: 'Parcelado',
 };
 
-const paymentMethodOptions: Array<{ value: PaymentMethod; label: string }> = [
-  { value: 'cash', label: 'Dinheiro' },
-  { value: 'pix', label: 'Pix' },
-  { value: 'card', label: 'Cartão' },
-  { value: 'boleto', label: 'Boleto' },
-];
 
 const cardBrandOptions: Array<{ value: CardBrand; label: string }> = [
   { value: 'visa', label: 'Visa' },
@@ -77,7 +71,8 @@ const parseContractNotes = (rawNotes?: string | null) => {
   const config: ReviewPaymentConfig = {};
 
   methodsPart
-    .split('|')
+    // Separa por forma ("| 3x de" continua na mesma forma).
+    .split(/\s*\|\s*(?=(?:dinheiro|pix|cart[aã]o|boleto|transfer[eê]ncia|d[eé]bito|cr[eé]dito)\b)/i)
     .map((entry) => entry.trim())
     .filter(Boolean)
     .forEach((entry) => {
@@ -85,7 +80,7 @@ const parseContractNotes = (rawNotes?: string | null) => {
       const label = labelPart.trim().toLowerCase();
       const detail = detailParts.join(':').trim();
 
-      const method = paymentMethodOptions.find((option) => option.label.toLowerCase() === label)?.value;
+      const method = (Object.keys(PAYMENT_METHOD_NAMES) as PaymentMethod[]).find((m) => PAYMENT_METHOD_NAMES[m].toLowerCase() === label);
       if (!method) return;
       selectedMethods.push(method);
       if (detail) details[method] = detail;
@@ -105,7 +100,7 @@ const parseContractNotes = (rawNotes?: string | null) => {
 
   return {
     condition: parsedCondition,
-    methods: selectedMethods.slice(0, 2),
+    methods: [...new Set(selectedMethods)],
     details,
     config,
   };
@@ -272,14 +267,6 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
   const toggleReviewMethod = (method: PaymentMethod, checked: boolean) => {
     if (checked) {
       if (reviewMethods.includes(method)) return;
-      if (reviewMethods.length >= 2) {
-        toast({
-          title: 'Limite de formas',
-          description: 'Máximo de 2 formas de pagamento.',
-          variant: 'destructive',
-        });
-        return;
-      }
       setReviewMethods((current) => [...current, method]);
       return;
     }
@@ -329,7 +316,7 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
 
     const paymentTermsDescription = reviewMethods
       .map((method) => {
-        const label = paymentMethodOptions.find((item) => item.value === method)?.label || method;
+        const label = PAYMENT_METHOD_NAMES[method] || method;
         const amount = Number(reviewConfig[method]?.amount || 0);
         const installments = Number(reviewConfig[method]?.installments || 0);
         const configuredInstallmentAmount = Number(reviewConfig[method]?.installmentAmount || 0);
@@ -556,11 +543,11 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs text-muted-foreground">Formas de pagamento (até 2)</p>
+                      <p className="text-xs text-muted-foreground">Formas de pagamento</p>
                       <span className="text-xs text-muted-foreground">{reviewMethods.length}/2</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      {paymentMethodOptions.map((option) => (
+                      {[...paymentMethodOptions, ...(reviewMethods.includes('card') ? [{ value: 'card' as PaymentMethod, label: PAYMENT_METHOD_NAMES.card }] : [])].map((option) => (
                         <label key={option.value} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
                           <Checkbox
                             checked={reviewMethods.includes(option.value)}
@@ -575,12 +562,12 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
                   {reviewMethods.length > 0 && (
                     <div className="space-y-2">
                       {reviewMethods.map((method) => {
-                        const label = paymentMethodOptions.find((item) => item.value === method)?.label || method;
-                        const isInstallmentMethod = method === 'card' || method === 'boleto';
+                        const label = PAYMENT_METHOD_NAMES[method] || method;
+                        const installable = isInstallmentMethod(method);
                         return (
                           <div key={method} className="space-y-1">
                             <p className="text-xs text-muted-foreground">{label}</p>
-                            <div className={`grid gap-2 ${isInstallmentMethod ? 'grid-cols-3' : 'grid-cols-1'}`}>
+                            <div className={`grid gap-2 ${installable ? 'grid-cols-3' : 'grid-cols-1'}`}>
                               <div className="space-y-1">
                                 <p className="text-[11px] text-muted-foreground">Valor</p>
                                 <Input
@@ -603,7 +590,7 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
                                   placeholder="Valor"
                                 />
                               </div>
-                              {isInstallmentMethod ? (
+                              {installable ? (
                                 <>
                                   <div className="space-y-1">
                                     <p className="text-[11px] text-muted-foreground">Número de parcelas</p>

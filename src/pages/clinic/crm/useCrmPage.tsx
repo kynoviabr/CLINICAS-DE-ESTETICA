@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getRenewalAlertLevel } from '@/lib/renewal/rules';
 import { formatCep, lookupCepAddress } from '@/lib/cep';
 import { type PayerData } from '@/components/patient/PayerSection';
-import { paymentConditionLabels, type PaymentCondition, type PaymentConfig, type PaymentMethod } from '@/components/contracts/ContractPaymentConfigurator';
+import { paymentConditionLabels, type PaymentCondition, type PaymentConfig, type PaymentMethod, isInstallmentMethod } from '@/components/contracts/ContractPaymentConfigurator';
 import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
 import { defaultStages, normalizeStageCode, stageAppearance, lostReasons, normalizePhone, getSchemaMissingColumn, stripUnsupportedLeadFields, buildEvaluationScheduleLink, isSchedulableAppointmentStatus, isFollowUpDue, getPriorityRank, normalizeLeadSource, getLeadSourceMeta, type StageCode, type LeadRow, type RenewalTaskRow, type RenewalInteractionRow, type LeadProposalRow, type LeadProposalItem, type LeadProposalView, type CrmTreatmentRow } from '@/lib/crm/model';
 import type { TablesUpdate } from '@/integrations/supabase/types';
@@ -400,14 +400,6 @@ export function useCrmPage() {
   const togglePaymentMethod = (method: PaymentMethod, checked: boolean) => {
     if (checked) {
       if (selectedPaymentMethods.includes(method)) return;
-      if (selectedPaymentMethods.length >= 2) {
-        toast({
-          title: 'Limite de formas de pagamento',
-          description: 'Você pode selecionar no máximo 2 formas de pagamento.',
-          variant: 'destructive',
-        });
-        return;
-      }
       setSelectedPaymentMethods((current) => [...current, method]);
       return;
     }
@@ -1294,7 +1286,7 @@ export function useCrmPage() {
         throw new Error('Informe um valor válido para cada forma selecionada.');
       }
 
-      const installmentMethods = selectedPaymentMethods.filter((method) => method === 'card' || method === 'boleto');
+      const installmentMethods = selectedPaymentMethods.filter((method) => isInstallmentMethod(method));
       if (installmentMethods.some((method) => Number(paymentConfig[method]?.installments || 0) <= 0)) {
         throw new Error('Cartão e boleto exigem quantidade de parcelas maior que zero.');
       }

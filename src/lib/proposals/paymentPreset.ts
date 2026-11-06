@@ -1,6 +1,7 @@
 import {
+  PAYMENT_METHOD_NAMES,
+  isInstallmentMethod,
   paymentConditionLabels,
-  paymentMethodOptions,
   type PaymentCondition,
   type PaymentConfig,
   type PaymentMethod,
@@ -18,9 +19,7 @@ export const PAYMENT_PRESET_MARKER = '[PAGAMENTO_PRESET]';
 
 export const sanitizePaymentSnapshot = (snapshot?: PaymentPresetSnapshot | null): PaymentPresetSnapshot | null => {
   if (!snapshot) return null;
-  const methods = (snapshot.methods || []).filter((method): method is PaymentMethod =>
-    paymentMethodOptions.some((option) => option.value === method)
-  ).slice(0, 2);
+  const methods = [...new Set((snapshot.methods || []).filter((method): method is PaymentMethod => method in PAYMENT_METHOD_NAMES))];
   if (methods.length === 0) return null;
   const condition: PaymentCondition = snapshot.condition === 'installments' ? 'installments' : 'cash';
   const details: Partial<Record<PaymentMethod, string>> = {};
@@ -73,15 +72,13 @@ export const buildPaymentPresetSummary = (preset?: PaymentPresetSnapshot | null)
   if (!preset || preset.methods.length === 0) return '';
   const methodsText = preset.methods
     .map((method) => {
-      const option = paymentMethodOptions.find((item) => item.value === method)?.label || method;
+      const option = PAYMENT_METHOD_NAMES[method] || method;
       const amount = Number(preset.config?.[method]?.amount || 0);
       const installments = Number(preset.config?.[method]?.installments || 0);
       const installmentAmount = Number(preset.config?.[method]?.installmentAmount || 0);
-      if (method === 'card') {
-        return `${option}: ${brl(amount)} · ${installments || 1}x de ${brl(installmentAmount || amount)}`;
-      }
-      if (method === 'boleto') {
-        return `${option}: ${brl(amount)} · ${installments || 1}x de ${brl(installmentAmount || amount)}`;
+      if (isInstallmentMethod(method)) {
+        const count = installments || 1;
+        return `${option}: ${brl(amount)} · ${count}x de ${brl(installmentAmount || amount / count)}`;
       }
       return `${option}: ${brl(amount)}`;
     })

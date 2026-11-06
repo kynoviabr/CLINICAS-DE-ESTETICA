@@ -29,8 +29,7 @@ import {
   paymentConditionLabels,
   type PaymentCondition,
   type PaymentConfig,
-  type PaymentMethod,
-} from '@/components/contracts/ContractPaymentConfigurator';
+  type PaymentMethod, isInstallmentMethod } from '@/components/contracts/ContractPaymentConfigurator';
 import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
 import { formatCpf, formatPatientAddress } from '@/lib/patients/validation';
 
@@ -286,7 +285,7 @@ export default function ContractsPage() {
       const hasInvalidAmount = amounts.some((value) => !Number.isFinite(value) || value <= 0);
       if (hasInvalidAmount) throw new Error('Informe um valor válido para cada forma selecionada.');
 
-      const requiresInstallments = selectedPaymentMethods.filter((method) => method === 'card' || method === 'boleto');
+      const requiresInstallments = selectedPaymentMethods.filter((method) => isInstallmentMethod(method));
       const hasInvalidInstallments = requiresInstallments.some((method) => Number(paymentConfig[method]?.installments || 0) <= 0);
       if (hasInvalidInstallments) throw new Error('Cartão e boleto exigem quantidade de parcelas maior que zero.');
       const totalInformed = amounts.reduce((sum, value) => sum + value, 0);
@@ -543,14 +542,6 @@ export default function ContractsPage() {
   const togglePaymentMethod = (method: PaymentMethod, checked: boolean) => {
     if (checked) {
       if (selectedPaymentMethods.includes(method)) return;
-      if (selectedPaymentMethods.length >= 2) {
-        toast({
-          title: 'Limite de formas de pagamento',
-          description: 'Você pode selecionar no máximo 2 formas de pagamento.',
-          variant: 'destructive',
-        });
-        return;
-      }
       setSelectedPaymentMethods((current) => [...current, method]);
       return;
     }
@@ -579,7 +570,7 @@ export default function ContractsPage() {
     selectedPaymentMethods.length > 0 &&
     selectedPaymentMethods.every((method) => Number(paymentConfig[method]?.amount || 0) > 0) &&
     selectedPaymentMethods
-      .filter((method) => method === 'card' || method === 'boleto')
+      .filter((method) => isInstallmentMethod(method))
       .every((method) => Number(paymentConfig[method]?.installments || 0) > 0) &&
     selectedAmountSum + 0.0001 >= selectedProposalAmount;
 

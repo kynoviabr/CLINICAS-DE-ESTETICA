@@ -1,5 +1,5 @@
 import { addBusinessDays, format } from 'date-fns';
-import type { PaymentConfig, PaymentMethod } from '@/components/contracts/ContractPaymentConfigurator';
+import { isInstallmentMethod, type PaymentConfig, type PaymentMethod } from '@/components/contracts/ContractPaymentConfigurator';
 import { onlyDigits } from '@/lib/patients/validation';
 
 export interface SaleItem {
@@ -35,8 +35,8 @@ export function itemsBelowMinimum(items: SaleItem[]) {
 export function validateSalePayment(methods: PaymentMethod[], config: PaymentConfig, total: number): string | null {
   if (methods.length === 0) return 'Escolha a forma de pagamento.';
   if (methods.some((m) => Number(config[m]?.amount || 0) <= 0)) return 'Informe o valor de cada forma de pagamento.';
-  if (methods.filter((m) => m === 'card' || m === 'boleto').some((m) => Number(config[m]?.installments || 0) <= 0)) {
-    return 'Cartão e boleto precisam do número de parcelas.';
+  if (methods.filter(isInstallmentMethod).some((m) => Number(config[m]?.installments || 0) <= 0)) {
+    return 'Crédito e boleto precisam do número de parcelas.';
   }
   const informed = methods.reduce((sum, m) => sum + Number(config[m]?.amount || 0), 0);
   if (informed + 0.009 < total) {
