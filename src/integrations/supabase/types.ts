@@ -9,6 +9,45 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      anamnese_links: {
+        Row: {
+          anamnese_id: string | null
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          failed_attempts: number
+          id: string
+          patient_id: string
+          token_hash: string
+          used_at: string | null
+        }
+        Insert: {
+          anamnese_id?: string | null
+          clinic_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          failed_attempts?: number
+          id?: string
+          patient_id: string
+          token_hash: string
+          used_at?: string | null
+        }
+        Update: {
+          anamnese_id?: string | null
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          failed_attempts?: number
+          id?: string
+          patient_id?: string
+          token_hash?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
       access_group_permissions: {
         Row: {
           can_view: boolean
@@ -3679,6 +3718,22 @@ export type Database = {
       }
     }
     Functions: {
+      create_anamnese_link: {
+        Args: { p_patient_id: string }
+        Returns: Json
+      }
+      anamnese_link_status: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      anamnese_link_open: {
+        Args: { p_birth_date: string; p_token: string }
+        Returns: Json
+      }
+      anamnese_link_submit: {
+        Args: { p_birth_date: string; p_form_data: Json; p_token: string }
+        Returns: Json
+      }
       ensure_recurring_expenses: {
         Args: { p_clinic_id: string; p_month: string }
         Returns: number
