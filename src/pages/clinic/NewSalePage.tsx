@@ -27,6 +27,7 @@ import {
   validateSalePayment, whatsappLink, type SaleItem,
 } from '@/lib/proposals/sale';
 import { createSale, ensurePatientFromLead, type LeadForSale } from '@/lib/proposals/createSale';
+import { useClinicLetterhead } from '@/hooks/useClinicLetterhead';
 import { generateContractPDF } from '@/lib/contractPDF';
 import { errorMessage } from '@/lib/errors';
 import { formatPhone } from '@/lib/patients/validation';
@@ -109,6 +110,7 @@ export default function NewSalePage() {
     enabled: !!clinicId,
   });
 
+  const { data: letterhead } = useClinicLetterhead(clinicId);
   const { data: clinicInfo } = useQuery({
     queryKey: ['sale-clinic', clinicId],
     queryFn: async () => {
@@ -233,6 +235,9 @@ export default function NewSalePage() {
 
   const proposalHtml = (s: SavedSale) => buildProposalHtml({
     clinicName: branding.clinicName,
+    clinic: letterhead ?? null,
+    clientPhone: s.customer.phone,
+    clientEmail: s.customer.email,
     clinicContact: [clinicInfo?.phone, clinicInfo?.email, [clinicInfo?.city, clinicInfo?.state].filter(Boolean).join('/')].filter(Boolean).join(' · '),
     logoUrl: branding.logoUrl,
     accentColor: branding.primaryColor,

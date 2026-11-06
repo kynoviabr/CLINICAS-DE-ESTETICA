@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { buildLetterhead, documentFooter } from '@/lib/documents/letterhead';
+import { loadClinicLetterhead } from '@/hooks/useClinicLetterhead';
+import { describeDueDates, describePaymentMethods } from '@/lib/documents/contractPayment';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -373,9 +376,9 @@ export default function ContractsPage() {
         payment: {
           total_value: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(proposal.final_amount)),
           condition: paymentConditionLabels[paymentCondition],
-          methods: selectedPaymentMethods.join(', '),
+          methods: describePaymentMethods(selectedPaymentMethods, paymentConfig),
           installments: selectedPaymentMethods.reduce((acc: number, m: PaymentMethod) => acc + (Number(paymentConfig[m]?.installments) || 1), 0),
-          due_dates: ''
+          due_dates: describeDueDates(selectedPaymentMethods, paymentConfig, formattedDate)
         },
         proposal: {
           number: proposal.proposal_number
@@ -394,9 +397,14 @@ export default function ContractsPage() {
       const pdfPath = `${clinicId}/${proposal.patient_id}/${contractNumber}.pdf`;
       const issuanceKey = `proposal:${proposal.id}`;
 
+      // Papel timbrado da clínica (logo, CNPJ, endereço) no topo; o texto vem do modelo.
+      const letterhead = await loadClinicLetterhead(clinicId!);
+      const documentHtml = buildLetterhead(letterhead) + rendered.html
+        + documentFooter(`${letterhead.name} · Contrato ${contractNumber} · Modelo v${templateDataRaw.version}`);
+
       // Open the preview modal
       setPreviewContract({
-        html: rendered.html,
+        html: documentHtml,
         pdfPath,
         renderData,
         templateId: templateDataRaw.id,
