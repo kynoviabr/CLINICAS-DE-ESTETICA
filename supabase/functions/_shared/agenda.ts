@@ -107,7 +107,8 @@ export function isSlotFree(q: Omit<AgendaInput, 'from' | 'to' | 'time' | 'period
 }
 
 /** Pendências que impedem a IA de agendar (mostradas também na tela de configuração). */
-export type Issue = { code: string; text: string };
+/** professionalId / treatmentId: para a tela abrir direto o que precisa ser ajustado. */
+export type Issue = { code: string; text: string; professionalId?: string; treatmentId?: string };
 export function setupIssues(input: {
   clinicHours: ClinicHours[];
   treatments: Array<{ id: string; name: string; ai_bookable: boolean; requires_evaluation: boolean }>;
@@ -121,12 +122,12 @@ export function setupIssues(input: {
   if (!input.pros.length) issues.push({ code: 'no_professionals', text: 'Cadastre pelo menos um profissional.' });
   for (const p of input.pros) {
     if (!input.availability.some((a) => a.professional_id === p.id)) {
-      issues.push({ code: 'professional_without_hours', text: `${p.name} não tem horários de atendimento.` });
+      issues.push({ code: 'professional_without_hours', text: `${p.name} não tem horários de atendimento.`, professionalId: p.id });
     }
   }
   for (const t of input.treatments.filter((x) => x.ai_bookable && !x.requires_evaluation)) {
     if (!input.links.some((l) => l.treatment_id === t.id && input.pros.some((p) => p.id === l.professional_id))) {
-      issues.push({ code: 'treatment_without_professional', text: `${t.name} não tem profissional que atende.` });
+      issues.push({ code: 'treatment_without_professional', text: `${t.name} não tem profissional que atende.`, treatmentId: t.id });
     }
   }
   if (input.treatments.some((t) => t.requires_evaluation) && !input.offersEvaluation) {

@@ -18,8 +18,11 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
+import { useQuery } from '@tanstack/react-query';
+import ProfessionalHoursDialog from '@/components/professionals/ProfessionalHoursDialog';
+import { weekDays } from '@/lib/agenda/model';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Loader2, UserCheck, UserX, Search, Users, Stethoscope, ShieldCheck, Building2, AlertTriangle, ArrowUpDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Clock, Plus, Loader2, UserCheck, UserX, Search, Users, Stethoscope, ShieldCheck, Building2, AlertTriangle, ArrowUpDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 function formatCPF(value: string) {
@@ -53,6 +56,20 @@ type SortDir = 'asc' | 'desc';
 
 export default function ProfessionalsTab() {
   const { items, loading, create, update, toggleStatus } = useProfessionals();
+  const { clinicId: hoursClinicId } = useUserRole();
+  const [hoursFor, setHoursFor] = useState<{ id: string; name: string } | null>(null);
+  // Horários de atendimento de cada profissional (resumo no card e aviso quando falta).
+  const { data: availability = [] } = useQuery({
+    queryKey: ['professional-availability', hoursClinicId, 'summary'],
+    enabled: !!hoursClinicId,
+    queryFn: async () => {
+      const { data } = await supabase.from('professional_availability').select('professional_id, day_of_week, start_time, end_time')
+        .eq('clinic_id', hoursClinicId!).eq('is_active', true).order('day_of_week');
+      return data || [];
+    },
+  });
+  const hoursSummary = (id: string) => availability.filter((a) => a.professional_id === id)
+    .map((a) => `${weekDays.find((d) => d.value === a.day_of_week)?.label.slice(0, 3)} ${String(a.start_time).slice(0, 5)}–${String(a.end_time).slice(0, 5)}`).join(' · ');
   const { items: roles } = useRoles();
   const { items: entities } = useClassEntities();
   const { items: profTreatments, create: linkTreatment } = useProfessionalTreatments();
@@ -126,6 +143,8 @@ export default function ProfessionalsTab() {
     if (result) {
       for (const tid of selectedTreatments) await linkTreatment(result.id, tid);
       setOpen(false);
+      // Próximo passo do cadastro: dias e horários em que atende.
+      setHoursFor({ id: result.id, name: result.full_name });
       setForm({ full_name: '', cpf: '', email: '', phone: '', specialty: '', registration_number: '', user_id: '', role_id: '', class_entity_id: '' });
       setSelectedTreatments([]); setCpfError('');
     }
@@ -479,6 +498,9 @@ export default function ProfessionalsTab() {
                             {p.cpf && <span className="font-mono">• CPF: {formatCPF(p.cpf)}</span>}
                             {p.phone && <span>• {p.phone}</span>}
                           </div>
+                          {!isInactive && (hoursSummary(p.id)
+                            ? <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground"><Clock className="h-3 w-3" /> {hoursSummary(p.id)}</p>
+                            : <p className="mt-2 text-xs text-amber-700">Sem horários de atendimento: a agenda e a IA não oferecem horários deste profissional.</p>)}
                           {treatmentNames.length === 0 && !isInactive && (
                             <p className="mt-2 text-xs text-amber-700">Nenhum tratamento ligado: a agenda não oferece horários deste profissional.</p>
                           )}
@@ -495,11 +517,18 @@ export default function ProfessionalsTab() {
                           )}
                         </div>
                       </div>
+                      <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                      {!isInactive && (
+                        <Button size="sm" variant="outline" onClick={() => setHoursFor({ id: p.id, name: p.full_name })}>
+                          <Clock className="w-4 h-4 mr-1" />Horários
+                        </Button>
+                      )}
                       <Button size="sm" variant={isInactive ? 'default' : 'outline'}
                         className={isInactive ? '' : 'text-destructive border-destructive/30 hover:bg-destructive/10'}
                         onClick={() => setConfirmToggle({ id: p.id, name: p.full_name, current: p.status })}>
                         {isInactive ? <><UserCheck className="w-4 h-4 mr-1" />Reativar</> : <><UserX className="w-4 h-4 mr-1" />Inativar</>}
                       </Button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -566,6 +595,8 @@ export default function ProfessionalsTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ProfessionalHoursDialog professional={hoursFor} onClose={() => setHoursFor(null)} />
     </div>
   );
 }
