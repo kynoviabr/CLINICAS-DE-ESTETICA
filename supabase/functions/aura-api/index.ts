@@ -205,6 +205,11 @@ async function availability(db: SupabaseClient, clinicId: string, q: URLSearchPa
   if ("error" in svc) return json({ error: svc.error }, svc.status);
   if (q.get("professionalId")) svc.pros = svc.pros.filter((p) => p.id === q.get("professionalId"));
   if (!svc.pros.length) return json({ timezone: "America/Sao_Paulo", durationMinutes: svc.durationMin, slots: [], truncated: false, reason: "no_professional" });
+  // Data além do prazo de agendamento: informa o limite (não é regra da clínica, é o prazo da agenda aberta).
+  const lastDay = addDays(localDate(Date.now()), s.booking_horizon_days);
+  if (from > lastDay) {
+    return json({ timezone: "America/Sao_Paulo", durationMinutes: svc.durationMin, slots: [], truncated: false, reason: "beyond_horizon", until: lastDay, horizonDays: s.booking_horizon_days });
+  }
   const data = await agendaData(db, clinicId, svc, s, from, to);
   const r = computeSlots({ ...data, from, to, period, time });
   return json({ timezone: "America/Sao_Paulo", durationMinutes: svc.durationMin, slots: r.slots, truncated: r.truncated, until: r.until });
