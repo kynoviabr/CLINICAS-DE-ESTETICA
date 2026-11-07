@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import WhatsappConnectCard from '@/components/whatsapp/WhatsappConnectCard';
 import AuraInfoCard from '@/components/whatsapp/AuraInfoCard';
+import ServiceSettingsTab from '@/components/settings/ServiceSettingsTab';
 import { Switch } from '@/components/ui/switch';
 import { FeaturesCard } from '@/components/settings/FeaturesCard';
 import { Badge } from '@/components/ui/badge';
@@ -250,6 +251,7 @@ export default function SettingsPage() {
           <TabsTrigger value="team"><Lock className="w-4 h-4 mr-1" />Segurança e Acesso</TabsTrigger>
           <TabsTrigger value="professionals"><UserCog className="w-4 h-4 mr-1" />Profissionais</TabsTrigger>
           <TabsTrigger value="treatments"><Stethoscope className="w-4 h-4 mr-1" />Tratamentos</TabsTrigger>
+          <TabsTrigger value="atendimento"><Clock className="w-4 h-4 mr-1" />Atendimento</TabsTrigger>
           {role === 'admin' && <TabsTrigger value="contract-template"><FileText className="w-4 h-4 mr-1" />Contrato Padrão</TabsTrigger>}
           <TabsTrigger value="anamnese"><ClipboardList className="w-4 h-4 mr-1" />Anamnese</TabsTrigger>
           {show('crm-kanban') && <TabsTrigger value="crm-kanban"><Settings className="w-4 h-4 mr-1" />CRM Kanban</TabsTrigger>}
@@ -264,6 +266,10 @@ export default function SettingsPage() {
             <AuraInfoCard />
           </TabsContent>
         )}
+
+        <TabsContent value="atendimento">
+          <ServiceSettingsTab />
+        </TabsContent>
 
         {/* ===== GENERAL ===== */}
         <TabsContent value="general">

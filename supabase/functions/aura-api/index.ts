@@ -1,22 +1,17 @@
 // API padrão do produto para a Aura IA (docs/API.md da Aura, "API padrão do produto").
-// A Aura pergunta, o Clinova responde com os dados da própria clínica:
-//   GET /aura/catalog        -> tratamentos ativos e combos, com a regra de como falar do preço
-//   GET /aura/business-info  -> dados da clínica, horário, pagamento, regras, profissionais e perguntas frequentes
-//   GET /aura/availability   -> horários livres (disponibilidade semanal - agendamentos - bloqueios)
-//   POST /aura/bookings      -> marca uma avaliação (revalida o horário; chave de repetição)
+// A Aura pergunta, o Clinova responde com os dados organizados da própria clínica:
+//   GET  /aura/catalog          -> tratamentos (preço, duração, exige avaliação, profissionais) + avaliação
+//   GET  /aura/business-info    -> horário da clínica, dias fechados, pagamento, estacionamento, planos, avaliação, regras
+//   GET  /aura/availability     -> horários livres (clínica ∩ profissional − agendamentos − bloqueios − dias fechados)
+//   POST /aura/bookings         -> marca (revalida o horário; chave de repetição)
 //   POST /aura/bookings/search, POST /aura/bookings/:id/cancel -> próximos horários do cliente e cancelamento
 // Publicada sem login do Supabase: a proteção é a assinatura da Aura (HMAC com AURA_WEBHOOK_SECRET),
 // com horário (no máximo 5 minutos de diferença). A clínica vem no cabeçalho X-Aura-Workspace (= clinic_id).
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { computeSlots, isSlotFree, localIso, addDays, localDate, setupIssues, type AgendaInput, type Pro } from "../_shared/agenda.ts";
 
-type PriceDisplay = "exact" | "from" | "hidden";
-/** Informações para a IA, preenchidas pela clínica em Configurações (clinic_settings, chave aura_info). */
-type AuraInfo = {
-  hours?: string; payment?: string; policies?: string; parking?: string; notes?: string;
-  faq?: { question: string; answer: string }[];
-  priceDisplay?: PriceDisplay;
-  priceOverrides?: Record<string, PriceDisplay>;
-};
+const EVALUATION_ID = "evaluation";
+const BUSY = "(cancelled,rescheduled,no_show)";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -34,69 +29,121 @@ function safeEqual(a: string, b: string) {
   return diff === 0;
 }
 
-async function auraInfo(db: SupabaseClient, clinicId: string): Promise<AuraInfo> {
-  const { data } = await db.from("clinic_settings").select("value").eq("clinic_id", clinicId).eq("key", "aura_info").maybeSingle();
-  try { return data?.value ? JSON.parse(data.value) : {}; } catch { return {}; }
+const clean = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+const hm = (t: unknown) => String(t || "").slice(0, 5);
+
+// ---------- Configuração do atendimento ----------
+type Settings = {
+  payment_methods: string[]; max_installments: number | null; installments_min_value: number | null; payment_notes: string | null;
+  parking: string; parking_notes: string | null;
+  accepts_insurance: boolean; insurance_plans: string[]; insurance_notes: string | null;
+  offers_evaluation: boolean; evaluation_free: boolean; evaluation_minutes: number; evaluation_price: number | null;
+  min_notice_minutes: number; booking_horizon_days: number; buffer_minutes: number; reschedule_notice_hours: number | null;
+  price_display: "exact" | "from" | "hidden"; policies: string | null; notes: string | null; faq: { question: string; answer: string }[];
+};
+
+const DEFAULTS: Settings = {
+  payment_methods: [], max_installments: null, installments_min_value: null, payment_notes: null,
+  parking: "unknown", parking_notes: null, accepts_insurance: false, insurance_plans: [], insurance_notes: null,
+  offers_evaluation: true, evaluation_free: true, evaluation_minutes: 30, evaluation_price: null,
+  min_notice_minutes: 60, booking_horizon_days: 30, buffer_minutes: 0, reschedule_notice_hours: null,
+  price_display: "exact", policies: null, notes: null, faq: [],
+};
+
+async function settings(db: SupabaseClient, clinicId: string): Promise<Settings> {
+  const { data } = await db.from("clinic_service_settings").select("*").eq("clinic_id", clinicId).maybeSingle();
+  return { ...DEFAULTS, ...(data || {}) } as Settings;
 }
 
-const clean = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+async function activePros(db: SupabaseClient, clinicId: string) {
+  const { data } = await db.from("professionals").select("id, full_name, specialty, show_name_to_clients").eq("clinic_id", clinicId).eq("status", "active").order("full_name");
+  return data || [];
+}
 
+async function treatmentLinks(db: SupabaseClient, clinicId: string) {
+  const { data } = await db.from("professional_treatments").select("professional_id, treatment_id, professionals!inner(clinic_id)")
+    .eq("professionals.clinic_id", clinicId).eq("status", "active");
+  return (data || []) as { professional_id: string; treatment_id: string }[];
+}
+
+// ---------- Catálogo ----------
 async function catalog(db: SupabaseClient, clinicId: string) {
-  const [info, { data: treatments }, { data: combos }] = await Promise.all([
-    auraInfo(db, clinicId),
-    db.from("treatments").select("id, name, category, description, duration_minutes, num_sessions, price, default_price")
+  const [s, pros, links, { data: treatments }, { data: combos }] = await Promise.all([
+    settings(db, clinicId), activePros(db, clinicId), treatmentLinks(db, clinicId),
+    db.from("treatments").select("id, name, category, description, duration_minutes, num_sessions, price, default_price, price_display, requires_evaluation, ai_bookable")
       .eq("clinic_id", clinicId).eq("is_active", true).order("name"),
     db.from("treatment_combos").select("id, name, promotional_price, items:treatment_combo_items(treatment:treatments(name))")
       .eq("clinic_id", clinicId).eq("active", true).order("name"),
   ]);
-  const display = info.priceDisplay || "exact";
+  const visible = (id: string) => pros.find((p) => p.id === id && p.show_name_to_clients)?.full_name;
+  const services = (treatments || []).map((t) => ({
+    id: t.id, kind: "treatment", name: t.name, category: t.category, description: clean(t.description),
+    durationMinutes: t.duration_minutes, sessions: t.num_sessions,
+    price: Number(t.price || t.default_price || 0) || null,
+    priceDisplay: t.price_display || s.price_display,
+    requiresEvaluation: !!t.requires_evaluation,
+    aiBookable: t.ai_bookable !== false,
+    professionals: links.filter((l) => l.treatment_id === t.id).map((l) => visible(l.professional_id)).filter(Boolean),
+  }));
+  if (s.offers_evaluation) {
+    services.unshift({
+      id: EVALUATION_ID, kind: "evaluation", name: "Avaliação", category: null, description: null,
+      durationMinutes: s.evaluation_minutes, sessions: 1,
+      price: s.evaluation_free ? 0 : s.evaluation_price, priceDisplay: s.evaluation_free ? "exact" : (s.evaluation_price ? "exact" : "hidden"),
+      requiresEvaluation: false, aiBookable: true, professionals: pros.filter((p) => p.show_name_to_clients).map((p) => p.full_name),
+    });
+  }
   return {
-    services: (treatments || []).map((t) => {
-      const price = Number(t.price || t.default_price || 0) || null;
-      return {
-        id: t.id, name: t.name, category: t.category, description: clean(t.description),
-        durationMinutes: t.duration_minutes, sessions: t.num_sessions,
-        priceDisplay: info.priceOverrides?.[t.id] || display,
-        price,
-      };
-    }),
+    services,
     packages: (combos || []).map((c) => ({
       name: c.name,
-      price: display === "hidden" ? null : c.promotional_price,
+      price: s.price_display === "hidden" ? null : c.promotional_price,
       items: ((c.items || []) as { treatment?: { name?: string } | null }[]).map((i) => i.treatment?.name).filter(Boolean),
     })),
   };
 }
 
+// ---------- Dados da clínica ----------
 async function businessInfo(db: SupabaseClient, clinicId: string) {
-  const [info, { data: clinic }, { data: pros }] = await Promise.all([
-    auraInfo(db, clinicId),
+  const today = localDate(Date.now());
+  const [s, pros, links, { data: clinic }, { data: hours }, { data: closures }, { data: treatments }, { data: avail }] = await Promise.all([
+    settings(db, clinicId), activePros(db, clinicId), treatmentLinks(db, clinicId),
     db.from("clinics").select("name, address, city, state, phone, support_whatsapp").eq("id", clinicId).maybeSingle(),
-    db.from("professionals").select("full_name, specialty").eq("clinic_id", clinicId).eq("status", "active").order("full_name"),
+    db.from("clinic_business_hours").select("day_of_week, opens_at, closes_at").eq("clinic_id", clinicId).order("day_of_week").order("opens_at"),
+    db.from("clinic_closures").select("closed_on, reason").eq("clinic_id", clinicId).gte("closed_on", today).lte("closed_on", addDays(today, 90)).order("closed_on"),
+    db.from("treatments").select("id, name, ai_bookable, requires_evaluation").eq("clinic_id", clinicId).eq("is_active", true),
+    db.from("professional_availability").select("professional_id, day_of_week, start_time, end_time").eq("clinic_id", clinicId).eq("is_active", true),
   ]);
   if (!clinic) return null;
   const address = [clinic.address, [clinic.city, clinic.state].filter(Boolean).join("/")].filter(Boolean).join(" - ");
+  const names = new Map((treatments || []).map((t) => [t.id, t.name]));
   return {
     name: clinic.name,
     address: address || null,
     phone: clinic.phone || clinic.support_whatsapp || null,
-    hours: clean(info.hours), payment: clean(info.payment), policies: clean(info.policies),
-    parking: clean(info.parking), notes: clean(info.notes),
-    faq: (info.faq || []).filter((f) => clean(f.question) && clean(f.answer)),
-    professionals: (pros || []).map((p) => ({ name: p.full_name, specialty: p.specialty })),
+    hours: (hours || []).map((h) => ({ day: h.day_of_week, opens: hm(h.opens_at), closes: hm(h.closes_at) })),
+    closures: (closures || []).map((c) => ({ date: c.closed_on, reason: c.reason })),
+    payment: { methods: s.payment_methods, maxInstallments: s.max_installments, installmentsMinValue: s.installments_min_value, notes: s.payment_notes },
+    parking: { type: s.parking, notes: s.parking_notes },
+    insurance: { accepts: s.accepts_insurance, plans: s.insurance_plans, notes: s.insurance_notes },
+    evaluation: { offered: s.offers_evaluation, free: s.evaluation_free, durationMinutes: s.evaluation_minutes, price: s.evaluation_price },
+    scheduling: { minNoticeMinutes: s.min_notice_minutes, horizonDays: s.booking_horizon_days, rescheduleNoticeHours: s.reschedule_notice_hours },
+    policies: clean(s.policies), notes: clean(s.notes),
+    faq: (s.faq || []).filter((f) => clean(f?.question) && clean(f?.answer)),
+    professionals: pros.filter((p) => p.show_name_to_clients).map((p) => ({
+      name: p.full_name, specialty: p.specialty,
+      services: links.filter((l) => l.professional_id === p.id).map((l) => names.get(l.treatment_id)).filter(Boolean),
+    })),
+    setupIssues: setupIssues({
+      clinicHours: hours || [], treatments: treatments || [], pros: pros.map((p) => ({ id: p.id, name: p.full_name })),
+      links, availability: avail || [], offersEvaluation: s.offers_evaluation,
+    }),
   };
 }
 
-
 // ---------- Agenda ----------
-// Os horários da clínica são de Brasília (sem horário de verão desde 2019): UTC-3.
-const OFFSET = "-03:00";
-const SLOT_STEP_MIN = 30;
-const MIN_NOTICE_MIN = 60;
-const MAX_SLOTS = 120;
-const BUSY = "(cancelled,rescheduled,no_show)";
-
 type Contact = { type?: string | null; ref?: string | null; phone?: string; name?: string | null };
+type Service = { id: string; kind: "treatment" | "evaluation"; name: string; durationMin: number; pros: Pro[]; treatmentId: string | null };
 
 function phoneKey(phone: unknown) {
   let d = String(phone ?? "").replace(/\D/g, "");
@@ -106,10 +153,62 @@ function phoneKey(phone: unknown) {
 }
 
 const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
-const at = (date: string, hm: string) => new Date(`${date}T${hm.slice(0, 5)}:00${OFFSET}`);
-const localIso = (d: Date) => new Date(d.getTime() - 3 * 3600_000).toISOString().slice(0, 19) + OFFSET;
-const addDays = (date: string, n: number) => new Date(Date.parse(`${date}T12:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
-const overlaps = (a1: Date, a2: Date, b1: Date, b2: Date) => a1 < b2 && a2 > b1;
+
+/** O que pode ser agendado e com quem. Tratamento: só profissionais ligados a ele. Avaliação: qualquer profissional ativo. */
+async function serviceFor(db: SupabaseClient, clinicId: string, serviceId: string, s: Settings): Promise<Service | { error: string; status: number }> {
+  const pros = await activePros(db, clinicId);
+  const toPro = (p: { id: string; full_name: string; show_name_to_clients: boolean }): Pro => ({ id: p.id, name: p.full_name, showName: p.show_name_to_clients });
+  if (serviceId === EVALUATION_ID) {
+    if (!s.offers_evaluation) return { error: "evaluation_not_offered", status: 409 };
+    return { id: EVALUATION_ID, kind: "evaluation", name: "Avaliação", durationMin: s.evaluation_minutes, pros: pros.map(toPro), treatmentId: null };
+  }
+  const { data: t } = await db.from("treatments").select("id, name, duration_minutes, ai_bookable, requires_evaluation")
+    .eq("clinic_id", clinicId).eq("id", serviceId).eq("is_active", true).maybeSingle();
+  if (!t) return { error: "service_not_found", status: 400 };
+  if (t.ai_bookable === false) return { error: "not_bookable", status: 409 };
+  if (t.requires_evaluation) return { error: "requires_evaluation", status: 409 };
+  const linked = new Set((await treatmentLinks(db, clinicId)).filter((l) => l.treatment_id === t.id).map((l) => l.professional_id));
+  return { id: t.id, kind: "treatment", name: t.name, durationMin: Math.max(15, Number(t.duration_minutes) || 60), pros: pros.filter((p) => linked.has(p.id)).map(toPro), treatmentId: t.id };
+}
+
+/** Dados da agenda para o cálculo (sem filtro de dia/horário). */
+async function agendaData(db: SupabaseClient, clinicId: string, svc: Service, s: Settings, from: string, to: string): Promise<Omit<AgendaInput, "from" | "to">> {
+  const ids = svc.pros.map((p) => p.id);
+  const start = new Date(`${from}T00:00:00-03:00`).toISOString();
+  const end = new Date(`${addDays(to, 1)}T00:00:00-03:00`).toISOString();
+  const [{ data: hours }, { data: closures }, { data: avail }, { data: appts }, { data: blocks }] = await Promise.all([
+    db.from("clinic_business_hours").select("day_of_week, opens_at, closes_at").eq("clinic_id", clinicId),
+    db.from("clinic_closures").select("closed_on").eq("clinic_id", clinicId).gte("closed_on", from).lte("closed_on", to),
+    ids.length ? db.from("professional_availability").select("professional_id, day_of_week, start_time, end_time").in("professional_id", ids).eq("is_active", true) : { data: [] },
+    ids.length ? db.from("appointments").select("professional_id, start_time, end_time").eq("clinic_id", clinicId).in("professional_id", ids)
+      .lt("start_time", end).gt("end_time", start).not("status", "in", BUSY) : { data: [] },
+    db.from("appointment_blocks").select("professional_id, start_at, end_at").eq("clinic_id", clinicId).lt("start_at", end).gt("end_at", start),
+  ]);
+  return {
+    durationMin: svc.durationMin, bufferMin: s.buffer_minutes, minNoticeMin: s.min_notice_minutes, horizonDays: s.booking_horizon_days, now: Date.now(),
+    clinicHours: (hours || []).map((h) => ({ day_of_week: h.day_of_week, opens_at: hm(h.opens_at), closes_at: hm(h.closes_at) })),
+    closures: (closures || []).map((c) => c.closed_on),
+    pros: svc.pros,
+    availability: (avail || []).map((a) => ({ ...a, start_time: hm(a.start_time), end_time: hm(a.end_time) })),
+    appointments: (appts || []).map((a) => ({ professional_id: a.professional_id, start: a.start_time, end: a.end_time })),
+    blocks: (blocks || []).map((b) => ({ professional_id: b.professional_id, start: b.start_at, end: b.end_at })),
+  };
+}
+
+async function availability(db: SupabaseClient, clinicId: string, q: URLSearchParams) {
+  const from = q.get("from") || "", to = q.get("to") || "", time = q.get("time");
+  const period = q.get("period") as AgendaInput["period"];
+  if (!q.get("serviceId") || !isDate(from) || !isDate(to)) return json({ error: "invalid_query" }, 400);
+  if (time && !/^\d{2}:\d{2}$/.test(time)) return json({ error: "invalid_time" }, 400);
+  const s = await settings(db, clinicId);
+  const svc = await serviceFor(db, clinicId, q.get("serviceId")!, s);
+  if ("error" in svc) return json({ error: svc.error }, svc.status);
+  if (q.get("professionalId")) svc.pros = svc.pros.filter((p) => p.id === q.get("professionalId"));
+  if (!svc.pros.length) return json({ timezone: "America/Sao_Paulo", durationMinutes: svc.durationMin, slots: [], truncated: false, reason: "no_professional" });
+  const data = await agendaData(db, clinicId, svc, s, from, to);
+  const r = computeSlots({ ...data, from, to, period, time });
+  return json({ timezone: "America/Sao_Paulo", durationMinutes: svc.durationMin, slots: r.slots, truncated: r.truncated, until: r.until });
+}
 
 /** Quem é o cliente no Clinova: paciente ou lead (acha pela conversa do WhatsApp ou cria o lead). */
 async function resolveContact(db: SupabaseClient, clinicId: string, c: Contact): Promise<{ patientId: string | null; leadId: string | null }> {
@@ -135,103 +234,20 @@ async function resolveContact(db: SupabaseClient, clinicId: string, c: Contact):
   return { patientId: null, leadId: lead.id };
 }
 
-/** Profissionais que fazem o serviço (ou todos os ativos, se o serviço não tiver profissional vinculado). */
-async function professionalsFor(db: SupabaseClient, clinicId: string, treatmentId: string, only?: string | null) {
-  const { data: pros } = await db.from("professionals").select("id, full_name").eq("clinic_id", clinicId).eq("status", "active");
-  const { data: links } = await db.from("professional_treatments").select("professional_id").eq("treatment_id", treatmentId).eq("status", "active");
-  const linked = new Set((links || []).map((l) => l.professional_id));
-  let list = (pros || []).filter((p) => !linked.size || linked.has(p.id));
-  if (only) list = list.filter((p) => p.id === only);
-  return list;
-}
-
-type SlotQuery = { serviceId: string; from: string; to: string; professionalId?: string | null; period?: string | null; time?: string | null };
-
-// Manhã antes das 12h, tarde das 12h às 18h, noite depois das 18h (hora de Brasília).
-function inPeriod(localHm: string, period?: string | null) {
-  if (!period) return true;
-  const h = Number(localHm.slice(0, 2));
-  if (period === "morning") return h < 12;
-  if (period === "afternoon") return h >= 12 && h < 18;
-  if (period === "evening") return h >= 18;
-  return true;
-}
-
-async function freeSlots(db: SupabaseClient, clinicId: string, q: SlotQuery) {
-  const { data: t } = await db.from("treatments").select("id, name, duration_minutes").eq("clinic_id", clinicId).eq("id", q.serviceId).eq("is_active", true).maybeSingle();
-  if (!t) return null;
-  const duration = Math.max(15, Number(t.duration_minutes) || 60);
-  const to = q.to < q.from ? q.from : (q.to > addDays(q.from, 13) ? addDays(q.from, 13) : q.to);
-  const pros = await professionalsFor(db, clinicId, t.id, q.professionalId);
-  if (!pros.length) return { duration, slots: [] as Array<Record<string, string>>, truncated: false, until: q.to };
-  const ids = pros.map((p) => p.id);
-  const rangeStart = at(q.from, "00:00").toISOString();
-  const rangeEnd = at(addDays(to, 1), "00:00").toISOString();
-  const [{ data: avail }, { data: appts }, { data: blocks }] = await Promise.all([
-    db.from("professional_availability").select("professional_id, day_of_week, start_time, end_time").in("professional_id", ids).eq("is_active", true),
-    db.from("appointments").select("professional_id, start_time, end_time").eq("clinic_id", clinicId).in("professional_id", ids)
-      .lt("start_time", rangeEnd).gt("end_time", rangeStart).not("status", "in", BUSY),
-    db.from("appointment_blocks").select("professional_id, start_at, end_at").eq("clinic_id", clinicId).lt("start_at", rangeEnd).gt("end_at", rangeStart),
-  ]);
-  const earliest = Date.now() + MIN_NOTICE_MIN * 60_000;
-  const slots: Array<Record<string, string>> = [];
-  // Todos os horários livres do período pedido (até 120): a IA não pode concluir que um dia está cheio por falta de amostra.
-  for (let date = q.from; date <= to && slots.length < MAX_SLOTS; date = addDays(date, 1)) {
-    const dow = new Date(`${date}T12:00:00${OFFSET}`).getUTCDay();
-    const perDay = new Map<string, Record<string, string>>();
-    for (const p of pros) {
-      for (const w of (avail || []).filter((a) => a.professional_id === p.id && a.day_of_week === dow)) {
-        const wEnd = at(date, String(w.end_time));
-        for (let s = at(date, String(w.start_time)); s.getTime() + duration * 60_000 <= wEnd.getTime(); s = new Date(s.getTime() + SLOT_STEP_MIN * 60_000)) {
-          const e = new Date(s.getTime() + duration * 60_000);
-          if (s.getTime() < earliest) continue;
-          if ((appts || []).some((a) => a.professional_id === p.id && overlaps(s, e, new Date(a.start_time), new Date(a.end_time)))) continue;
-          if ((blocks || []).some((b) => (!b.professional_id || b.professional_id === p.id) && overlaps(s, e, new Date(b.start_at), new Date(b.end_at)))) continue;
-          const k = localIso(s);
-          const hm = k.slice(11, 16);
-          if (q.time && hm !== q.time) continue;
-          if (!inPeriod(hm, q.period)) continue;
-          if (!perDay.has(k)) perDay.set(k, { start: k, end: localIso(e), professionalId: p.id, professionalName: p.full_name });
-        }
-      }
-    }
-    slots.push(...[...perDay.values()].sort((a, b) => a.start.localeCompare(b.start)));
-  }
-  return { duration, slots: slots.slice(0, MAX_SLOTS), truncated: slots.length > MAX_SLOTS, until: to };
-}
-
-const BOOKING_FIELDS = "id, start_time, end_time, status, treatment:treatments(name), professional:professionals(full_name)";
+const BOOKING_FIELDS = "id, start_time, end_time, status, appointment_type, treatment:treatments(name), professional:professionals(full_name, show_name_to_clients)";
 // deno-lint-ignore no-explicit-any
 const bookingJson = (a: any) => ({
   id: a.id, start: localIso(new Date(a.start_time)), end: localIso(new Date(a.end_time)), status: a.status,
-  serviceName: a.treatment?.name ?? null, professionalName: a.professional?.full_name ?? null,
+  serviceName: a.appointment_type === "evaluation" && !a.treatment?.name ? "Avaliação" : a.treatment?.name ?? null,
+  professionalName: a.professional?.show_name_to_clients === false ? null : a.professional?.full_name ?? null,
 });
 
-/** O horário cabe na disponibilidade do profissional e não bate com agendamento nem bloqueio? */
-async function isFree(db: SupabaseClient, clinicId: string, t: { id: string; duration_minutes: number | null }, professionalId: string, start: Date) {
-  if (start.getTime() < Date.now() + MIN_NOTICE_MIN * 60_000) return false;
-  if (!(await professionalsFor(db, clinicId, t.id, professionalId)).length) return false;
-  const end = new Date(start.getTime() + Math.max(15, Number(t.duration_minutes) || 60) * 60_000);
-  const local = localIso(start);
-  const date = local.slice(0, 10);
-  const dow = new Date(`${date}T12:00:00${OFFSET}`).getUTCDay();
-  const [{ data: avail }, { data: clash }, { data: blocks }] = await Promise.all([
-    db.from("professional_availability").select("start_time, end_time").eq("professional_id", professionalId).eq("day_of_week", dow).eq("is_active", true),
-    db.from("appointments").select("id").eq("clinic_id", clinicId).eq("professional_id", professionalId)
-      .lt("start_time", end.toISOString()).gt("end_time", start.toISOString()).not("status", "in", BUSY).limit(1),
-    db.from("appointment_blocks").select("professional_id").eq("clinic_id", clinicId).lt("start_at", end.toISOString()).gt("end_at", start.toISOString()),
-  ]);
-  const inWindow = (avail || []).some((w) => at(date, String(w.start_time)) <= start && end <= at(date, String(w.end_time)));
-  const blocked = (blocks || []).some((x) => !x.professional_id || x.professional_id === professionalId);
-  return inWindow && !clash?.length && !blocked;
-}
-
-async function createBooking(db: SupabaseClient, clinicId: string, b: { serviceId: string; start: string; professionalId: string; contact: Contact; idempotencyKey?: string }) {
+async function createBooking(db: SupabaseClient, clinicId: string, b: { serviceId: string; interestServiceId?: string; start: string; professionalId: string; contact: Contact; idempotencyKey?: string }) {
   const start = new Date(b.start);
   if (Number.isNaN(start.getTime())) return json({ error: "invalid_start" }, 400);
-  const { data: t } = await db.from("treatments").select("id, name, duration_minutes").eq("clinic_id", clinicId).eq("id", b.serviceId).eq("is_active", true).maybeSingle();
-  if (!t) return json({ error: "service_not_found" }, 404);
-  const who = await resolveContact(db, clinicId, b.contact || {});
+  const s = await settings(db, clinicId);
+  const svc = await serviceFor(db, clinicId, String(b.serviceId || ""), s);
+  if ("error" in svc) return json({ error: svc.error }, svc.status);
   const tag = b.idempotencyKey ? `[aura:${String(b.idempotencyKey).slice(0, 120)}]` : "";
 
   // Mesmo pedido repetido (rede caiu, a IA tentou de novo): devolve o agendamento já feito.
@@ -240,16 +256,24 @@ async function createBooking(db: SupabaseClient, clinicId: string, b: { serviceI
     if (same) return json({ booking: bookingJson(same) }, 200);
   }
 
-  // Revalida: o horário precisa estar livre agora (pode ter sido ocupado depois da consulta).
-  if (!(await isFree(db, clinicId, t, b.professionalId, start))) return json({ error: "slot_unavailable" }, 409);
+  // Revalida com as mesmas regras do cálculo de horários (pode ter sido ocupado depois da consulta).
+  const day = localIso(start).slice(0, 10);
+  const data = await agendaData(db, clinicId, svc, s, day, day);
+  if (!isSlotFree(data, b.professionalId, start)) return json({ error: "slot_unavailable" }, 409);
 
-  const duration = Math.max(15, Number(t.duration_minutes) || 60);
-  const end = new Date(start.getTime() + duration * 60_000);
+  // Avaliação pode vir com o tratamento de interesse (fica no agendamento para a equipe).
+  let treatmentId = svc.treatmentId;
+  if (svc.kind === "evaluation" && b.interestServiceId) {
+    const { data: t } = await db.from("treatments").select("id").eq("clinic_id", clinicId).eq("id", b.interestServiceId).maybeSingle();
+    treatmentId = t?.id ?? null;
+  }
+  const who = await resolveContact(db, clinicId, b.contact || {});
+  const end = new Date(start.getTime() + svc.durationMin * 60_000);
   const { data: appt, error } = await db.from("appointments").insert({
-    clinic_id: clinicId, patient_id: who.patientId, lead_id: who.leadId, treatment_id: t.id, professional_id: b.professionalId,
-    start_time: start.toISOString(), end_time: end.toISOString(), scheduled_at: start.toISOString(), duration_minutes: duration,
+    clinic_id: clinicId, patient_id: who.patientId, lead_id: who.leadId, treatment_id: treatmentId, professional_id: b.professionalId,
+    start_time: start.toISOString(), end_time: end.toISOString(), scheduled_at: start.toISOString(), duration_minutes: svc.durationMin,
     appointment_type: "evaluation", status: "scheduled", credit_check_required: false, credit_check_status: "not_required",
-    notes: `Agendado pela Aura IA (WhatsApp). ${tag}`.trim(),
+    notes: `${svc.kind === "evaluation" ? "Avaliação" : `Atendimento: ${svc.name}`} agendado pela Aura IA (WhatsApp). ${tag}`.trim(),
   }).select(BOOKING_FIELDS).single();
   if (error) throw error;
   if (who.leadId) {
@@ -270,7 +294,7 @@ async function contactBookings(db: SupabaseClient, clinicId: string, c: Contact)
 
 async function cancelBooking(db: SupabaseClient, clinicId: string, id: string, c: Contact, reason: string) {
   const { who } = await contactBookings(db, clinicId, c);
-  const { data: appt } = await db.from("appointments").select("id, patient_id, lead_id, status, start_time").eq("clinic_id", clinicId).eq("id", id).maybeSingle();
+  const { data: appt } = await db.from("appointments").select("id, patient_id, lead_id, status").eq("clinic_id", clinicId).eq("id", id).maybeSingle();
   const mine = appt && ((who.patientId && appt.patient_id === who.patientId) || (who.leadId && appt.lead_id === who.leadId));
   if (!mine) return json({ error: "booking_not_found" }, 404);
   if (["cancelled", "completed", "in_progress", "no_show"].includes(appt.status)) return json({ error: "not_cancellable" }, 409);
@@ -309,19 +333,7 @@ Deno.serve(async (req) => {
       const info = await businessInfo(db, clinicId);
       return info ? json(info) : json({ error: "clinic_not_found" }, 404);
     }
-    if (req.method === "GET" && route === "/aura/availability") {
-      const q = url.searchParams;
-      const from = q.get("from") || "", to = q.get("to") || "";
-      if (!q.get("serviceId") || !isDate(from) || !isDate(to)) return json({ error: "invalid_query" }, 400);
-      const time = q.get("time");
-      if (time && !/^\d{2}:\d{2}$/.test(time)) return json({ error: "invalid_time" }, 400);
-      const r = await freeSlots(db, clinicId, {
-        serviceId: q.get("serviceId")!, from, to, professionalId: q.get("professionalId"), period: q.get("period"), time,
-      });
-      return r
-        ? json({ timezone: "America/Sao_Paulo", durationMinutes: r.duration, slots: r.slots, truncated: !!r.truncated, until: r.until ?? to })
-        : json({ error: "service_not_found" }, 404);
-    }
+    if (req.method === "GET" && route === "/aura/availability") return await availability(db, clinicId, url.searchParams);
     const body = raw ? JSON.parse(raw) : {};
     if (req.method === "POST" && route === "/aura/bookings") return await createBooking(db, clinicId, body);
     if (req.method === "POST" && route === "/aura/bookings/search") return json({ bookings: (await contactBookings(db, clinicId, body.contact || {})).bookings });
