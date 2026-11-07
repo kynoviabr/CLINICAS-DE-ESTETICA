@@ -93,6 +93,7 @@ async function businessInfo(db: SupabaseClient, clinicId: string) {
 const OFFSET = "-03:00";
 const SLOT_STEP_MIN = 30;
 const MIN_NOTICE_MIN = 60;
+const MAX_SLOTS = 120;
 const BUSY = "(cancelled,rescheduled,no_show)";
 
 type Contact = { type?: string | null; ref?: string | null; phone?: string; name?: string | null };
@@ -144,13 +145,25 @@ async function professionalsFor(db: SupabaseClient, clinicId: string, treatmentI
   return list;
 }
 
-async function freeSlots(db: SupabaseClient, clinicId: string, q: { serviceId: string; from: string; to: string; professionalId?: string | null }) {
+type SlotQuery = { serviceId: string; from: string; to: string; professionalId?: string | null; period?: string | null; time?: string | null };
+
+// Manhã antes das 12h, tarde das 12h às 18h, noite depois das 18h (hora de Brasília).
+function inPeriod(localHm: string, period?: string | null) {
+  if (!period) return true;
+  const h = Number(localHm.slice(0, 2));
+  if (period === "morning") return h < 12;
+  if (period === "afternoon") return h >= 12 && h < 18;
+  if (period === "evening") return h >= 18;
+  return true;
+}
+
+async function freeSlots(db: SupabaseClient, clinicId: string, q: SlotQuery) {
   const { data: t } = await db.from("treatments").select("id, name, duration_minutes").eq("clinic_id", clinicId).eq("id", q.serviceId).eq("is_active", true).maybeSingle();
   if (!t) return null;
   const duration = Math.max(15, Number(t.duration_minutes) || 60);
   const to = q.to < q.from ? q.from : (q.to > addDays(q.from, 13) ? addDays(q.from, 13) : q.to);
   const pros = await professionalsFor(db, clinicId, t.id, q.professionalId);
-  if (!pros.length) return { duration, slots: [] as Array<Record<string, string>> };
+  if (!pros.length) return { duration, slots: [] as Array<Record<string, string>>, truncated: false, until: q.to };
   const ids = pros.map((p) => p.id);
   const rangeStart = at(q.from, "00:00").toISOString();
   const rangeEnd = at(addDays(to, 1), "00:00").toISOString();
@@ -162,7 +175,8 @@ async function freeSlots(db: SupabaseClient, clinicId: string, q: { serviceId: s
   ]);
   const earliest = Date.now() + MIN_NOTICE_MIN * 60_000;
   const slots: Array<Record<string, string>> = [];
-  for (let date = q.from; date <= to && slots.length < 40; date = addDays(date, 1)) {
+  // Todos os horários livres do período pedido (até 120): a IA não pode concluir que um dia está cheio por falta de amostra.
+  for (let date = q.from; date <= to && slots.length < MAX_SLOTS; date = addDays(date, 1)) {
     const dow = new Date(`${date}T12:00:00${OFFSET}`).getUTCDay();
     const perDay = new Map<string, Record<string, string>>();
     for (const p of pros) {
@@ -174,13 +188,16 @@ async function freeSlots(db: SupabaseClient, clinicId: string, q: { serviceId: s
           if ((appts || []).some((a) => a.professional_id === p.id && overlaps(s, e, new Date(a.start_time), new Date(a.end_time)))) continue;
           if ((blocks || []).some((b) => (!b.professional_id || b.professional_id === p.id) && overlaps(s, e, new Date(b.start_at), new Date(b.end_at)))) continue;
           const k = localIso(s);
+          const hm = k.slice(11, 16);
+          if (q.time && hm !== q.time) continue;
+          if (!inPeriod(hm, q.period)) continue;
           if (!perDay.has(k)) perDay.set(k, { start: k, end: localIso(e), professionalId: p.id, professionalName: p.full_name });
         }
       }
     }
-    slots.push(...[...perDay.values()].sort((a, b) => a.start.localeCompare(b.start)).slice(0, 8));
+    slots.push(...[...perDay.values()].sort((a, b) => a.start.localeCompare(b.start)));
   }
-  return { duration, slots: slots.slice(0, 40) };
+  return { duration, slots: slots.slice(0, MAX_SLOTS), truncated: slots.length > MAX_SLOTS, until: to };
 }
 
 const BOOKING_FIELDS = "id, start_time, end_time, status, treatment:treatments(name), professional:professionals(full_name)";
@@ -296,8 +313,14 @@ Deno.serve(async (req) => {
       const q = url.searchParams;
       const from = q.get("from") || "", to = q.get("to") || "";
       if (!q.get("serviceId") || !isDate(from) || !isDate(to)) return json({ error: "invalid_query" }, 400);
-      const r = await freeSlots(db, clinicId, { serviceId: q.get("serviceId")!, from, to, professionalId: q.get("professionalId") });
-      return r ? json({ timezone: "America/Sao_Paulo", durationMinutes: r.duration, slots: r.slots }) : json({ error: "service_not_found" }, 404);
+      const time = q.get("time");
+      if (time && !/^\d{2}:\d{2}$/.test(time)) return json({ error: "invalid_time" }, 400);
+      const r = await freeSlots(db, clinicId, {
+        serviceId: q.get("serviceId")!, from, to, professionalId: q.get("professionalId"), period: q.get("period"), time,
+      });
+      return r
+        ? json({ timezone: "America/Sao_Paulo", durationMinutes: r.duration, slots: r.slots, truncated: !!r.truncated, until: r.until ?? to })
+        : json({ error: "service_not_found" }, 404);
     }
     const body = raw ? JSON.parse(raw) : {};
     if (req.method === "POST" && route === "/aura/bookings") return await createBooking(db, clinicId, body);
