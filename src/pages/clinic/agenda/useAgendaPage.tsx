@@ -50,7 +50,6 @@ export function useAgendaPage() {
   const [blocksDialogOpen, setBlocksDialogOpen] = useState(false);
   const [waitlistDialogOpen, setWaitlistDialogOpen] = useState(false);
   const [availabilityProfessional, setAvailabilityProfessional] = useState('unassigned');
-  const [availabilityDraft, setAvailabilityDraft] = useState<Record<number, { isActive: boolean; start: string; end: string }>>({});
   const [blockProfessional, setBlockProfessional] = useState('all');
   const [blockStartDate, setBlockStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [blockStartTime, setBlockStartTime] = useState('09:00');
@@ -491,19 +490,6 @@ export function useAgendaPage() {
     }
   }, [professionals, availabilityProfessional]);
 
-  useEffect(() => {
-    if (!availabilityProfessional || availabilityProfessional === 'unassigned') return;
-    const nextDraft = weekDays.reduce((acc, day) => {
-      const slot = availability.find((item) => item.professional_id === availabilityProfessional && item.day_of_week === day.value && item.is_active);
-      acc[day.value] = {
-        isActive: !!slot,
-        start: slot ? String(slot.start_time).slice(0, 5) : '09:00',
-        end: slot ? String(slot.end_time).slice(0, 5) : '18:00',
-      };
-      return acc;
-    }, {} as Record<number, { isActive: boolean; start: string; end: string }>);
-    setAvailabilityDraft(nextDraft);
-  }, [availabilityProfessional, availability]);
 
   useEffect(() => {
     if (waitlistWindowType !== 'custom') {
@@ -918,43 +904,6 @@ export function useAgendaPage() {
       toast({ title: 'Profissional reatribuído!' });
     },
     onError: (error) => toast({ title: 'Não foi possível reatribuir', description: error.message, variant: 'destructive' }),
-  });
-
-  const saveAvailabilityMutation = useMutation({
-    mutationFn: async () => {
-      if (!clinicId || !availabilityProfessional || availabilityProfessional === 'unassigned') {
-        throw new Error('Selecione um profissional.');
-      }
-
-      const { error: deleteError } = await supabase.from('professional_availability')
-        .delete()
-        .eq('clinic_id', clinicId)
-        .eq('professional_id', availabilityProfessional);
-      if (deleteError) throw deleteError;
-
-      const rows = weekDays
-        .map((day) => ({ day, config: availabilityDraft[day.value] }))
-        .filter(({ config }) => config?.isActive)
-        .map(({ day, config }) => ({
-          clinic_id: clinicId,
-          professional_id: availabilityProfessional,
-          day_of_week: day.value,
-          start_time: config.start,
-          end_time: config.end,
-          is_active: true,
-        }));
-
-      if (rows.length > 0) {
-        const { error: insertError } = await supabase.from('professional_availability').insert(rows);
-        if (insertError) throw insertError;
-      }
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['professional-availability'] });
-      setAvailabilityDialogOpen(false);
-      toast({ title: 'Disponibilidade atualizada' });
-    },
-    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   const createBlockMutation = useMutation({
@@ -1401,8 +1350,6 @@ export function useAgendaPage() {
     setWaitlistDialogOpen,
     availabilityProfessional,
     setAvailabilityProfessional,
-    availabilityDraft,
-    setAvailabilityDraft,
     blockProfessional,
     setBlockProfessional,
     blockStartDate,
@@ -1516,7 +1463,6 @@ export function useAgendaPage() {
     updateStatusMutation,
     appointmentExceptionMutation,
     reassignProfessionalMutation,
-    saveAvailabilityMutation,
     createBlockMutation,
     deleteBlockMutation,
     sendReminderQueueMutation,

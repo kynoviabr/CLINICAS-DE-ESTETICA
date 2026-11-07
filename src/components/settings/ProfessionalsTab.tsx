@@ -20,7 +20,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { useQuery } from '@tanstack/react-query';
 import ProfessionalHoursDialog from '@/components/professionals/ProfessionalHoursDialog';
-import { weekDays } from '@/lib/agenda/model';
+import { hoursSummaryText } from '@/lib/agenda/professionalHours';
 import { Separator } from '@/components/ui/separator';
 import { Clock, Plus, Loader2, UserCheck, UserX, Search, Users, Stethoscope, ShieldCheck, Building2, AlertTriangle, ArrowUpDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -68,8 +68,7 @@ export default function ProfessionalsTab() {
       return data || [];
     },
   });
-  const hoursSummary = (id: string) => availability.filter((a) => a.professional_id === id)
-    .map((a) => `${weekDays.find((d) => d.value === a.day_of_week)?.label.slice(0, 3)} ${String(a.start_time).slice(0, 5)}–${String(a.end_time).slice(0, 5)}`).join(' · ');
+  const hoursSummary = (id: string) => hoursSummaryText(availability.filter((a) => a.professional_id === id));
   const { items: roles } = useRoles();
   const { items: entities } = useClassEntities();
   const { items: profTreatments, create: linkTreatment } = useProfessionalTreatments();
