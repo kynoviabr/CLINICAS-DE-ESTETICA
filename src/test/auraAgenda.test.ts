@@ -56,6 +56,18 @@ describe('horários livres', () => {
     expect(times(computeSlots(base({ time: '17:00' })))).toEqual(['17:00']);
   });
 
+  it('pausa para almoço (dois períodos no dia) não vira horário livre', () => {
+    const availability = [
+      { professional_id: 'rafa', day_of_week: 4, start_time: '09:00', end_time: '12:00' },
+      { professional_id: 'rafa', day_of_week: 4, start_time: '13:00', end_time: '18:00' },
+    ];
+    const t = times(computeSlots(base({ availability })));
+    expect(t).toContain('11:00');
+    expect(t).not.toContain('11:30'); // terminaria 12:30, dentro do almoço
+    expect(t).not.toContain('12:00');
+    expect(t).toContain('13:00');
+  });
+
   it('profissional que prefere não mostrar o nome', () => {
     expect(computeSlots(base({ pros: [{ id: 'rafa', name: 'Dra. Rafaela', showName: false }] })).slots[0].professionalName).toBeNull();
   });
