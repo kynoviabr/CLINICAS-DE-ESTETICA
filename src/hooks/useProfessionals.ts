@@ -16,6 +16,8 @@ export interface Professional {
   registration_number: string | null;
   specialty: string | null;
   status: string;
+  /** A IA e as mensagens mostram o nome deste profissional ao cliente. */
+  show_name_to_clients?: boolean;
   created_at: string;
   updated_at: string;
 }

@@ -708,6 +708,138 @@ export type Database = {
         }
         Relationships: []
       }
+      clinic_business_hours: {
+        Row: {
+          clinic_id: string
+          closes_at: string
+          created_at: string
+          day_of_week: number
+          id: string
+          opens_at: string
+        }
+        Insert: {
+          clinic_id: string
+          closes_at: string
+          created_at?: string
+          day_of_week: number
+          id?: string
+          opens_at: string
+        }
+        Update: {
+          clinic_id?: string
+          closes_at?: string
+          created_at?: string
+          day_of_week?: number
+          id?: string
+          opens_at?: string
+        }
+        Relationships: []
+      }
+      clinic_closures: {
+        Row: {
+          clinic_id: string
+          closed_on: string
+          created_at: string
+          id: string
+          reason: string | null
+        }
+        Insert: {
+          clinic_id: string
+          closed_on: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+        }
+        Update: {
+          clinic_id?: string
+          closed_on?: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+        }
+        Relationships: []
+      }
+      clinic_service_settings: {
+        Row: {
+          accepts_insurance: boolean
+          booking_horizon_days: number
+          buffer_minutes: number
+          clinic_id: string
+          evaluation_free: boolean
+          evaluation_minutes: number
+          evaluation_price: number | null
+          faq: Json
+          installments_min_value: number | null
+          insurance_notes: string | null
+          insurance_plans: string[]
+          max_installments: number | null
+          min_notice_minutes: number
+          notes: string | null
+          offers_evaluation: boolean
+          parking: string
+          parking_notes: string | null
+          payment_methods: string[]
+          payment_notes: string | null
+          policies: string | null
+          price_display: string
+          reschedule_notice_hours: number | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          accepts_insurance?: boolean
+          booking_horizon_days?: number
+          buffer_minutes?: number
+          clinic_id: string
+          evaluation_free?: boolean
+          evaluation_minutes?: number
+          evaluation_price?: number | null
+          faq?: Json
+          installments_min_value?: number | null
+          insurance_notes?: string | null
+          insurance_plans?: string[]
+          max_installments?: number | null
+          min_notice_minutes?: number
+          notes?: string | null
+          offers_evaluation?: boolean
+          parking?: string
+          parking_notes?: string | null
+          payment_methods?: string[]
+          payment_notes?: string | null
+          policies?: string | null
+          price_display?: string
+          reschedule_notice_hours?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          accepts_insurance?: boolean
+          booking_horizon_days?: number
+          buffer_minutes?: number
+          clinic_id?: string
+          evaluation_free?: boolean
+          evaluation_minutes?: number
+          evaluation_price?: number | null
+          faq?: Json
+          installments_min_value?: number | null
+          insurance_notes?: string | null
+          insurance_plans?: string[]
+          max_installments?: number | null
+          min_notice_minutes?: number
+          notes?: string | null
+          offers_evaluation?: boolean
+          parking?: string
+          parking_notes?: string | null
+          payment_methods?: string[]
+          payment_notes?: string | null
+          policies?: string | null
+          price_display?: string
+          reschedule_notice_hours?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       clinic_settings: {
         Row: {
           clinic_id: string
@@ -2313,6 +2445,7 @@ export type Database = {
           status: string
           updated_at: string
           user_id: string | null
+          show_name_to_clients: boolean
         }
         Insert: {
           class_entity_id?: string | null
@@ -2329,6 +2462,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string | null
+          show_name_to_clients?: boolean
         }
         Update: {
           class_entity_id?: string | null
@@ -2345,6 +2479,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string | null
+          show_name_to_clients?: boolean
         }
         Relationships: [
           {
@@ -3297,6 +3432,9 @@ export type Database = {
           renewal_enabled: boolean
           renewal_trigger_days: number
           updated_at: string
+          ai_bookable: boolean
+          price_display: string | null
+          requires_evaluation: boolean
         }
         Insert: {
           category?: string | null
@@ -3316,6 +3454,9 @@ export type Database = {
           renewal_enabled?: boolean
           renewal_trigger_days?: number
           updated_at?: string
+          ai_bookable?: boolean
+          price_display?: string | null
+          requires_evaluation?: boolean
         }
         Update: {
           category?: string | null
@@ -3335,6 +3476,9 @@ export type Database = {
           renewal_enabled?: boolean
           renewal_trigger_days?: number
           updated_at?: string
+          ai_bookable?: boolean
+          price_display?: string | null
+          requires_evaluation?: boolean
         }
         Relationships: [
           {

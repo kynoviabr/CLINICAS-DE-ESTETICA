@@ -17,6 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Plus, Loader2, UserCheck, UserX, Search, Users, Stethoscope, ShieldCheck, Building2, AlertTriangle, ArrowUpDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -51,7 +52,7 @@ type SortKey = 'full_name' | 'status' | 'created_at';
 type SortDir = 'asc' | 'desc';
 
 export default function ProfessionalsTab() {
-  const { items, loading, create, toggleStatus } = useProfessionals();
+  const { items, loading, create, update, toggleStatus } = useProfessionals();
   const { items: roles } = useRoles();
   const { items: entities } = useClassEntities();
   const { items: profTreatments, create: linkTreatment } = useProfessionalTreatments();
@@ -478,6 +479,13 @@ export default function ProfessionalsTab() {
                             {p.cpf && <span className="font-mono">• CPF: {formatCPF(p.cpf)}</span>}
                             {p.phone && <span>• {p.phone}</span>}
                           </div>
+                          {treatmentNames.length === 0 && !isInactive && (
+                            <p className="mt-2 text-xs text-amber-700">Nenhum tratamento ligado: a agenda não oferece horários deste profissional.</p>
+                          )}
+                          <label className="mt-2 flex w-fit items-center gap-2 text-xs text-muted-foreground">
+                            <Switch checked={p.show_name_to_clients !== false} onCheckedChange={(v) => update(p.id, { show_name_to_clients: v })} aria-label="Nome visível para clientes" />
+                            Mostrar o nome aos clientes (WhatsApp e IA)
+                          </label>
                           {treatmentNames.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-2">
                               {treatmentNames.map((n, i) => (
