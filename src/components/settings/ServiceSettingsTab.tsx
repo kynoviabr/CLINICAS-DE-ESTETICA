@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { AlertTriangle, CheckCircle2, Plus, Save, Trash2 } from 'lucide-react';
 import { setupIssues } from '../../../supabase/functions/_shared/agenda.ts';
+import ProfessionalHoursDialog from '@/components/professionals/ProfessionalHoursDialog';
+import { useUrlState } from '@/hooks/useUrlState';
 import {
   DAY_NAMES, PARKING_OPTIONS, PAYMENT_OPTIONS, PRICE_DISPLAY_OPTIONS, defaultServiceForm, formToRow, hoursFromRows, rowToForm, validateHours,
   type HoursByDay, type ServiceForm,
@@ -29,6 +31,8 @@ export default function ServiceSettingsTab() {
   const [form, setForm] = useState<ServiceForm>(defaultServiceForm());
   const [hours, setHours] = useState<HoursByDay>({});
   const [newClosure, setNewClosure] = useState({ date: '', reason: '' });
+  const [hoursFor, setHoursFor] = useState<{ id: string; name: string } | null>(null);
+  const [, setTab] = useUrlState<string>('aba', 'general');
 
   const { data } = useQuery({
     queryKey: ['service-settings', clinicId],
@@ -109,8 +113,18 @@ export default function ServiceSettingsTab() {
           {issues.length ? (
             <>
               <p className="flex items-center gap-2 font-medium text-amber-800"><AlertTriangle className="h-4 w-4" /> Falta configurar para a agenda e a IA funcionarem direito</p>
-              <ul className="mt-2 list-disc space-y-0.5 pl-6 text-sm text-amber-900">{issues.map((i) => <li key={i.text}>{i.text}</li>)}</ul>
-              <p className="mt-2 text-xs text-muted-foreground">Profissionais e horários de cada um: Configurações &gt; Profissionais e Agenda. Quem faz cada tratamento: Configurações &gt; Tratamentos.</p>
+              <ul className="mt-2 space-y-1.5 text-sm text-amber-900">{issues.map((i) => (
+                <li key={i.text} className="flex flex-wrap items-center gap-2">
+                  <span>• {i.text}</span>
+                  {i.professionalId && canEdit && (
+                    <BrandButton type="button" size="sm" variant="outline" onClick={() => setHoursFor({ id: i.professionalId!, name: data?.pros.find((p) => p.id === i.professionalId)?.full_name || 'Profissional' })}>
+                      Definir horários
+                    </BrandButton>
+                  )}
+                  {i.treatmentId && <BrandButton type="button" size="sm" variant="outline" onClick={() => setTab('treatments')}>Escolher profissionais</BrandButton>}
+                  {i.code === 'no_professionals' && <BrandButton type="button" size="sm" variant="outline" onClick={() => setTab('professionals')}>Cadastrar profissional</BrandButton>}
+                </li>
+              ))}</ul>
             </>
           ) : (
             <p className="flex items-center gap-2 font-medium text-emerald-800"><CheckCircle2 className="h-4 w-4" /> Tudo pronto: a agenda e a IA têm o que precisam.</p>
@@ -261,6 +275,7 @@ export default function ServiceSettingsTab() {
       </Card>
 
       {canEdit && <BrandButton onClick={() => save.mutate()} disabled={save.isPending || !clinicId}><Save className="h-4 w-4" /> Salvar atendimento</BrandButton>}
+      <ProfessionalHoursDialog professional={hoursFor} onClose={() => setHoursFor(null)} />
     </div>
   );
 }
