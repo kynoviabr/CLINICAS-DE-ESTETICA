@@ -15,6 +15,16 @@ describe('grade de horários do dia', () => {
     expect(dayHours([], 0, 'all')).toEqual({ start: '08:00', end: '20:00' });
   });
 
+  it('profissional configurada não abre grade em dia sem expediente', () => {
+    const list = [av('rafaela', 1, '09:00', '18:00'), av('rafaela', 5, '09:00', '18:00')];
+    expect(dayHours(list, 6, 'rafaela')).toBeNull();
+    expect(daySlots(dayHours(list, 6, 'rafaela'))).toEqual([]);
+  });
+
+  it('agendamento excepcional ainda aparece em dia sem expediente', () => {
+    expect(daySlots(null, ['10:15'])).toEqual(['10:00']);
+  });
+
   it('linhas de 30 em 30 minutos', () => {
     expect(daySlots({ start: '09:00', end: '11:00' })).toEqual(['09:00', '09:30', '10:00', '10:30']);
   });

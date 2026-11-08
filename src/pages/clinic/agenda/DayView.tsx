@@ -34,6 +34,8 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
   const dayBlocks = getBlocksForDay(currentDate);
   const hours = dayHours(availability, currentDate.getDay(), filterProfessional);
   const slots = daySlots(hours, dayAppts.map((a) => format(getAppointmentStartDate(a), 'HH:mm')));
+  const professionalIsClosed = hours === null && dayAppts.length === 0;
+  const visibleBlocks = professionalIsClosed ? [] : dayBlocks;
   const slotDate = (time: string) => new Date(`${format(currentDate, 'yyyy-MM-dd')}T${time}:00`);
   const isBusy = (time: string) => {
     const start = slotDate(time).getTime();
@@ -41,7 +43,7 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
   };
   const blockAt = (time: string) => {
     const start = slotDate(time).getTime();
-    return dayBlocks.find((b) => new Date(b.start_at).getTime() <= start && new Date(b.end_at).getTime() > start);
+    return visibleBlocks.find((b) => new Date(b.start_at).getTime() <= start && new Date(b.end_at).getTime() > start);
   };
 
   // "+" na grade: abre o agendamento já com o dia e o horário.
@@ -64,11 +66,16 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
     <>
     {viewMode === 'day' && (
       <div className="bg-card rounded-xl shadow-card p-4 animate-fade-in">
-        {getBlocksForDay(currentDate).length > 0 && (
+        {professionalIsClosed && (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            Esta profissional não atende neste dia.
+          </div>
+        )}
+        {visibleBlocks.length > 0 && (
           <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
             <p className="text-sm font-semibold text-amber-800">Dia com bloqueios operacionais</p>
             <div className="mt-2 space-y-1 text-xs text-amber-700">
-              {getBlocksForDay(currentDate).map((block) => (
+              {visibleBlocks.map((block) => (
                 <p key={block.id}>
                   {format(new Date(block.start_at), 'HH:mm')} - {format(new Date(block.end_at), 'HH:mm')} · {block.reason}
                 </p>
