@@ -113,7 +113,7 @@ export function useAgendaPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('appointments')
-        .select('*, patients(full_name, dissatisfaction_flag, dissatisfaction_level, dissatisfaction_reason, notes), leads!appointments_lead_id_fkey(full_name, phone, notes), treatments(name)')
+        .select('*, patients(full_name, phone, dissatisfaction_flag, dissatisfaction_level, dissatisfaction_reason, notes), leads!appointments_lead_id_fkey(full_name, phone, notes), treatments(name)')
         .eq('clinic_id', clinicId!)
         .gte('scheduled_at', rangeStart.toISOString())
         .lte('scheduled_at', rangeEnd.toISOString())
@@ -132,7 +132,7 @@ export function useAgendaPage() {
     queryFn: async () => {
       let query = supabase
         .from('patients')
-        .select('id, full_name, current_anamnese_status, current_anamnese_expires_at')
+        .select('id, full_name, phone, current_anamnese_status, current_anamnese_expires_at')
         .eq('clinic_id', clinicId!)
         .order('full_name');
       query = selectedPatientLookupId

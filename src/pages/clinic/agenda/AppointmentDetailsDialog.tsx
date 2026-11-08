@@ -5,16 +5,24 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Check, X, AlertTriangle, ClipboardList, CalendarCheck2, Pencil } from 'lucide-react';
+import { Check, X, AlertTriangle, ClipboardList, CalendarCheck2, Pencil, MessageCircle, FileText } from 'lucide-react';
 import { AnamneseAlertBanner } from '@/components/anamnese/AnamneseAlertBanner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { statusConfig, formatDurationMinutes } from '@/lib/agenda/model';
+import { useBranding } from '@/contexts/BrandingContext';
+import { useToast } from '@/hooks/use-toast';
+import { whatsappLink } from '@/lib/proposals/sale';
+import { supabase } from '@/integrations/supabase/client';
+import { anamneseLinkMessage, anamneseLinkUrl } from '@/lib/anamnese/link';
 import type { AgendaPageController } from './useAgendaPage';
 
 export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController }) {
+  const { clinicName } = useBranding();
+  const { toast } = useToast();
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
+  const [anamneseLoading, setAnamneseLoading] = useState(false);
 
   const {
     navigate,
@@ -43,6 +51,98 @@ export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController })
       setIsEditingNote(false);
     }
   }, [viewAppt]);
+
+  const handleSendReminder = () => {
+    if (!viewAppt) return;
+    const patientData = getSelectedPatientData(viewAppt.patient_id);
+    const recipientName = getAppointmentDisplayName(viewAppt);
+    const phone =
+      (viewAppt.leads as { phone?: string | null } | null)?.phone ||
+      (patientData as { phone?: string | null } | undefined)?.phone ||
+      (viewAppt.patients as { phone?: string | null } | null)?.phone;
+
+    if (!phone) {
+      toast({
+        title: 'Telefone não encontrado',
+        description: 'Este paciente não possui telefone cadastrado para envio do lembrete via WhatsApp.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const clinicLabel = clinicName || 'nossa clínica';
+    const recipientFirstName = recipientName.split(' ')[0] || recipientName;
+    const dateLabel = format(getAppointmentStartDate(viewAppt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+    const treatmentLabel =
+      (viewAppt.treatments as { name?: string | null } | null)?.name ||
+      (viewAppt.appointment_type === 'evaluation' ? 'Avaliação' : 'Atendimento');
+    const professionalLabel = getProfessionalLabel(viewAppt.professional_id);
+
+    const reminderText = `Olá, ${recipientFirstName}! 👋\n\nPassando para lembrar do seu agendamento de *${treatmentLabel}* na *${clinicLabel}*, marcado para *${dateLabel}* com ${professionalLabel}.\n\nPoderia nos confirmar sua presença?\n👉 Digite *1* para Confirmar\n👉 Digite *2* para Reagendar ou Cancelar\n\nAgradecemos a atenção!`;
+
+    const url = whatsappLink(phone, reminderText);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    toast({
+      title: 'WhatsApp aberto!',
+      description: `Lembrete padrão preparado para envio para ${recipientFirstName}.`,
+    });
+  };
+
+  const handleSendAnamnese = async () => {
+    if (!viewAppt) return;
+    if (!viewAppt.patient_id) {
+      toast({
+        title: 'Paciente não vinculado',
+        description: 'Para enviar a ficha de anamnese por link, o agendamento precisa estar vinculado a um paciente cadastrado.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const patientData = getSelectedPatientData(viewAppt.patient_id);
+    const recipientName = getAppointmentDisplayName(viewAppt);
+    const phone =
+      (viewAppt.leads as { phone?: string | null } | null)?.phone ||
+      (patientData as { phone?: string | null } | undefined)?.phone ||
+      (viewAppt.patients as { phone?: string | null } | null)?.phone;
+
+    if (!phone) {
+      toast({
+        title: 'Telefone não encontrado',
+        description: 'Este paciente não possui telefone cadastrado para envio da anamnese via WhatsApp.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setAnamneseLoading(true);
+    try {
+      const { data, error } = await supabase.rpc('create_anamnese_link', { p_patient_id: viewAppt.patient_id });
+      if (error) throw error;
+
+      const r = data as { token: string; expires_at: string };
+      const url = anamneseLinkUrl(window.location.origin, r.token);
+      const treatmentName = (viewAppt.treatments as { name?: string | null } | null)?.name;
+      const clinicLabel = clinicName || 'nossa clínica';
+      const first = recipientName.trim().split(/\s+/)[0] || recipientName;
+
+      const message = treatmentName
+        ? `Olá${first ? `, ${first}` : ''}! Aqui é da ${clinicLabel}. Para agilizar seu atendimento de *${treatmentName}*, preencha sua ficha de anamnese pelo link seguro abaixo (leva cerca de 5 minutos):\n\n${url}\n\nO link é pessoal, pede sua data de nascimento para confirmar e vale por 7 dias.`
+        : anamneseLinkMessage(recipientName, clinicLabel, url);
+
+      window.open(whatsappLink(phone, message), '_blank', 'noopener,noreferrer');
+      toast({
+        title: 'WhatsApp aberto com Anamnese!',
+        description: `Link seguro de anamnese gerado e preparado para ${first}.`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao gerar link de anamnese.';
+      toast({ title: 'Erro ao gerar anamnese', description: msg, variant: 'destructive' });
+    } finally {
+      setAnamneseLoading(false);
+    }
+  };
+
   return (
     <Dialog open={!!viewAppt} onOpenChange={() => setViewAppt(null)}>
       <DialogContent className="max-w-md">
@@ -230,6 +330,33 @@ export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController })
                   const canAdjustAppointment = !['completed', 'cancelled', 'no_show'].includes(viewAppt.status);
                   return (
                 <div className="flex flex-wrap gap-2">
+                {canAdjustAppointment && (
+                  <>
+                    <BrandButton
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 font-medium"
+                      onClick={handleSendReminder}
+                    >
+                      <MessageCircle className="w-4 h-4 mr-1 text-emerald-600 dark:text-emerald-400" />
+                      Enviar Lembrete
+                    </BrandButton>
+
+                    <BrandButton
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="border-primary/50 text-primary hover:bg-primary/5 font-medium"
+                      onClick={handleSendAnamnese}
+                      disabled={anamneseLoading || !viewAppt.patient_id}
+                      title={!viewAppt.patient_id ? 'Vincule a um paciente para enviar a anamnese' : undefined}
+                    >
+                      <FileText className="w-4 h-4 mr-1 text-primary" />
+                      {anamneseLoading ? 'Gerando link...' : 'Enviar Anamnese'}
+                    </BrandButton>
+                  </>
+                )}
                 {viewAppt.status === 'scheduled' && (
                   <BrandButton size="sm" onClick={() => updateStatusMutation.mutate({ id: viewAppt.id, status: 'confirmed' })}>
                     <Check className="w-4 h-4" /> Confirmar

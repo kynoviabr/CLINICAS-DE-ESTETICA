@@ -32,6 +32,7 @@ export type AppointmentRow = Database['public']['Tables']['appointments']['Row']
   is_batch?: boolean | null;
   patients?: {
     full_name?: string | null;
+    phone?: string | null;
     dissatisfaction_flag?: boolean | null;
     dissatisfaction_level?: string | null;
     dissatisfaction_reason?: string | null;
