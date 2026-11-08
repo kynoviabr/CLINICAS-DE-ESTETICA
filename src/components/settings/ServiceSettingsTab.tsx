@@ -11,11 +11,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { AlertTriangle, CheckCircle2, Plus, Save, Trash2 } from 'lucide-react';
+import { AlertTriangle, Calendar, CheckCircle2, Download, Plus, Save, Trash2 } from 'lucide-react';
 import { setupIssues } from '../../../supabase/functions/_shared/agenda.ts';
 import ProfessionalHoursDialog from '@/components/professionals/ProfessionalHoursDialog';
 import { useUrlState } from '@/hooks/useUrlState';
+import { getBrazilianHolidays } from '@/lib/brazilianHolidays';
 import {
   DAY_NAMES, PARKING_OPTIONS, PAYMENT_OPTIONS, PRICE_DISPLAY_OPTIONS, defaultServiceForm, formToRow, hoursFromRows, rowToForm, validateHours,
   type HoursByDay, type ServiceForm,
@@ -28,10 +30,14 @@ export default function ServiceSettingsTab() {
   const canEdit = role === 'admin';
   const { toast } = useToast();
   const qc = useQueryClient();
+  const currentYear = new Date().getFullYear();
   const [form, setForm] = useState<ServiceForm>(defaultServiceForm());
   const [hours, setHours] = useState<HoursByDay>({});
   const [newClosure, setNewClosure] = useState({ date: '', reason: '' });
   const [hoursFor, setHoursFor] = useState<{ id: string; name: string } | null>(null);
+  const [holidaysModalOpen, setHolidaysModalOpen] = useState(false);
+  const [selectedHolidayYear, setSelectedHolidayYear] = useState<number>(currentYear);
+  const [includeFacultative, setIncludeFacultative] = useState(true);
   const [, setTab] = useUrlState<string>('aba', 'general');
 
   const { data } = useQuery({
@@ -103,6 +109,33 @@ export default function ServiceSettingsTab() {
     onError: fail,
   });
 
+  const loadNationalHolidays = useMutation({
+    mutationFn: async () => {
+      const list = getBrazilianHolidays(selectedHolidayYear)
+        .filter((h) => includeFacultative || h.type === 'feriado');
+      
+      if (list.length === 0) return;
+
+      const rows = list.map((h) => ({
+        clinic_id: clinicId!,
+        closed_on: h.date,
+        reason: h.reason,
+      }));
+
+      const { error } = await supabase.from('clinic_closures').upsert(rows, { onConflict: 'clinic_id,closed_on' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['service-settings'] });
+      setHolidaysModalOpen(false);
+      toast({
+        title: 'Feriados nacionais carregados!',
+        description: `Os feriados oficiais de ${selectedHolidayYear} foram adicionados com sucesso aos dias fechados.`,
+      });
+    },
+    onError: fail,
+  });
+
   const dayList = (d: number) => hours[d] || [];
   const setDay = (d: number, list: { opens: string; closes: string }[]) => setHours((h) => ({ ...h, [d]: list }));
 
@@ -160,7 +193,24 @@ export default function ServiceSettingsTab() {
       </Card>
 
       <Card className="shadow-card">
-        <CardHeader><CardTitle className="text-base">Dias fechados</CardTitle><p className="text-sm text-muted-foreground">Feriados e recessos: ninguém agenda nesses dias.</p></CardHeader>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3">
+          <div>
+            <CardTitle className="text-base">Dias fechados</CardTitle>
+            <p className="text-sm text-muted-foreground">Feriados e recessos: ninguém agenda nesses dias.</p>
+          </div>
+          {canEdit && (
+            <BrandButton
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setHolidaysModalOpen(true)}
+              className="shrink-0"
+            >
+              <Calendar className="h-4 w-4 mr-1.5" />
+              Carregar Feriados Nacionais
+            </BrandButton>
+          )}
+        </CardHeader>
         <CardContent className="space-y-3">
           {data?.closures.length ? (
             <ul className="divide-y rounded-lg border">{data.closures.map((c) => (
@@ -179,6 +229,91 @@ export default function ServiceSettingsTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal Carregar Feriados Nacionais */}
+      <Dialog open={holidaysModalOpen} onOpenChange={setHolidaysModalOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" />
+              Carregar Feriados Nacionais
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Conforme portal oficial do Governo Federal (www.gov.br) e legislação federal.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Ano de referência *</Label>
+                <Select
+                  value={String(selectedHolidayYear)}
+                  onValueChange={(v) => setSelectedHolidayYear(Number(v))}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[currentYear, currentYear + 1, currentYear + 2, currentYear + 3].map((y) => (
+                      <SelectItem key={y} value={String(y)}>
+                        {y} {y === currentYear ? '(Ano atual)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">Ano atual e futuros disponíveis</p>
+              </div>
+
+              <div className="space-y-1.5 pb-2">
+                <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                  <Switch
+                    checked={includeFacultative}
+                    onCheckedChange={setIncludeFacultative}
+                  />
+                  <span>Pontos facultativos (Carnaval, etc.)</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground">
+                Feriados que serão importados para {selectedHolidayYear}:
+              </p>
+              <div className="max-h-60 overflow-y-auto rounded-lg border divide-y text-xs">
+                {getBrazilianHolidays(selectedHolidayYear)
+                  .filter((h) => includeFacultative || h.type === 'feriado')
+                  .map((h) => (
+                    <div key={h.date} className="p-2.5 flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-foreground">{h.reason}</p>
+                        <p className="text-muted-foreground text-[11px]">
+                          {new Date(`${h.date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
+                        </p>
+                      </div>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${h.type === 'feriado' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                        {h.type === 'feriado' ? 'Nacional' : 'Facultativo'}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <BrandButton variant="outline" onClick={() => setHolidaysModalOpen(false)}>
+                Cancelar
+              </BrandButton>
+              <BrandButton
+                onClick={() => loadNationalHolidays.mutate()}
+                disabled={loadNationalHolidays.isPending}
+              >
+                <Download className="w-4 h-4 mr-1" />
+                {loadNationalHolidays.isPending ? 'Carregando...' : `Importar para ${selectedHolidayYear}`}
+              </BrandButton>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="shadow-card">
