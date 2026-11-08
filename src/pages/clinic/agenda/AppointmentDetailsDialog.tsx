@@ -78,7 +78,7 @@ export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController })
       (viewAppt.appointment_type === 'evaluation' ? 'Avaliação' : 'Atendimento');
     const professionalLabel = getProfessionalLabel(viewAppt.professional_id);
 
-    const reminderText = `Olá, ${recipientFirstName}! 👋\n\nPassando para lembrar do seu agendamento de *${treatmentLabel}* na *${clinicLabel}*, marcado para *${dateLabel}* com ${professionalLabel}.\n\nPoderia nos confirmar sua presença?\n👉 Digite *1* para Confirmar\n👉 Digite *2* para Reagendar ou Cancelar\n\nAgradecemos a atenção!`;
+    const reminderText = `Olá, ${recipientFirstName}! Esperamos que você esteja bem.\n\nPassando para lembrar do seu atendimento na *${clinicLabel}*:\n\n✨ *Procedimento:* ${treatmentLabel}\n📅 *Data:* ${dateLabel}\n👩‍⚕️ *Especialista:* ${professionalLabel}\n\nPor gentileza, poderia nos confirmar sua presença?\n👉 Responda *1* (ou *SIM*) para Confirmar\n👉 Responda *2* caso precise Reagendar ou Cancelar\n\nQualquer dúvida, estamos à sua disposição!`;
 
     const url = whatsappLink(phone, reminderText);
     window.open(url, '_blank', 'noopener,noreferrer');

@@ -11,7 +11,10 @@ import {
   Sliders,
   Send,
   HelpCircle,
-  ChevronRight
+  ChevronRight,
+  MousePointerClick,
+  Check,
+  Calendar
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -29,26 +32,29 @@ export function AutomationsSettingsTab() {
   const { toast } = useToast();
   const { clinicName } = useBranding();
 
-  // Estados locais para demonstração visual
+  // Estados locais para demonstração visual e configuração
   const [reminderActive, setReminderActive] = useState(true);
   const [reminderTime, setReminderTime] = useState('08:00');
   const [advanceNotice, setAdvanceNotice] = useState('1_day');
+  const [useInteractiveButtons, setUseInteractiveButtons] = useState(true);
+  const [btnConfirm, setBtnConfirm] = useState('Confirmar presença');
+  const [btnReschedule, setBtnReschedule] = useState('Reagendar ou Cancelar');
   const [previewOpen, setPreviewOpen] = useState(false);
   const [messageTemplate, setMessageTemplate] = useState(
-    `Olá, {primeiro_nome}! 👋\n\nAqui é da {nome_da_clinica}. Passando para lembrar do seu atendimento agendado para amanhã ({data}) às {horario} com {profissional} ({tratamento}).\n\nPor favor, confirme sua presença respondendo:\n👉 1 para Confirmar\n👉 2 para Reagendar ou Cancelar\n\nQualquer dúvida, estamos à disposição!`
+    `Olá, {primeiro_nome}! Esperamos que você esteja bem.\n\nPassando para lembrar do seu atendimento na {nome_da_clinica}:\n\n✨ Procedimento: {tratamento}\n📅 Data: amanhã ({data}) às {horario}\n👩‍⚕️ Especialista: {profissional}\n\nPor gentileza, confirme sua presença clicando em um dos botões abaixo:`
   );
 
   const handleSave = () => {
     toast({
-      title: 'Configurações de automação salvas!',
-      description: 'O lembrete diário com Aura IA está ativo e operando.',
+      title: 'Configurações salvas!',
+      description: 'Modelo com botões interativos e horários atualizados para a Aura IA.',
     });
   };
 
   const handleTestSend = () => {
     toast({
-      title: 'Simulação de disparo realizada!',
-      description: 'Uma mensagem de teste foi gerada com dados de exemplo da Aura IA.',
+      title: 'Simulação de disparo com Botões Interativos!',
+      description: 'Mensagem formatada com botões nativos [Confirmar] e [Reagendar] gerada pela Aura IA.',
     });
   };
 
@@ -278,19 +284,69 @@ export function AutomationsSettingsTab() {
 
       {/* Modal de Edição e Prévia da Mensagem */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bot className="h-5 w-5 text-primary" />
-              Modelo de Mensagem da Aura IA
+              Modelo de Mensagem e Botões da Aura IA
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 pt-2">
+            {/* Opção de Botões Interativos Nativos */}
+            <div className="rounded-lg border bg-primary/5 p-3.5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <MousePointerClick className="w-4 h-4 text-primary" />
+                    <Label className="text-xs font-semibold text-foreground cursor-pointer" htmlFor="btn-toggle">
+                      Botões Interativos Oficiais no WhatsApp (Aura IA)
+                    </Label>
+                    <span className="text-[10px] bg-primary/20 text-primary font-bold px-1.5 py-0.5 rounded">
+                      Recomendado
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Utiliza a API Oficial do WhatsApp (Meta). O paciente recebe botões clicáveis nativos e não precisa digitar nada para confirmar.
+                  </p>
+                </div>
+                <Switch
+                  id="btn-toggle"
+                  checked={useInteractiveButtons}
+                  onCheckedChange={setUseInteractiveButtons}
+                />
+              </div>
+
+              {useInteractiveButtons && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-primary/10">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Texto do Botão 1 (Confirmação)</Label>
+                    <Input
+                      size={1}
+                      value={btnConfirm}
+                      onChange={(e) => setBtnConfirm(e.target.value)}
+                      placeholder="Ex: Confirmar presença"
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Texto do Botão 2 (Reagendamento)</Label>
+                    <Input
+                      size={1}
+                      value={btnReschedule}
+                      onChange={(e) => setBtnReschedule(e.target.value)}
+                      placeholder="Ex: Reagendar ou Cancelar"
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label className="text-xs font-semibold">Texto do Lembrete</Label>
               <Textarea
-                rows={7}
+                rows={5}
                 value={messageTemplate}
                 onChange={(e) => setMessageTemplate(e.target.value)}
                 className="text-xs font-mono"
@@ -300,24 +356,66 @@ export function AutomationsSettingsTab() {
               </p>
             </div>
 
-            {/* Prévia simulada no WhatsApp */}
+            {/* Prévia simulada no WhatsApp com Botões Nativos */}
             <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground">
-                Prévia de como o paciente recebe no WhatsApp:
-              </Label>
-              <div className="rounded-xl border bg-emerald-50/40 dark:bg-emerald-950/20 p-4">
-                <div className="max-w-md bg-card p-3 rounded-xl rounded-tl-none border shadow-sm space-y-2 text-xs">
-                  <p className="whitespace-pre-line text-foreground">
-                    {messageTemplate
-                      .replace('{primeiro_nome}', 'Maria')
-                      .replace('{nome_da_clinica}', clinicName || 'Clinova')
-                      .replace('{data}', '09/11/2026')
-                      .replace('{horario}', '10:30')
-                      .replace('{profissional}', 'Dra. Rafaela')
-                      .replace('{tratamento}', 'Limpeza de pele premium')}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground text-right">08:00 ✓✓</p>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-muted-foreground">
+                  Prévia de como o paciente recebe no WhatsApp:
+                </Label>
+                <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> WhatsApp Business Cloud API
+                </span>
+              </div>
+
+              <div className="rounded-xl border bg-emerald-50/40 dark:bg-emerald-950/20 p-4 flex flex-col items-start">
+                <div className="max-w-sm w-full bg-card rounded-2xl rounded-tl-none border shadow-sm overflow-hidden text-xs">
+                  {/* Corpo do balão da mensagem */}
+                  <div className="p-3.5 space-y-2">
+                    <p className="whitespace-pre-line text-foreground leading-relaxed">
+                      {messageTemplate
+                        .replace('{primeiro_nome}', 'Maria')
+                        .replace('{nome_da_clinica}', clinicName || 'Clinova')
+                        .replace('{data}', '09/11/2026')
+                        .replace('{horario}', '10:30')
+                        .replace('{profissional}', 'Dra. Rafaela')
+                        .replace('{tratamento}', 'Limpeza de pele premium')}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground text-right pt-1">08:00 ✓✓</p>
+                  </div>
+
+                  {/* Botões Interativos Nativos do WhatsApp Oficial */}
+                  {useInteractiveButtons ? (
+                    <div className="border-t border-border/80 divide-y divide-border/80 bg-muted/20">
+                      <button
+                        type="button"
+                        onClick={() => toast({ title: 'Simulação: Botão Confirmar clicado pelo paciente!', description: 'O agendamento seria confirmado automaticamente na agenda.' })}
+                        className="w-full py-2.5 px-3 text-center text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        {btnConfirm || 'Confirmar presença'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toast({ title: 'Simulação: Botão Reagendar clicado!', description: 'A Aura IA abriria o fluxo interativo de remarcação de horário.' })}
+                        className="w-full py-2.5 px-3 text-center text-xs font-semibold text-sky-600 dark:text-sky-400 hover:bg-sky-500/10 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Calendar className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                        {btnReschedule || 'Reagendar ou Cancelar'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="p-2 border-t bg-muted/10 text-center text-[11px] text-muted-foreground">
+                      Modo texto simples: paciente responde com 1 ou 2
+                    </div>
+                  )}
                 </div>
+
+                {useInteractiveButtons && (
+                  <p className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-primary" />
+                    <strong>Aura IA com Botões Nativos:</strong> ao tocar no botão, a confirmação é registrada em tempo real no Clinova.
+                  </p>
+                )}
               </div>
             </div>
 
