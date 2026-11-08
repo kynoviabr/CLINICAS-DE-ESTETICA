@@ -59,6 +59,30 @@ export function professionalWorksAt(availability: Slot[], weekday: number, profe
   return own.some((s) => s.day_of_week === weekday && toMinutes(s.start_time) <= minutes && toMinutes(s.end_time) > minutes);
 }
 
+export type AvailabilityState = 'unconfigured' | 'working' | 'pause' | 'closed';
+
+/**
+ * Estado do horário para as profissionais filtradas. Um intervalo entre dois
+ * períodos do mesmo dia é uma pausa; antes/depois do expediente é fechado.
+ * Sem filtro, basta uma profissional estar atendendo para o horário ficar livre.
+ */
+export function availabilityStateAt(availability: Slot[], weekday: number, professionalIds: string[], hhmm: string): AvailabilityState {
+  const ids = new Set(professionalIds.filter((id) => id !== 'unassigned'));
+  const active = availability.filter((s) => s.is_active && s.professional_id
+    && (ids.size === 0 || ids.has(s.professional_id)));
+  if (active.length === 0) return 'unconfigured';
+
+  const day = active.filter((s) => s.day_of_week === weekday);
+  if (day.length === 0) return 'closed';
+
+  const minutes = toMinutes(hhmm);
+  if (day.some((s) => toMinutes(s.start_time) <= minutes && toMinutes(s.end_time) > minutes)) return 'working';
+
+  const firstStart = Math.min(...day.map((s) => toMinutes(s.start_time)));
+  const lastEnd = Math.max(...day.map((s) => toMinutes(s.end_time)));
+  return minutes >= firstStart && minutes < lastEnd ? 'pause' : 'closed';
+}
+
 /** Horário em que o agendamento cai na grade (arredonda para baixo). */
 export const slotOf = (hhmm: string, step = 30) => toHHMM(Math.floor(toMinutes(hhmm) / step) * step);
 

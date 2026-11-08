@@ -2,7 +2,7 @@ import { BrandButton } from '@/components/ui/brand-button';
 import { BrandBadge } from '@/components/ui/brand-badge';
 import { format } from 'date-fns';
 import { Plus } from 'lucide-react';
-import { dayHours, daySlots, slotOf } from '@/lib/agenda/daySlots';
+import { availabilityStateAt, dayHours, daySlots, slotOf } from '@/lib/agenda/daySlots';
 import { statusConfig } from '@/lib/agenda/model';
 import type { AgendaPageController } from './useAgendaPage';
 import { DayColumnsView } from './DayColumnsView';
@@ -87,13 +87,18 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
           {slots.map((time) => {
             const starting = dayAppts.filter((a) => slotOf(format(getAppointmentStartDate(a), 'HH:mm')) === time);
             const block = blockAt(time);
-            const free = starting.length === 0 && !block && !isBusy(time);
+            const availabilityState = availabilityStateAt(availability, currentDate.getDay(), filterProfessionals, time);
+            const open = availabilityState === 'working' || availabilityState === 'unconfigured';
+            const free = starting.length === 0 && !block && !isBusy(time) && open;
             return (
               <div key={time} className="flex gap-3 py-1.5 min-h-[48px]">
                 <div className="w-12 shrink-0 pt-1 text-xs font-medium text-muted-foreground tabular-nums">{time}</div>
                 <div className="flex-1 min-w-0 space-y-2">
                   {block && starting.length === 0 && (
                     <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">Bloqueado · {block.reason}</div>
+                  )}
+                  {availabilityState === 'pause' && starting.length === 0 && !block && (
+                    <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">Pausa</div>
                   )}
                   {starting.map((a) => {
                     const sc = statusConfig[a.status];

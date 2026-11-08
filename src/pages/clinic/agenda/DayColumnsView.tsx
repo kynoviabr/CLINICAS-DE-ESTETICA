@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { Plus } from 'lucide-react';
-import { dayHoursForMany, daySlots, professionalWorksAt, slotOf } from '@/lib/agenda/daySlots';
+import { availabilityStateAt, dayHoursForMany, daySlots, slotOf } from '@/lib/agenda/daySlots';
 import { statusConfig } from '@/lib/agenda/model';
 import type { AgendaPageController } from './useAgendaPage';
 
@@ -64,12 +64,16 @@ export function DayColumnsView({ ctx, professionalIds }: { ctx: AgendaPageContro
                 const starting = mine.filter((a) => slotOf(format(getAppointmentStartDate(a), 'HH:mm')) === time);
                 const busy = mine.some((a) => getAppointmentStartDate(a).getTime() <= start && getAppointmentEndDate(a).getTime() > start);
                 const blocked = !!block && (!block.professional_id || block.professional_id === id);
-                const works = professionalWorksAt(availability, weekday, id, time);
+                const availabilityState = availabilityStateAt(availability, weekday, [id], time);
+                const works = availabilityState === 'working' || availabilityState === 'unconfigured';
                 const free = starting.length === 0 && !busy && !blocked && works;
                 return (
                   <div key={id} className={`min-h-[44px] border-l p-0.5 space-y-0.5 ${!works && starting.length === 0 ? 'bg-muted/40' : ''}`}>
                     {blocked && starting.length === 0 && (
                       <div className="truncate rounded bg-amber-50 px-1.5 py-1 text-[10px] text-amber-700" title={block?.reason}>Bloqueado</div>
+                    )}
+                    {availabilityState === 'pause' && starting.length === 0 && !blocked && (
+                      <div className="truncate rounded bg-amber-50 px-1.5 py-1 text-[10px] text-amber-700">Pausa</div>
                     )}
                     {starting.map((a) => (
                       <button

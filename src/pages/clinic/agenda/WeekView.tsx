@@ -2,13 +2,8 @@ import { format, isSameDay } from 'date-fns';
 import { Plus } from 'lucide-react';
 import { statusConfig } from '@/lib/agenda/model';
 import { visibleWeekDays, workingWeekdays } from '@/lib/agenda/workDays';
-import { daySlots, slotOf, weekHours } from '@/lib/agenda/daySlots';
+import { availabilityStateAt, daySlots, slotOf, weekHours } from '@/lib/agenda/daySlots';
 import type { AgendaPageController } from './useAgendaPage';
-
-const toMinutes = (hhmm: string) => {
-  const [h, m] = hhmm.slice(0, 5).split(':').map(Number);
-  return h * 60 + (m || 0);
-};
 
 export function WeekView({ ctx }: { ctx: AgendaPageController }) {
   const {
@@ -24,6 +19,7 @@ export function WeekView({ ctx }: { ctx: AgendaPageController }) {
     dayNames,
     availability,
     filterProfessional,
+    filterProfessionals,
     resetForm,
     setSelectedDate,
     setSelectedTime,
@@ -38,15 +34,6 @@ export function WeekView({ ctx }: { ctx: AgendaPageController }) {
   const hours = weekHours(availability, days.map((d) => d.getDay()), filterProfessional);
   const slots = daySlots(hours, days.flatMap((day) => getApptsForDay(day).map((a) => format(getAppointmentStartDate(a), 'HH:mm'))));
 
-  const forProfessional = (professionalId: string | null) =>
-    filterProfessional === 'all' || filterProfessional === 'unassigned' || professionalId === filterProfessional;
-  // Horário de atendimento daquele dia (sem horário cadastrado na clínica: tudo livre).
-  const inWorkingHours = (day: Date, time: string) => {
-    if (!workdays) return true;
-    const minutes = toMinutes(time);
-    return availability.some((s) => s.is_active && s.day_of_week === day.getDay() && forProfessional(s.professional_id)
-      && toMinutes(s.start_time) <= minutes && toMinutes(s.end_time) > minutes);
-  };
   const at = (day: Date, time: string) => new Date(`${format(day, 'yyyy-MM-dd')}T${time}:00`).getTime();
 
   // "+" na grade: abre o agendamento já com o dia e o horário.
@@ -89,12 +76,16 @@ export function WeekView({ ctx }: { ctx: AgendaPageController }) {
               const start = at(day, time);
               const busy = dayAppts.some((a) => getAppointmentStartDate(a).getTime() <= start && getAppointmentEndDate(a).getTime() > start);
               const block = getBlocksForDay(day).find((b) => new Date(b.start_at).getTime() <= start && new Date(b.end_at).getTime() > start);
-              const open = inWorkingHours(day, time);
+              const availabilityState = availabilityStateAt(availability, day.getDay(), filterProfessionals, time);
+              const open = availabilityState === 'working' || availabilityState === 'unconfigured';
               const free = starting.length === 0 && !busy && !block && open;
               return (
                 <div key={day.toISOString()} className={`min-h-[44px] border-l p-0.5 space-y-0.5 ${!open && starting.length === 0 ? 'bg-muted/40' : ''}`}>
                   {block && starting.length === 0 && (
                     <div className="truncate rounded bg-amber-50 px-1.5 py-1 text-[10px] text-amber-700" title={block.reason}>Bloqueado</div>
+                  )}
+                  {availabilityState === 'pause' && starting.length === 0 && !block && (
+                    <div className="truncate rounded bg-amber-50 px-1.5 py-1 text-[10px] text-amber-700">Pausa</div>
                   )}
                   {starting.map((a) => (
                     <button

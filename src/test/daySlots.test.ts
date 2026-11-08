@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayHours, dayHoursForMany, daySlots, professionalWorksAt, slotOf, weekHours } from '@/lib/agenda/daySlots';
+import { availabilityStateAt, dayHours, dayHoursForMany, daySlots, professionalWorksAt, slotOf, weekHours } from '@/lib/agenda/daySlots';
 
 const av = (professional_id: string, day_of_week: number, start_time: string, end_time: string) =>
   ({ professional_id, day_of_week, start_time, end_time, is_active: true });
@@ -48,5 +48,19 @@ describe('grade de horários do dia', () => {
     expect(professionalWorksAt(list, 4, 'ana', '14:00')).toBe(false);
     expect(professionalWorksAt(list, 4, 'bia', '09:00')).toBe(false);
     expect(professionalWorksAt(list, 4, 'sem-horario', '07:00')).toBe(true);
+  });
+
+  it('identifica a pausa individual e respeita as profissionais filtradas', () => {
+    const list = [
+      av('rafaela', 1, '09:00', '12:00'),
+      av('rafaela', 1, '13:00', '18:00'),
+      av('bia', 1, '09:00', '18:00'),
+    ];
+    expect(availabilityStateAt(list, 1, ['rafaela'], '12:00')).toBe('pause');
+    expect(availabilityStateAt(list, 1, ['rafaela'], '12:30')).toBe('pause');
+    expect(availabilityStateAt(list, 1, ['rafaela'], '13:00')).toBe('working');
+    expect(availabilityStateAt(list, 1, ['bia'], '12:00')).toBe('working');
+    expect(availabilityStateAt(list, 1, [], '12:00')).toBe('working');
+    expect(availabilityStateAt(list, 1, ['rafaela'], '08:30')).toBe('closed');
   });
 });
