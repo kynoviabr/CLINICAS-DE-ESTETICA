@@ -1,4 +1,5 @@
-import { buildProposalHtml, defaultValidUntil } from '@/lib/proposals/sale';
+import { buildProposalHtml, defaultValidUntil, formatBRL, whatsappLink } from '@/lib/proposals/sale';
+import { generateContractPDF } from '@/lib/contractPDF';
 import { useClinicLetterhead } from '@/hooks/useClinicLetterhead';
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -16,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, FileText, Trash2, Search, Eye, Send, Check, X, Printer, Filter, DollarSign, Pencil } from 'lucide-react';
+import { Plus, FileText, Trash2, Search, Eye, Send, Check, X, Printer, Filter, DollarSign, Pencil, MessageCircle, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -84,6 +85,7 @@ export default function ProposalsPage() {
   const [discountType, setDiscountType] = useState<'nominal' | 'percent'>('nominal');
   const [discountValue, setDiscountValue] = useState<string>('');
   const [approvedPrompt, setApprovedPrompt] = useState<ProposalWithPatient | null>(null);
+  const [sendingWhatsAppId, setSendingWhatsAppId] = useState<string | null>(null);
   const [proposalPaymentEnabled, setProposalPaymentEnabled] = useState(false);
   const [proposalPaymentCondition, setProposalPaymentCondition] = useState<PaymentCondition>('cash');
   const [proposalSelectedPaymentMethods, setProposalSelectedPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -537,6 +539,161 @@ export default function ProposalsPage() {
     w.print();
   };
 
+  const handleSendWhatsApp = async (proposal: ProposalWithPatient & { items?: ProposalItemWithTreatment[] }) => {
+    const patient = patients.find((p) => p.id === proposal.patient_id);
+    const clientName = patient?.full_name || proposal.patients?.full_name || 'Cliente';
+    let clientPhone = patient?.phone;
+    if (!clientPhone && proposal.patient_id) {
+      const { data: pData } = await supabase.from('patients').select('phone').eq('id', proposal.patient_id).maybeSingle();
+      if (pData?.phone) clientPhone = pData.phone;
+    }
+
+    if (!clientPhone) {
+      toast({
+        title: 'Telefone não cadastrado',
+        description: `O paciente ${clientName} não possui telefone cadastrado para envio via WhatsApp.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSendingWhatsAppId(proposal.id);
+    try {
+      let printItems = proposal.items;
+      if (!printItems || printItems.length === 0) {
+        const { data: pItems } = await supabase
+          .from('proposal_items')
+          .select('*, treatments(name)')
+          .eq('proposal_id', proposal.id);
+        printItems = (pItems || []) as ProposalItemWithTreatment[];
+      }
+
+      const parsed = parseProposalNotesPayload(proposal.notes);
+      const paymentSummary = buildPaymentPresetSummary(parsed.paymentPreset);
+
+      const body = buildProposalHtml({
+        clinicName,
+        clinic: letterhead ?? null,
+        number: proposal.proposal_number,
+        date: new Date(proposal.created_at),
+        validUntil: proposal.valid_until,
+        clientName,
+        clientPhone: clientPhone ?? null,
+        items: printItems.map((i) => ({
+          treatment_id: i.treatment_id,
+          name: i.treatments?.name || '—',
+          quantity: i.quantity,
+          unit_price: Number(i.unit_price),
+          min_price: null,
+        })),
+        total: Number(proposal.final_amount),
+        standardTotal: Number(proposal.total_amount || proposal.final_amount),
+        discountAmount: Number(proposal.discount_amount || 0),
+        discountPercent: Number(proposal.discount_percent || 0),
+        paymentSummary,
+        notes: parsed.plainNotes || undefined,
+      });
+
+      // 1. Converter HTML para PDF Blob oficial
+      const pdfBlob = await generateContractPDF(body);
+
+      // 2. Disparar download do arquivo PDF automaticamente
+      const downloadUrl = URL.createObjectURL(pdfBlob);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.href = downloadUrl;
+      downloadAnchor.download = `Proposta-${proposal.proposal_number}.pdf`;
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      document.body.removeChild(downloadAnchor);
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 2000);
+
+      // 3. Tentar gerar link assinado de 7 dias via storage (fallback resiliente)
+      let signedPdfUrl: string | null = null;
+      try {
+        const storagePath = `proposals/${clinicId}/${proposal.id}.pdf`;
+        const { error: uploadError } = await supabase.storage
+          .from('contracts')
+          .upload(storagePath, pdfBlob, { contentType: 'application/pdf', upsert: true });
+
+        if (!uploadError) {
+          const { data: signedData } = await supabase.storage
+            .from('contracts')
+            .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+          if (signedData?.signedUrl) {
+            signedPdfUrl = signedData.signedUrl;
+          }
+        }
+      } catch (e) {
+        console.warn('Storage link fallback:', e);
+      }
+
+      const firstName = clientName.trim().split(/\s+/)[0] || clientName;
+      const validityText = proposal.valid_until
+        ? format(new Date(`${proposal.valid_until}T12:00:00`), 'dd/MM/yyyy')
+        : '10 dias';
+
+      const itemsList = printItems
+        .map((i) => `• *${i.treatments?.name || 'Tratamento'}* (x${i.quantity}) - ${formatBRL(Number(i.unit_price) * i.quantity)}`)
+        .join('\n');
+
+      const discountAmount = Number(proposal.discount_amount || 0);
+      const discountPercent = Number(proposal.discount_percent || 0);
+      const standardTotal = Number(proposal.total_amount || proposal.final_amount);
+      const finalTotal = Number(proposal.final_amount);
+
+      let financeSummary = `*Valor Total: ${formatBRL(finalTotal)}*`;
+      if (discountAmount > 0) {
+        financeSummary = `Valor padrão: ${formatBRL(standardTotal)}\nDesconto Especial: - ${formatBRL(discountAmount)}${discountPercent ? ` (${discountPercent}%)` : ''}\n*Valor Final com Desconto: ${formatBRL(finalTotal)}*`;
+      }
+
+      let msg = `Olá, ${firstName}! Esperamos que esteja muito bem.\n\nPassando para enviar a sua proposta comercial da *${clinicName || 'nossa clínica'}* (Nº *${proposal.proposal_number}*):\n\n📋 *Tratamentos planejados:*\n${itemsList}\n\n💰 *Valores:*\n${financeSummary}\n`;
+
+      if (paymentSummary) {
+        msg += `\n💳 *Condições sugeridas:* ${paymentSummary}\n`;
+      }
+
+      msg += `\n⏳ *Validade:* até ${validityText}\n`;
+
+      if (signedPdfUrl) {
+        msg += `\n📄 *Acesse ou baixe o PDF oficial da proposta pelo link:*\n${signedPdfUrl}\n`;
+      } else {
+        msg += `\n📄 *O PDF da proposta com todos os detalhes foi gerado e baixado para seu acompanhamento.*\n`;
+      }
+
+      msg += `\nFicamos à total disposição para tirar qualquer dúvida ou agendarmos seu início!`;
+
+      // 4. Abrir WhatsApp com mensagem pronta
+      const waUrl = whatsappLink(clientPhone, msg);
+      window.open(waUrl, '_blank', 'noopener,noreferrer');
+
+      // 5. Se estiver em rascunho, atualiza automaticamente para enviada
+      if (proposal.status === 'draft') {
+        await supabase
+          .from('proposals')
+          .update({ status: 'sent' })
+          .eq('id', proposal.id);
+        qc.invalidateQueries({ queryKey: ['proposals'] });
+        if (viewDialog && viewDialog.id === proposal.id) {
+          setViewDialog({ ...viewDialog, status: 'sent' });
+        }
+      }
+
+      toast({
+        title: 'Proposta em PDF gerada com sucesso!',
+        description: `O arquivo PDF foi baixado e o WhatsApp de ${firstName} foi aberto com a proposta.`,
+      });
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Erro ao processar PDF da proposta.';
+      toast({
+        title: 'Erro ao gerar proposta para WhatsApp',
+        description: errorMsg,
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingWhatsAppId(null);
+    }
+  };
+
   // Emissão completa (modelo, PDF e forma de pagamento) fica na tela de Contratos,
   // que abre direto com esta proposta escolhida e o pagamento preenchido.
   const goEmitContract = (proposal: Pick<ProposalWithPatient, 'id'>) => {
@@ -710,6 +867,20 @@ export default function ProposalsPage() {
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
                           <BrandButton variant="ghost" size="sm" onClick={() => openView(p)} title="Ver"><Eye className="w-3.5 h-3.5" /></BrandButton>
+                          <BrandButton
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleSendWhatsApp(p)}
+                            disabled={sendingWhatsAppId === p.id}
+                            title="Converter em PDF e Enviar por WhatsApp"
+                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                          >
+                            {sendingWhatsAppId === p.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <MessageCircle className="w-3.5 h-3.5" />
+                            )}
+                          </BrandButton>
                           {p.status !== 'accepted' && (p.status as string) !== 'converted' && (
                             <BrandButton variant="ghost" size="sm" onClick={() => openEdit(p)} title="Editar"><Pencil className="w-3.5 h-3.5" /></BrandButton>
                           )}
@@ -1039,6 +1210,23 @@ export default function ProposalsPage() {
                 )}
 
                 <div className="flex flex-wrap gap-2 pt-4 border-t">
+                  <BrandButton
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm flex items-center gap-1.5"
+                    disabled={sendingWhatsAppId === viewDialog.id}
+                    onClick={() => handleSendWhatsApp(viewDialog)}
+                  >
+                    {sendingWhatsAppId === viewDialog.id ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" /> Convertendo PDF...
+                      </>
+                    ) : (
+                      <>
+                        <MessageCircle className="w-4 h-4" /> Enviar por WhatsApp
+                      </>
+                    )}
+                  </BrandButton>
+
                   <BrandButton variant="outline" size="sm" onClick={() => handlePrint(viewDialog)}>
                     <Printer className="w-4 h-4" /> Imprimir
                   </BrandButton>
