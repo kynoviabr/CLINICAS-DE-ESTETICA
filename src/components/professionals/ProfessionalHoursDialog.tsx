@@ -7,10 +7,10 @@ import { BrandButton } from '@/components/ui/brand-button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { AlertTriangle, Loader2, UtensilsCrossed } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { weekDays } from '@/lib/agenda/model';
 import {
-  draftFromRows, lunchOutsideDays, outsideClinicHours, rowsFromDraft, validateDraft, type DayHours, type HoursDraft,
+  draftFromRows, outsideClinicHours, rowsFromDraft, validateDraft, type DayHours, type HoursDraft,
 } from '@/lib/agenda/professionalHours';
 
 /**
@@ -65,17 +65,19 @@ export function ProfessionalHoursForm({ professional, onDone, cancelLabel = 'Ago
   if (isLoading || !draft) return <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</p>;
 
   const outside = data ? outsideClinicHours(draft, data.clinicHours) : [];
-  const lunchOff = lunchOutsideDays(draft);
   const setDay = (day: number, patch: Partial<DayHours>) => setDraft((d) => d && ({ ...d, days: { ...d.days, [day]: { ...d.days[day], ...patch } } }));
-  const setLunch = (patch: Partial<HoursDraft['lunch']>) => setDraft((d) => d && ({ ...d, lunch: { ...d.lunch, ...patch } }));
+  const setPause = (day: number, patch: Partial<DayHours['pause']>) => setDraft((d) => d && ({
+    ...d,
+    days: { ...d.days, [day]: { ...d.days[day], pause: { ...d.days[day].pause, ...patch } } },
+  }));
 
   return (
     <div className="space-y-2">
       {weekDays.map((d) => {
-        const h = draft.days[d.value] || { isActive: false, start: '09:00', end: '18:00' };
+        const h = draft.days[d.value] || { isActive: false, start: '09:00', end: '18:00', pause: { enabled: false, start: '12:00', end: '13:00' } };
         return (
-          <div key={d.value} className="flex flex-wrap items-center gap-3 rounded-lg border p-2">
-            <label className="flex w-40 items-center gap-2 text-sm">
+          <div key={d.value} className="grid gap-3 rounded-lg border p-3 md:grid-cols-[160px_1fr_1fr] md:items-center">
+            <label className="flex items-center gap-2 text-sm">
               <Switch checked={h.isActive} onCheckedChange={(v) => setDay(d.value, { isActive: v })} aria-label={`Atende ${d.label}`} />
               {d.label}
             </label>
@@ -85,28 +87,25 @@ export function ProfessionalHoursForm({ professional, onDone, cancelLabel = 'Ago
                 <span className="text-sm">às</span>
                 <Input type="time" className="w-28" value={h.end} onChange={(e) => setDay(d.value, { end: e.target.value })} aria-label={`Fim ${d.label}`} />
               </div>
-            ) : <span className="text-sm text-muted-foreground">Não atende</span>}
+            ) : <span className="text-sm text-muted-foreground md:col-span-2">Não atende</span>}
+            {h.isActive && (
+              <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                <label className="flex items-center gap-2 text-sm">
+                  <Switch checked={h.pause.enabled} onCheckedChange={(enabled) => setPause(d.value, { enabled })} aria-label={`Pausa ${d.label}`} />
+                  Pausa
+                </label>
+                {h.pause.enabled && (
+                  <div className="flex items-center gap-1">
+                    <Input type="time" className="w-24" value={h.pause.start} onChange={(e) => setPause(d.value, { start: e.target.value })} aria-label={`Início da pausa ${d.label}`} />
+                    <span className="text-sm">às</span>
+                    <Input type="time" className="w-24" value={h.pause.end} onChange={(e) => setPause(d.value, { end: e.target.value })} aria-label={`Fim da pausa ${d.label}`} />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         );
       })}
-
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed p-2">
-        <label className="flex w-40 items-center gap-2 text-sm font-medium">
-          <Switch checked={draft.lunch.enabled} onCheckedChange={(v) => setLunch({ enabled: v })} aria-label="Pausa para almoço" />
-          <UtensilsCrossed className="h-3.5 w-3.5" /> Almoço
-        </label>
-        {draft.lunch.enabled ? (
-          <div className="flex flex-wrap items-center gap-1">
-            <Input type="time" className="w-28" value={draft.lunch.start} onChange={(e) => setLunch({ start: e.target.value })} aria-label="Início do almoço" />
-            <span className="text-sm">às</span>
-            <Input type="time" className="w-28" value={draft.lunch.end} onChange={(e) => setLunch({ end: e.target.value })} aria-label="Fim do almoço" />
-            <span className="text-xs text-muted-foreground">em todos os dias de atendimento</span>
-          </div>
-        ) : <span className="text-sm text-muted-foreground">Sem pausa</span>}
-      </div>
-      {lunchOff.length > 0 && (
-        <p className="text-xs text-muted-foreground">O almoço fica fora do horário em: {lunchOff.join(', ')}. Nesses dias ele não é aplicado.</p>
-      )}
 
       {outside.length > 0 && (
         <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
@@ -128,7 +127,7 @@ export function ProfessionalHoursForm({ professional, onDone, cancelLabel = 'Ago
 export default function ProfessionalHoursDialog({ professional, onClose }: { professional: { id: string; name: string } | null; onClose: () => void }) {
   return (
     <Dialog open={!!professional} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Horários de atendimento · {professional?.name}</DialogTitle>
           <DialogDescription>Os dias e horários em que este profissional atende. A agenda e a IA só oferecem horários dentro destes e do horário da clínica.</DialogDescription>

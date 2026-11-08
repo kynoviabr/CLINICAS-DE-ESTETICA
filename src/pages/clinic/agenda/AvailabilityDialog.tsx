@@ -10,7 +10,7 @@ export function AvailabilityDialog({ ctx }: { ctx: AgendaPageController }) {
   const selected = professionals.find((p) => p.id === availabilityProfessional);
   return (
     <Dialog open={availabilityDialogOpen} onOpenChange={setAvailabilityDialogOpen}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Horários de atendimento</DialogTitle>
           <DialogDescription>A agenda e a IA só oferecem horários dentro destes e do horário da clínica.</DialogDescription>
