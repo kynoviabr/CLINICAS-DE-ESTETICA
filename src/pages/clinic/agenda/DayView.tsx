@@ -4,7 +4,7 @@ import { BrandBadge } from '@/components/ui/brand-badge';
 import { format } from 'date-fns';
 import { Plus, GripVertical } from 'lucide-react';
 import { availabilityStateAt, dayHours, daySlots, slotOf } from '@/lib/agenda/daySlots';
-import { statusConfig } from '@/lib/agenda/model';
+import { statusConfig, formatDurationMinutes } from '@/lib/agenda/model';
 import type { AgendaPageController } from './useAgendaPage';
 import { DayColumnsView } from './DayColumnsView';
 
@@ -38,7 +38,13 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
   const dayAppts = getApptsForDay(currentDate);
   const dayBlocks = getBlocksForDay(currentDate);
   const hours = dayHours(availability, currentDate.getDay(), filterProfessional);
-  const slots = daySlots(hours, dayAppts.map((a) => format(getAppointmentStartDate(a), 'HH:mm')));
+  const slots = daySlots(
+    hours,
+    dayAppts.flatMap((a) => [
+      format(getAppointmentStartDate(a), 'HH:mm'),
+      format(getAppointmentEndDate(a), 'HH:mm'),
+    ])
+  );
   const professionalIsClosed = hours === null && dayAppts.length === 0;
   const visibleBlocks = professionalIsClosed ? [] : dayBlocks;
   const slotDate = (time: string) => new Date(`${format(currentDate, 'yyyy-MM-dd')}T${time}:00`);
@@ -92,11 +98,17 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
         )}
         <div className="divide-y divide-border/60">
           {slots.map((time) => {
+            const slotStartTime = slotDate(time).getTime();
             const starting = dayAppts.filter((a) => slotOf(format(getAppointmentStartDate(a), 'HH:mm')) === time);
+            const ongoing = dayAppts.filter((a) => {
+              const start = getAppointmentStartDate(a).getTime();
+              const end = getAppointmentEndDate(a).getTime();
+              return start < slotStartTime && end > slotStartTime;
+            });
             const block = blockAt(time);
             const availabilityState = availabilityStateAt(availability, currentDate.getDay(), filterProfessionals, time);
             const open = availabilityState === 'working' || availabilityState === 'unconfigured';
-            const free = starting.length === 0 && !block && !isBusy(time) && open;
+            const free = starting.length === 0 && ongoing.length === 0 && !block && !isBusy(time) && open;
             const isHovered = dragOverSlot === time;
             return (
               <div
@@ -130,15 +142,15 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
               >
                 <div className="w-12 shrink-0 pt-1 text-xs font-medium text-muted-foreground tabular-nums">{time}</div>
                 <div className="flex-1 min-w-0 space-y-2">
-                  {isHovered && starting.length === 0 && !block && (
+                  {isHovered && starting.length === 0 && ongoing.length === 0 && !block && (
                     <div className="rounded-md border border-dashed border-primary/50 bg-primary/5 py-1 px-3 text-xs font-medium text-primary text-center">
                       Mover agendamento para {time}
                     </div>
                   )}
-                  {block && starting.length === 0 && (
+                  {block && starting.length === 0 && ongoing.length === 0 && (
                     <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">Bloqueado · {block.reason}</div>
                   )}
-                  {availabilityState === 'pause' && starting.length === 0 && !block && (
+                  {availabilityState === 'pause' && starting.length === 0 && ongoing.length === 0 && !block && (
                     <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">Pausa</div>
                   )}
                   {starting.map((a) => {
@@ -147,8 +159,13 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
                     const isDraggingThis = draggingApptId === a.id;
                     const apptNote = a.notes?.trim();
                     const patientNote = (a.patients as { notes?: string | null } | null)?.notes?.trim();
-                    const hasBothNotes = apptNote && patientNote && apptNote !== patientNote;
-                    const singleNote = apptNote || patientNote;
+                    const leadNote = (a.leads as { notes?: string | null } | null)?.notes?.trim();
+                    const contactNote = patientNote || leadNote;
+                    const contactNoteLabel = patientNote ? 'Nota do Paciente' : 'Nota do Lead';
+                    const hasBothNotes = Boolean(apptNote && contactNote && apptNote !== contactNote);
+                    const singleNote = apptNote || contactNote;
+                    const durMin = Math.round((getAppointmentEndDate(a).getTime() - getAppointmentStartDate(a).getTime()) / 60000);
+                    const durLabel = formatDurationMinutes(durMin);
                     return (
                       <div
                         key={a.id}
@@ -197,8 +214,8 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
                                   <p className="mt-1 whitespace-pre-wrap break-words text-foreground/90 leading-relaxed font-normal">{apptNote}</p>
                                 </div>
                                 <div className="rounded-lg border border-blue-200/60 bg-blue-50/50 p-2 text-xs dark:border-blue-800/30 dark:bg-blue-950/20">
-                                  <span className="font-semibold text-blue-600 dark:text-blue-400">Nota do Paciente</span>
-                                  <p className="mt-0.5 whitespace-pre-wrap break-words text-foreground/90 leading-relaxed font-normal">{patientNote}</p>
+                                  <span className="font-semibold text-blue-600 dark:text-blue-400">{contactNoteLabel}</span>
+                                  <p className="mt-0.5 whitespace-pre-wrap break-words text-foreground/90 leading-relaxed font-normal">{contactNote}</p>
                                 </div>
                               </div>
                             ) : singleNote ? (
@@ -209,7 +226,14 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
                             ) : null}
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="font-semibold text-foreground">{format(getAppointmentStartDate(a), 'HH:mm')} - {format(getAppointmentEndDate(a), 'HH:mm')}</p>
+                            <p className="font-semibold text-foreground flex items-center justify-end gap-1.5">
+                              <span>{format(getAppointmentStartDate(a), 'HH:mm')} - {format(getAppointmentEndDate(a), 'HH:mm')}</span>
+                              {durLabel && (
+                                <span className="rounded bg-primary/10 text-primary px-1.5 py-0.5 text-[11px] font-semibold">
+                                  {durLabel}
+                                </span>
+                              )}
+                            </p>
                             <div className="mt-1 flex items-center justify-end gap-2">
                               <BrandBadge status={sc?.badge || 'default'}>{sc?.label || a.status}</BrandBadge>
                               <BrandButton
@@ -226,6 +250,70 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
                               </BrandButton>
                             </div>
                           </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {ongoing.map((a) => {
+                    const sc = statusConfig[a.status];
+                    const canDrag = isDraggable(a.status);
+                    const isDraggingThis = draggingApptId === a.id;
+                    const durMin = Math.round((getAppointmentEndDate(a).getTime() - getAppointmentStartDate(a).getTime()) / 60000);
+                    const durLabel = formatDurationMinutes(durMin);
+                    return (
+                      <div
+                        key={`ongoing-${a.id}-${time}`}
+                        draggable={canDrag}
+                        onDragStart={(e) => {
+                          if (!canDrag) return;
+                          e.dataTransfer.setData('text/plain', a.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                          setDraggingApptId(a.id);
+                        }}
+                        onDragEnd={() => {
+                          setDraggingApptId(null);
+                          setDragOverSlot(null);
+                        }}
+                        onClick={() => setViewAppt(a)}
+                        className={`px-4 py-2.5 rounded-lg border border-dashed bg-muted/40 hover:bg-muted/70 cursor-pointer transition-all flex items-center justify-between gap-4 ${sc?.style || ''} ${
+                          canDrag ? 'cursor-grab active:cursor-grabbing' : ''
+                        } ${isDraggingThis ? 'opacity-40 scale-[0.99] border-dashed ring-2 ring-primary ring-offset-2' : ''}`}
+                        title={canDrag ? 'Arraste para mover para outro horário' : undefined}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {canDrag && (
+                            <GripVertical className="h-4 w-4 text-muted-foreground/60 shrink-0 hover:text-foreground" />
+                          )}
+                          <div className="flex items-center gap-2 flex-wrap min-w-0 text-sm">
+                            <span className="text-xs font-semibold text-primary/80">↳ Continuação:</span>
+                            <span className="font-semibold text-foreground truncate">{getAppointmentDisplayName(a)}</span>
+                            <span className="text-xs text-muted-foreground truncate">
+                              · {(a.treatments as { name?: string | null } | null)?.name || 'Sem tratamento'}
+                            </span>
+                            <span className="text-xs text-muted-foreground truncate">
+                              ({getProfessionalLabel(a.professional_id)})
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-xs text-muted-foreground">
+                            Término às <strong className="text-foreground">{format(getAppointmentEndDate(a), 'HH:mm')}</strong>
+                            {durLabel && <span className="ml-1 text-[11px] text-muted-foreground">({durLabel})</span>}
+                          </span>
+                          <BrandBadge status={sc?.badge || 'default'} className="scale-90">{sc?.label || a.status}</BrandBadge>
+                          <BrandButton
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2.5 text-xs"
+                            draggable={false}
+                            onDragStart={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setViewAppt(a);
+                            }}
+                          >
+                            Ver
+                          </BrandButton>
                         </div>
                       </div>
                     );

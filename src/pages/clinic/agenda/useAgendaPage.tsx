@@ -113,7 +113,7 @@ export function useAgendaPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('appointments')
-        .select('*, patients(full_name, dissatisfaction_flag, dissatisfaction_level, dissatisfaction_reason, notes), leads!appointments_lead_id_fkey(full_name, phone), treatments(name)')
+        .select('*, patients(full_name, dissatisfaction_flag, dissatisfaction_level, dissatisfaction_reason, notes), leads!appointments_lead_id_fkey(full_name, phone, notes), treatments(name)')
         .eq('clinic_id', clinicId!)
         .gte('scheduled_at', rangeStart.toISOString())
         .lte('scheduled_at', rangeEnd.toISOString())
@@ -993,6 +993,47 @@ export function useAgendaPage() {
     },
   });
 
+  const updateAppointmentNoteMutation = useMutation({
+    mutationFn: async ({ appointmentId, notes }: { appointmentId: string; notes: string }) => {
+      if (!clinicId) throw new Error('Clínica não encontrada.');
+      const trimmed = notes.trim() || null;
+      const { error } = await supabase
+        .from('appointments')
+        .update({ notes: trimmed })
+        .eq('id', appointmentId)
+        .eq('clinic_id', clinicId);
+      if (error) throw error;
+
+      const appt = appointments.find((a) => a.id === appointmentId);
+      if (appt?.patient_id && trimmed) {
+        await supabase
+          .from('patients')
+          .update({ notes: trimmed })
+          .eq('id', appt.patient_id)
+          .eq('clinic_id', clinicId);
+      } else if (appt?.lead_id && trimmed) {
+        await supabase
+          .from('leads')
+          .update({ notes: trimmed })
+          .eq('id', appt.lead_id)
+          .eq('clinic_id', clinicId);
+      }
+    },
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ['appointments'] });
+      qc.invalidateQueries({ queryKey: ['crm-leads'] });
+      setViewAppt((prev) => (prev && prev.id === variables.appointmentId ? { ...prev, notes: variables.notes.trim() || null } : prev));
+      toast({ title: 'Nota salva com sucesso!' });
+    },
+    onError: (err: Error) => {
+      toast({
+        title: 'Não foi possível salvar a nota',
+        description: err.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   const createBlockMutation = useMutation({
     mutationFn: async () => {
       if (!clinicId || !blockReason.trim()) {
@@ -1551,6 +1592,7 @@ export function useAgendaPage() {
     appointmentExceptionMutation,
     reassignProfessionalMutation,
     moveAppointmentMutation,
+    updateAppointmentNoteMutation,
     createBlockMutation,
     deleteBlockMutation,
     sendReminderQueueMutation,

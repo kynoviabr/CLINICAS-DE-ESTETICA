@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { formatDurationMinutes } from '@/lib/agenda/model';
 
 describe('lógica de remanejamento e drag-and-drop da agenda', () => {
   const calculateNewTimes = (
@@ -78,5 +79,32 @@ describe('lógica de remanejamento e drag-and-drop da agenda', () => {
     expect(isSameSlot(timeA, timeB, 'prof1', 'prof1')).toBe(true);
     expect(isSameSlot(timeA, timeC, 'prof1', 'prof1')).toBe(false);
     expect(isSameSlot(timeA, timeB, 'prof1', 'prof2')).toBe(false);
+  });
+
+  it('formata duração de forma legível (minutos e horas)', () => {
+    expect(formatDurationMinutes(15)).toBe('15min');
+    expect(formatDurationMinutes(30)).toBe('30min');
+    expect(formatDurationMinutes(45)).toBe('45min');
+    expect(formatDurationMinutes(60)).toBe('1h');
+    expect(formatDurationMinutes(90)).toBe('1h 30m');
+    expect(formatDurationMinutes(120)).toBe('2h');
+  });
+
+  it('identifica agendamento em andamento em slots subsequentes (ex: 1h de 09:30 a 10:30)', () => {
+    const appt = {
+      id: 'appt-1',
+      start: new Date('2026-11-07T09:30:00').getTime(),
+      end: new Date('2026-11-07T10:30:00').getTime(),
+    };
+
+    const isOngoingAt = (timeStr: string) => {
+      const slotStart = new Date(`2026-11-07T${timeStr}:00`).getTime();
+      return appt.start < slotStart && appt.end > slotStart;
+    };
+
+    expect(isOngoingAt('09:00')).toBe(false);
+    expect(isOngoingAt('09:30')).toBe(false); // Início do agendamento, não "ongoing"
+    expect(isOngoingAt('10:00')).toBe(true);  // Continuação em andamento!
+    expect(isOngoingAt('10:30')).toBe(false); // Já finalizou
   });
 });

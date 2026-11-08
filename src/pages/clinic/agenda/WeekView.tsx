@@ -37,7 +37,15 @@ export function WeekView({ ctx }: { ctx: AgendaPageController }) {
   const workdays = workingWeekdays(availability, filterProfessional);
   const days = visibleWeekDays(calendarDays, workdays, (day) => getApptsForDay(day).length > 0);
   const hours = weekHours(availability, days.map((d) => d.getDay()), filterProfessional);
-  const slots = daySlots(hours, days.flatMap((day) => getApptsForDay(day).map((a) => format(getAppointmentStartDate(a), 'HH:mm'))));
+  const slots = daySlots(
+    hours,
+    days.flatMap((day) =>
+      getApptsForDay(day).flatMap((a) => [
+        format(getAppointmentStartDate(a), 'HH:mm'),
+        format(getAppointmentEndDate(a), 'HH:mm'),
+      ])
+    )
+  );
 
   const at = (day: Date, time: string) => new Date(`${format(day, 'yyyy-MM-dd')}T${time}:00`).getTime();
 
@@ -79,11 +87,16 @@ export function WeekView({ ctx }: { ctx: AgendaPageController }) {
               const dayAppts = getApptsForDay(day);
               const starting = dayAppts.filter((a) => slotOf(format(getAppointmentStartDate(a), 'HH:mm')) === time);
               const start = at(day, time);
+              const ongoing = dayAppts.filter((a) => {
+                const aStart = getAppointmentStartDate(a).getTime();
+                const aEnd = getAppointmentEndDate(a).getTime();
+                return aStart < start && aEnd > start;
+              });
               const busy = dayAppts.some((a) => getAppointmentStartDate(a).getTime() <= start && getAppointmentEndDate(a).getTime() > start);
               const block = getBlocksForDay(day).find((b) => new Date(b.start_at).getTime() <= start && new Date(b.end_at).getTime() > start);
               const availabilityState = availabilityStateAt(availability, day.getDay(), filterProfessionals, time);
               const open = availabilityState === 'working' || availabilityState === 'unconfigured';
-              const free = starting.length === 0 && !busy && !block && open;
+              const free = starting.length === 0 && ongoing.length === 0 && !busy && !block && open;
               const cellKey = `${format(day, 'yyyy-MM-dd')}_${time}`;
               const isHovered = dragOverKey === cellKey;
               return (
@@ -113,18 +126,19 @@ export function WeekView({ ctx }: { ctx: AgendaPageController }) {
                     });
                   }}
                   className={`min-h-[44px] border-l p-0.5 space-y-0.5 transition-colors ${
-                    !open && starting.length === 0 ? 'bg-muted/40' : ''
+                    !open && starting.length === 0 && ongoing.length === 0 ? 'bg-muted/40' : ''
                   } ${isHovered ? 'bg-primary/10 ring-2 ring-primary/40 ring-dashed' : ''}`}
                 >
-                  {block && starting.length === 0 && (
+                  {block && starting.length === 0 && ongoing.length === 0 && (
                     <div className="truncate rounded bg-amber-50 px-1.5 py-1 text-[10px] text-amber-700" title={block.reason}>Bloqueado</div>
                   )}
-                  {availabilityState === 'pause' && starting.length === 0 && !block && (
+                  {availabilityState === 'pause' && starting.length === 0 && ongoing.length === 0 && !block && (
                     <div className="truncate rounded bg-amber-50 px-1.5 py-1 text-[10px] text-amber-700">Pausa</div>
                   )}
                   {starting.map((a) => {
                     const canDrag = !['cancelled', 'completed', 'rescheduled'].includes(a.status);
                     const isDraggingThis = draggingApptId === a.id;
+                    const note = (a.notes || (a.patients as { notes?: string | null } | null)?.notes || (a.leads as { notes?: string | null } | null)?.notes)?.trim();
                     return (
                       <button
                         type="button"
@@ -158,14 +172,50 @@ export function WeekView({ ctx }: { ctx: AgendaPageController }) {
                         </div>
                         <div className="truncate">{getAppointmentDisplayName(a)}</div>
                         <div className="truncate opacity-80">{(a.treatments as { name?: string | null } | null)?.name}</div>
-                        {(a.notes || (a.patients as { notes?: string | null } | null)?.notes) && (
+                        {note && (
                           <div className="mt-1 rounded bg-black/20 p-1 text-[10px]">
                             <span className="font-semibold text-sky-200">Nota:</span>
                             <p className="line-clamp-2 opacity-95 break-words whitespace-pre-wrap">
-                              {(a.notes || (a.patients as { notes?: string | null } | null)?.notes)?.trim()}
+                              {note}
                             </p>
                           </div>
                         )}
+                      </button>
+                    );
+                  })}
+                  {ongoing.map((a) => {
+                    const canDrag = !['cancelled', 'completed', 'rescheduled'].includes(a.status);
+                    const isDraggingThis = draggingApptId === a.id;
+                    return (
+                      <button
+                        type="button"
+                        key={`ongoing-${a.id}-${time}`}
+                        draggable={canDrag}
+                        onDragStart={(e) => {
+                          if (!canDrag) return;
+                          e.dataTransfer.setData('text/plain', a.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                          setDraggingApptId(a.id);
+                        }}
+                        onDragEnd={() => {
+                          setDraggingApptId(null);
+                          setDragOverKey(null);
+                        }}
+                        className={`block w-full rounded p-1 text-left text-[10px] border border-dashed transition-all hover:brightness-105 ${
+                          canDrag ? 'cursor-grab active:cursor-grabbing' : ''
+                        } ${isDraggingThis ? 'opacity-40 scale-[0.98] ring-2 ring-white/60' : ''}`}
+                        style={{
+                          backgroundColor: `${getProfColor(a.professional_id)}18`,
+                          borderColor: getProfColor(a.professional_id),
+                        }}
+                        onClick={() => setViewAppt(a)}
+                        title={`Continuação até ${format(getAppointmentEndDate(a), 'HH:mm')}: ${getAppointmentDisplayName(a)}`}
+                      >
+                        <div className="flex items-center justify-between font-semibold">
+                          <span className="truncate">↳ {getAppointmentDisplayName(a)}</span>
+                          <span className="opacity-75 shrink-0 ml-0.5 text-[9px]">{format(getAppointmentEndDate(a), 'HH:mm')}</span>
+                        </div>
+                        <div className="truncate text-[9px] opacity-80">{(a.treatments as { name?: string | null } | null)?.name}</div>
                       </button>
                     );
                   })}

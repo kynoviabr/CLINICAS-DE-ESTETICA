@@ -1,16 +1,21 @@
+import { useState, useEffect } from 'react';
 import { BrandButton } from '@/components/ui/brand-button';
 import { BrandBadge } from '@/components/ui/brand-badge';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Check, X, AlertTriangle, ClipboardList, CalendarCheck2 } from 'lucide-react';
+import { Check, X, AlertTriangle, ClipboardList, CalendarCheck2, Pencil } from 'lucide-react';
 import { AnamneseAlertBanner } from '@/components/anamnese/AnamneseAlertBanner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { statusConfig } from '@/lib/agenda/model';
+import { statusConfig, formatDurationMinutes } from '@/lib/agenda/model';
 import type { AgendaPageController } from './useAgendaPage';
 
 export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController }) {
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+
   const {
     navigate,
     viewAppt,
@@ -28,8 +33,16 @@ export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController })
     openExceptionModal,
     updateStatusMutation,
     reassignProfessionalMutation,
+    updateAppointmentNoteMutation,
     openProposalFromEvaluation,
   } = ctx;
+
+  useEffect(() => {
+    if (viewAppt) {
+      setNoteDraft(viewAppt.notes || '');
+      setIsEditingNote(false);
+    }
+  }, [viewAppt]);
   return (
     <Dialog open={!!viewAppt} onOpenChange={() => setViewAppt(null)}>
       <DialogContent className="max-w-md">
@@ -60,9 +73,121 @@ export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController })
                 {(viewAppt.leads as { phone?: string | null } | null)?.phone && (
                   <div className="flex justify-between"><span className="text-muted-foreground">Contato do lead:</span><span className="font-medium">{(viewAppt.leads as { phone?: string | null } | null)?.phone}</span></div>
                 )}
-                <div className="flex justify-between"><span className="text-muted-foreground">Horário:</span><span className="font-medium">{format(getAppointmentStartDate(viewAppt), 'dd/MM/yyyy HH:mm', { locale: ptBR })} - {format(getAppointmentEndDate(viewAppt), 'HH:mm')}</span></div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Horário:</span>
+                  <span className="font-medium">
+                    {format(getAppointmentStartDate(viewAppt), 'dd/MM/yyyy HH:mm', { locale: ptBR })} - {format(getAppointmentEndDate(viewAppt), 'HH:mm')}
+                    {(() => {
+                      const durMin = Math.round((getAppointmentEndDate(viewAppt).getTime() - getAppointmentStartDate(viewAppt).getTime()) / 60000);
+                      const durLabel = formatDurationMinutes(durMin);
+                      return durLabel ? <span className="ml-1.5 rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary font-normal">{durLabel}</span> : null;
+                    })()}
+                  </span>
+                </div>
                 <div className="flex justify-between items-center"><span className="text-muted-foreground">Status:</span><BrandBadge status={statusConfig[viewAppt.status]?.badge || 'default'}>{statusConfig[viewAppt.status]?.label || viewAppt.status}</BrandBadge></div>
-                {viewAppt.notes && <div><span className="text-muted-foreground">Notas:</span><p className="mt-1">{viewAppt.notes}</p></div>}
+              </div>
+
+              {/* Seção de Notas */}
+              <div className="space-y-2.5 pt-3 border-t">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Notas e Observações
+                  </span>
+                  {isEditingNote ? (
+                    <div className="flex gap-1.5">
+                      <BrandButton
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => {
+                          setNoteDraft(viewAppt.notes || '');
+                          setIsEditingNote(false);
+                        }}
+                      >
+                        Cancelar
+                      </BrandButton>
+                      <BrandButton
+                        type="button"
+                        size="sm"
+                        className="h-7 px-2.5 text-xs"
+                        disabled={updateAppointmentNoteMutation.isPending}
+                        onClick={() => {
+                          updateAppointmentNoteMutation.mutate({
+                            appointmentId: viewAppt.id,
+                            notes: noteDraft,
+                          });
+                          setIsEditingNote(false);
+                        }}
+                      >
+                        {updateAppointmentNoteMutation.isPending ? 'Salvando...' : 'Salvar nota'}
+                      </BrandButton>
+                    </div>
+                  ) : (
+                    <BrandButton
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs text-primary hover:text-primary/90 flex items-center gap-1"
+                      onClick={() => {
+                        setNoteDraft(viewAppt.notes || '');
+                        setIsEditingNote(true);
+                      }}
+                    >
+                      <Pencil className="w-3 h-3" />
+                      {viewAppt.notes ? 'Editar nota' : 'Adicionar nota'}
+                    </BrandButton>
+                  )}
+                </div>
+
+                {isEditingNote ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={noteDraft}
+                      onChange={(e) => setNoteDraft(e.target.value)}
+                      placeholder="Escreva uma nota para este agendamento..."
+                      rows={3}
+                      className="text-sm"
+                      autoFocus
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      A nota ficará visível diretamente no card da agenda.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {viewAppt.notes ? (
+                      <div className="rounded-lg border border-blue-200/80 bg-blue-50/80 p-3 text-xs dark:border-blue-800/40 dark:bg-blue-950/30">
+                        <span className="font-semibold text-blue-600 dark:text-blue-400">Nota do Agendamento:</span>
+                        <p className="mt-1 whitespace-pre-wrap break-words text-foreground font-normal leading-relaxed">
+                          {viewAppt.notes}
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {(viewAppt.patients as { notes?: string | null } | null)?.notes && (
+                      <div className="rounded-lg border border-muted bg-muted/30 p-2.5 text-xs">
+                        <span className="font-semibold text-muted-foreground">Nota do Cadastro do Paciente:</span>
+                        <p className="mt-0.5 whitespace-pre-wrap break-words text-foreground/90 font-normal leading-relaxed">
+                          {(viewAppt.patients as { notes?: string | null } | null)?.notes}
+                        </p>
+                      </div>
+                    )}
+
+                    {(viewAppt.leads as { notes?: string | null } | null)?.notes && (
+                      <div className="rounded-lg border border-muted bg-muted/30 p-2.5 text-xs">
+                        <span className="font-semibold text-muted-foreground">Nota do Lead:</span>
+                        <p className="mt-0.5 whitespace-pre-wrap break-words text-foreground/90 font-normal leading-relaxed">
+                          {(viewAppt.leads as { notes?: string | null } | null)?.notes}
+                        </p>
+                      </div>
+                    )}
+
+                    {!viewAppt.notes && !(viewAppt.patients as { notes?: string | null } | null)?.notes && !(viewAppt.leads as { notes?: string | null } | null)?.notes && (
+                      <p className="text-xs text-muted-foreground italic py-1">Nenhuma nota registrada para este agendamento.</p>
+                    )}
+                  </div>
+                )}
               </div>
     
               {!isProfessional && (

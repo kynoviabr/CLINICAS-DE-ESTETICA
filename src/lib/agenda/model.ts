@@ -37,9 +37,22 @@ export type AppointmentRow = Database['public']['Tables']['appointments']['Row']
     dissatisfaction_reason?: string | null;
     notes?: string | null;
   } | null;
-  leads?: { full_name?: string | null; phone?: string | null } | null;
+  leads?: {
+    full_name?: string | null;
+    phone?: string | null;
+    notes?: string | null;
+  } | null;
   treatments?: { name?: string | null } | null;
 };
+
+export function formatDurationMinutes(minutes: number): string {
+  if (!minutes || minutes <= 0) return '';
+  if (minutes < 60) return `${minutes}min`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  if (remainingMinutes === 0) return `${hours}h`;
+  return `${hours}h ${remainingMinutes}m`;
+}
 export type WaitlistRow = Database['public']['Tables']['appointment_waitlist']['Row'] & {
   patients?: { full_name?: string | null } | null;
   leads?: { full_name?: string | null } | null;
