@@ -44,6 +44,8 @@ export function CreateAppointmentDialog({ ctx }: { ctx: AgendaPageController }) 
     hasSessionBalance,
     createMutation,
   } = ctx;
+  const isPatientAppointment = appointmentType === 'session' || Boolean(selectedPatient);
+  const evaluationLabel = selectedPatient ? 'Avaliação do paciente' : 'Avaliação de lead';
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogContent className="max-w-lg">
@@ -55,7 +57,7 @@ export function CreateAppointmentDialog({ ctx }: { ctx: AgendaPageController }) 
               <AlertDescription>{createFormError}</AlertDescription>
             </Alert>
           )}
-          {appointmentType === 'session' ? (
+          {isPatientAppointment ? (
             <>
               <div className="space-y-2">
                 <Label>Paciente *</Label>
@@ -113,7 +115,7 @@ export function CreateAppointmentDialog({ ctx }: { ctx: AgendaPageController }) 
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="session">Sessão de paciente</SelectItem>
-                <SelectItem value="evaluation">Avaliação de lead</SelectItem>
+                <SelectItem value="evaluation">{evaluationLabel}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -197,9 +199,13 @@ export function CreateAppointmentDialog({ ctx }: { ctx: AgendaPageController }) 
             <BrandButton
               type="submit"
               className="flex-1"
-              disabled={createMutation.isPending || (appointmentType === 'session' ? (!selectedPatient || !selectedTreatment || !hasSessionBalance) : !selectedLead) || !selectedProfessional}
+              disabled={createMutation.isPending || (appointmentType === 'session'
+                ? (!selectedPatient || !selectedTreatment || !hasSessionBalance)
+                : (!selectedPatient && !selectedLead)) || !selectedProfessional}
             >
-              {createMutation.isPending ? 'Criando...' : appointmentType === 'evaluation' ? 'Agendar avaliação' : 'Agendar'}
+              {createMutation.isPending ? 'Criando...' : appointmentType === 'evaluation'
+                ? (selectedPatient ? 'Agendar avaliação do paciente' : 'Agendar avaliação')
+                : 'Agendar'}
             </BrandButton>
           </div>
         </form>

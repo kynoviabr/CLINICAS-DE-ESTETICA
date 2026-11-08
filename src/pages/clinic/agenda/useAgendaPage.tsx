@@ -660,6 +660,9 @@ export function useAgendaPage() {
       }
       await assertNoSchedulingConflicts({ professionalId: profId, startTime, endTime });
       const lead = appointmentType === 'evaluation' ? getSelectedLeadData(selectedLead) : null;
+      if (appointmentType === 'evaluation' && !selectedPatient && !selectedLead) {
+        throw new Error('Selecione um paciente ou lead para a avaliação.');
+      }
       if (appointmentType === 'session') {
         if (!selectedTreatment) throw new Error('Selecione um tratamento.');
         const isAllowed = sessionTreatmentOptions.some((item) => item.id === selectedTreatment);
@@ -673,8 +676,8 @@ export function useAgendaPage() {
       }
       const payload: TablesInsert<'appointments'> = {
         clinic_id: clinicId!,
-        patient_id: appointmentType === 'session' ? selectedPatient : null,
-        lead_id: appointmentType === 'evaluation' ? selectedLead : null,
+        patient_id: appointmentType === 'session' || selectedPatient ? selectedPatient : null,
+        lead_id: appointmentType === 'evaluation' && !selectedPatient ? selectedLead : null,
         treatment_id: selectedTreatment || null,
         professional_id: profId,
         start_time: startTime.toISOString(),
@@ -692,7 +695,7 @@ export function useAgendaPage() {
         .single();
       if (error) throw error;
 
-      if (appointmentType === 'evaluation' && selectedLead) {
+      if (appointmentType === 'evaluation' && selectedLead && !selectedPatient) {
         const { error: leadError } = await supabase.from('leads')
           .update({ kanban_stage: 'scheduled', appointment_id: insertedAppointment.id })
           .eq('clinic_id', clinicId!)

@@ -344,7 +344,11 @@ export default function AppointmentsPage() {
       <QuickPatientModal
         open={quickPatientOpen}
         onOpenChange={setQuickPatientOpen}
-        onCreated={(patient) => setSelectedPatient(patient.id)}
+        onCreated={(patient) => {
+          ctx.setAppointmentType('session');
+          ctx.setSelectedLead('');
+          setSelectedPatient(patient.id);
+        }}
       />
     </div>
   );
