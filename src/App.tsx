@@ -15,6 +15,7 @@ import { PageLoader } from "./components/PageLoader";
 
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const PublicAnamnesePage = lazy(() => import("./pages/PublicAnamnesePage"));
+const PublicProposalPage = lazy(() => import("./pages/PublicProposalPage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
 const NoAccessPage = lazy(() => import("./pages/NoAccessPage"));
 const ClinicHome = lazy(() => import("./pages/clinic/HomePage"));
@@ -66,6 +67,8 @@ const App = () => (
               <Route path="/login" element={<LoginPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/anamnese/:token" element={<PublicAnamnesePage />} />
+              <Route path="/proposta/:id" element={<PublicProposalPage />} />
+              <Route path="/p/:id" element={<PublicProposalPage />} />
               <Route path="/sem-acesso" element={
                 <ProtectedRoute>
                   <NoAccessPage />
@@ -91,7 +94,8 @@ const App = () => (
                 <Route path="patients" element={<PatientsPage />} />
                 <Route path="patients/:id" element={<PatientDetailPage />} />
                 <Route path="treatments" element={<TreatmentsPage readOnly />} />
-                <Route path="vendas/nova" element={<NewSalePage />} />
+                <Route path="vendas/nova" element={<Navigate to="/clinic/proposals?openNew=1" replace />} />
+                <Route path="vendas" element={<Navigate to="/clinic/proposals" replace />} />
                 <Route path="proposals" element={<ProposalsPage />} />
                 <Route path="contracts" element={<ContractsPage />} />
                 <Route path="payments" element={<Navigate to="/clinic/finance/contracts" replace />} />

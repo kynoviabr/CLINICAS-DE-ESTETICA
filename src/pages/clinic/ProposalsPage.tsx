@@ -17,7 +17,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, FileText, Trash2, Search, Eye, Send, Check, X, Printer, Filter, DollarSign, Pencil, MessageCircle, Loader2 } from 'lucide-react';
+import { Plus, FileText, Trash2, Search, Eye, Send, Check, X, Printer, Filter, DollarSign, Pencil, MessageCircle, Loader2, UserPlus, Sparkles } from 'lucide-react';
+import QuickPatientModal from '@/components/patient/QuickPatientModal';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -86,6 +87,7 @@ export default function ProposalsPage() {
   const [discountValue, setDiscountValue] = useState<string>('');
   const [approvedPrompt, setApprovedPrompt] = useState<ProposalWithPatient | null>(null);
   const [sendingWhatsAppId, setSendingWhatsAppId] = useState<string | null>(null);
+  const [quickPatientOpen, setQuickPatientOpen] = useState(false);
   const [proposalPaymentEnabled, setProposalPaymentEnabled] = useState(false);
   const [proposalPaymentCondition, setProposalPaymentCondition] = useState<PaymentCondition>('cash');
   const [proposalSelectedPaymentMethods, setProposalSelectedPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -200,17 +202,19 @@ export default function ProposalsPage() {
   });
 
   useEffect(() => {
-    if (!shouldOpenNewFromQuery || !prefillPatientId || dialogOpen || !!editingId) return;
-    if (!patients.some((patient) => patient.id === prefillPatientId)) return;
+    if (!shouldOpenNewFromQuery || dialogOpen || !!editingId) return;
 
     resetForm();
-    setSelectedPatient(prefillPatientId);
+    const targetPatientId = prefillPatientId || crmLead?.patient_id;
+    if (targetPatientId && patients.some((patient) => patient.id === targetPatientId)) {
+      setSelectedPatient(targetPatientId);
+    }
     setDialogOpen(true);
 
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete('openNew');
     setSearchParams(nextParams, { replace: true });
-  }, [shouldOpenNewFromQuery, prefillPatientId, dialogOpen, editingId, patients, searchParams, setSearchParams]);
+  }, [shouldOpenNewFromQuery, prefillPatientId, crmLead?.patient_id, dialogOpen, editingId, patients, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!shouldOpenViewFromQuery || !prefillProposalId || proposals.length === 0 || !!viewDialog) return;
@@ -607,10 +611,10 @@ export default function ProposalsPage() {
       document.body.removeChild(downloadAnchor);
       setTimeout(() => URL.revokeObjectURL(downloadUrl), 2000);
 
-      // 3. Tentar gerar link assinado de 7 dias via storage (fallback resiliente)
+      // 3. Tentar gerar link assinado de 7 dias via storage (caminho seguro com RLS)
       let signedPdfUrl: string | null = null;
       try {
-        const storagePath = `proposals/${clinicId}/${proposal.id}.pdf`;
+        const storagePath = `${clinicId}/${proposal.patient_id}/proposta-${proposal.proposal_number}.pdf`;
         const { error: uploadError } = await supabase.storage
           .from('contracts')
           .upload(storagePath, pdfBlob, { contentType: 'application/pdf', upsert: true });
@@ -626,6 +630,9 @@ export default function ProposalsPage() {
       } catch (e) {
         console.warn('Storage link fallback:', e);
       }
+
+      // Link público web para carregar diretamente no celular do cliente
+      const proposalWebUrl = `${window.location.origin}/proposta/${proposal.id}`;
 
       const firstName = clientName.trim().split(/\s+/)[0] || clientName;
       const validityText = proposal.valid_until
@@ -646,25 +653,42 @@ export default function ProposalsPage() {
         financeSummary = `Valor padrão: ${formatBRL(standardTotal)}\nDesconto Especial: - ${formatBRL(discountAmount)}${discountPercent ? ` (${discountPercent}%)` : ''}\n*Valor Final com Desconto: ${formatBRL(finalTotal)}*`;
       }
 
-      let msg = `Olá, ${firstName}! Esperamos que esteja muito bem.\n\nPassando para enviar a sua proposta comercial da *${clinicName || 'nossa clínica'}* (Nº *${proposal.proposal_number}*):\n\n📋 *Tratamentos planejados:*\n${itemsList}\n\n💰 *Valores:*\n${financeSummary}\n`;
+      let msg = `Olá, ${firstName}! Esperamos que você esteja muito bem.\n\nPassando para enviar a sua proposta comercial da *${clinicName || 'nossa clínica'}* (Nº *${proposal.proposal_number}*):\n\n📋 *Tratamentos planejados:*\n${itemsList}\n\n💰 *Valores:*\n${financeSummary}\n`;
 
       if (paymentSummary) {
         msg += `\n💳 *Condições sugeridas:* ${paymentSummary}\n`;
       }
 
       msg += `\n⏳ *Validade:* até ${validityText}\n`;
+      msg += `\n✨ *Acesse sua proposta completa com todos os detalhes pelo link:*\n👉 ${proposalWebUrl}\n`;
 
       if (signedPdfUrl) {
-        msg += `\n📄 *Acesse ou baixe o PDF oficial da proposta pelo link:*\n${signedPdfUrl}\n`;
-      } else {
-        msg += `\n📄 *O PDF da proposta com todos os detalhes foi gerado e baixado para seu acompanhamento.*\n`;
+        msg += `\n📥 *Ou baixe o documento PDF oficial direto por aqui:*\n${signedPdfUrl}\n`;
       }
 
       msg += `\nFicamos à total disposição para tirar qualquer dúvida ou agendarmos seu início!`;
 
-      // 4. Abrir WhatsApp com mensagem pronta
-      const waUrl = whatsappLink(clientPhone, msg);
-      window.open(waUrl, '_blank', 'noopener,noreferrer');
+      // 4. Compartilhar arquivo PDF nativamente se suportado (mobile) ou abrir WhatsApp
+      const pdfFile = new File([pdfBlob], `Proposta-${proposal.proposal_number}.pdf`, { type: 'application/pdf' });
+      let sharedViaNavigator = false;
+      if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        try {
+          await navigator.share({
+            files: [pdfFile],
+            title: `Proposta ${proposal.proposal_number} - ${clinicName || 'Clinova'}`,
+            text: msg,
+          });
+          sharedViaNavigator = true;
+        } catch (shareErr) {
+          // Usuário cancelou ou navegador preferiu WhatsApp web
+          sharedViaNavigator = false;
+        }
+      }
+
+      if (!sharedViaNavigator) {
+        const waUrl = whatsappLink(clientPhone, msg);
+        window.open(waUrl, '_blank', 'noopener,noreferrer');
+      }
 
       // 5. Se estiver em rascunho, atualiza automaticamente para enviada
       if (proposal.status === 'draft') {
@@ -922,13 +946,45 @@ export default function ProposalsPage() {
           <form onSubmit={e => { e.preventDefault(); createMutation.mutate(); }} className="space-y-4 mt-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Paciente *</Label>
-                <Select value={selectedPatient} onValueChange={setSelectedPatient}>
-                  <SelectTrigger><SelectValue placeholder="Selecionar paciente" /></SelectTrigger>
-                  <SelectContent>
-                    {patients.map((p) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center justify-between">
+                  <Label>Paciente *</Label>
+                  <BrandButton
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs text-primary hover:text-primary/90 flex items-center gap-1 px-1.5 font-medium"
+                    onClick={() => setQuickPatientOpen(true)}
+                  >
+                    <UserPlus className="w-3.5 h-3.5" /> Novo cliente
+                  </BrandButton>
+                </div>
+                <div className="flex gap-2">
+                  <Select value={selectedPatient} onValueChange={setSelectedPatient}>
+                    <SelectTrigger className="flex-1"><SelectValue placeholder="Selecionar paciente" /></SelectTrigger>
+                    <SelectContent>
+                      <div className="p-1 border-b">
+                        <button
+                          type="button"
+                          className="w-full text-left text-xs font-semibold text-primary px-2 py-1.5 rounded hover:bg-primary/10 flex items-center gap-1.5 transition-colors"
+                          onClick={() => setQuickPatientOpen(true)}
+                        >
+                          <UserPlus className="w-3.5 h-3.5" /> + Cadastrar novo cliente
+                        </button>
+                      </div>
+                      {patients.map((p) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <BrandButton
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-10 px-3 text-xs shrink-0"
+                    onClick={() => setQuickPatientOpen(true)}
+                    title="Cadastrar novo cliente"
+                  >
+                    <UserPlus className="w-4 h-4 mr-1 text-primary" /> Novo
+                  </BrandButton>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Validade</Label>
@@ -1298,6 +1354,19 @@ export default function ProposalsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <QuickPatientModal
+        open={quickPatientOpen}
+        onOpenChange={setQuickPatientOpen}
+        onCreated={(patient) => {
+          setSelectedPatient(patient.id);
+          qc.invalidateQueries({ queryKey: ['patients-list'] });
+          toast({
+            title: 'Cliente cadastrado com sucesso!',
+            description: `${patient.full_name} foi selecionado(a) para esta proposta.`,
+          });
+        }}
+      />
     </div>
   );
 }

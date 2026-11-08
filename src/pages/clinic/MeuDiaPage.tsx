@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { addDays, endOfDay, format, startOfDay, startOfMonth, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowRight, CalendarPlus, Check, MessageCircle, Plus, Receipt, ShoppingBag, UserPlus, X } from 'lucide-react';
+import { ArrowRight, CalendarPlus, Check, MessageCircle, Plus, Receipt, UserPlus, X, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -309,8 +309,8 @@ export default function MeuDiaPage() {
       </BrandButton>
     );
     if (col === 'avaliacao') return (
-      <BrandButton size="sm" onClick={() => navigate(`/clinic/vendas/nova?leadId=${l.id}`)}>
-        <ShoppingBag className="h-3.5 w-3.5" /> Fazer venda
+      <BrandButton size="sm" onClick={() => navigate(`/clinic/proposals?openNew=1&leadId=${l.id}&returnTo=crm&returnLeadId=${l.id}`)}>
+        <FileText className="h-3.5 w-3.5" /> Criar proposta
       </BrandButton>
     );
     if (col === 'proposta') return (
@@ -331,7 +331,7 @@ export default function MeuDiaPage() {
         <div className="flex flex-wrap gap-2">
           <BrandButton variant="outline" onClick={() => navigate('/clinic/appointments?openNew=1')}><CalendarPlus className="h-4 w-4" /> Agendar</BrandButton>
           <BrandButton variant="outline" onClick={() => setNewLeadOpen(true)}><UserPlus className="h-4 w-4" /> Interessada</BrandButton>
-          <BrandButton onClick={() => navigate('/clinic/vendas/nova')}><Plus className="h-4 w-4" /> Nova venda</BrandButton>
+          <BrandButton onClick={() => navigate('/clinic/proposals?openNew=1')}><Plus className="h-4 w-4" /> Nova proposta</BrandButton>
         </div>
       </div>
 
