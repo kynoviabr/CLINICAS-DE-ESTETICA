@@ -145,6 +145,10 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
                     const sc = statusConfig[a.status];
                     const canDrag = isDraggable(a.status);
                     const isDraggingThis = draggingApptId === a.id;
+                    const apptNote = a.notes?.trim();
+                    const patientNote = (a.patients as { notes?: string | null } | null)?.notes?.trim();
+                    const hasBothNotes = apptNote && patientNote && apptNote !== patientNote;
+                    const singleNote = apptNote || patientNote;
                     return (
                       <div
                         key={a.id}
@@ -165,8 +169,8 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
                         onClick={() => setViewAppt(a)}
                         title={canDrag ? 'Arraste para mover para outro horário' : undefined}
                       >
-                        <div className="flex items-center justify-between">
-                          <div>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               {canDrag && (
                                 <GripVertical className="h-4 w-4 text-muted-foreground/60 shrink-0 hover:text-foreground" />
@@ -185,8 +189,26 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
                             </div>
                             <p className="text-sm text-muted-foreground">{(a.treatments as { name?: string | null } | null)?.name || 'Sem tratamento'}</p>
                             <p className="text-xs text-muted-foreground">{getProfessionalLabel(a.professional_id)}</p>
+
+                            {hasBothNotes ? (
+                              <div className="mt-2.5 space-y-1.5">
+                                <div className="rounded-lg border border-blue-200/80 bg-blue-50/80 p-2.5 text-xs dark:border-blue-800/40 dark:bg-blue-950/30">
+                                  <span className="font-semibold text-blue-600 dark:text-blue-400">Nota</span>
+                                  <p className="mt-1 whitespace-pre-wrap break-words text-foreground/90 leading-relaxed font-normal">{apptNote}</p>
+                                </div>
+                                <div className="rounded-lg border border-blue-200/60 bg-blue-50/50 p-2 text-xs dark:border-blue-800/30 dark:bg-blue-950/20">
+                                  <span className="font-semibold text-blue-600 dark:text-blue-400">Nota do Paciente</span>
+                                  <p className="mt-0.5 whitespace-pre-wrap break-words text-foreground/90 leading-relaxed font-normal">{patientNote}</p>
+                                </div>
+                              </div>
+                            ) : singleNote ? (
+                              <div className="mt-2.5 rounded-lg border border-blue-200/80 bg-blue-50/80 p-2.5 text-xs dark:border-blue-800/40 dark:bg-blue-950/30">
+                                <span className="font-semibold text-blue-600 dark:text-blue-400">Nota</span>
+                                <p className="mt-1 whitespace-pre-wrap break-words text-foreground/90 leading-relaxed font-normal">{singleNote}</p>
+                              </div>
+                            ) : null}
                           </div>
-                          <div className="text-right">
+                          <div className="text-right shrink-0">
                             <p className="font-semibold text-foreground">{format(getAppointmentStartDate(a), 'HH:mm')} - {format(getAppointmentEndDate(a), 'HH:mm')}</p>
                             <div className="mt-1 flex items-center justify-end gap-2">
                               <BrandBadge status={sc?.badge || 'default'}>{sc?.label || a.status}</BrandBadge>

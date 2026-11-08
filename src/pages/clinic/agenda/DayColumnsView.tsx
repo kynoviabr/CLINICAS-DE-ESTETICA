@@ -147,6 +147,14 @@ export function DayColumnsView({ ctx, professionalIds }: { ctx: AgendaPageContro
                           </div>
                           <div className="truncate">{getAppointmentDisplayName(a)}</div>
                           <div className="truncate opacity-80">{(a.treatments as { name?: string | null } | null)?.name}</div>
+                          {(a.notes || (a.patients as { notes?: string | null } | null)?.notes) && (
+                            <div className="mt-1 rounded bg-black/20 p-1 text-[10px]">
+                              <span className="font-semibold text-sky-200">Nota:</span>
+                              <p className="line-clamp-2 opacity-95 break-words whitespace-pre-wrap">
+                                {(a.notes || (a.patients as { notes?: string | null } | null)?.notes)?.trim()}
+                              </p>
+                            </div>
+                          )}
                         </button>
                       );
                     })}

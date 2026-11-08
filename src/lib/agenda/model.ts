@@ -35,6 +35,7 @@ export type AppointmentRow = Database['public']['Tables']['appointments']['Row']
     dissatisfaction_flag?: boolean | null;
     dissatisfaction_level?: string | null;
     dissatisfaction_reason?: string | null;
+    notes?: string | null;
   } | null;
   leads?: { full_name?: string | null; phone?: string | null } | null;
   treatments?: { name?: string | null } | null;
