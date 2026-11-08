@@ -19,7 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import {
   ArrowLeft, User, Phone, Mail, Calendar, ClipboardList, Activity, Camera,
-  MessageSquare, Star, ExternalLink, Loader2, AlertTriangle, FileSignature, Upload, Edit, MessageCircle
+  MessageSquare, Star, ExternalLink, Loader2, AlertTriangle, FileSignature, Upload, Edit, MessageCircle,
+  NotebookPen, Pencil
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { getSignedContractUrl } from '@/lib/storageHelper';
@@ -30,6 +31,8 @@ import {
 } from 'recharts';
 
 import PatientAnamneseTab from '@/components/anamnese/PatientAnamneseTab';
+import { PatientNotesTab } from '@/components/patient/PatientNotesTab';
+import { parsePatientNotes, getLatestPatientNoteText, serializePatientNotes, type PatientNoteEntry } from '@/lib/patients/notesHistory';
 import { FileText as FileTextIcon } from 'lucide-react';
 import { ContractStatusBadge } from '@/components/contracts/ContractStatusBadge';
 import PayerSection, { type PayerData } from '@/components/patient/PayerSection';
@@ -116,7 +119,7 @@ export default function PatientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { clinicId } = useUserRole();
+  const { clinicId, role } = useUserRole();
   const queryClient = useQueryClient();
   type AppointmentRow = Database['public']['Tables']['appointments']['Row'] & { treatments?: { name?: string | null } | null };
   type SessionRow = Database['public']['Tables']['session_records']['Row'] & { treatments?: { name?: string | null } | null };
@@ -362,7 +365,7 @@ export default function PatientDetailPage() {
       address_complement: patient.address_complement || '',
       city: patient.city || '',
       state: patient.state || '',
-      notes: patient.notes || '',
+      notes: getLatestPatientNoteText(patient.notes) || '',
     });
     setEditErrors({});
     duplicates.reset();
@@ -373,6 +376,24 @@ export default function PatientDetailPage() {
     mutationFn: async () => {
       if (!clinicId || !id) throw new Error('Paciente não encontrado');
       if (!editForm.full_name.trim()) throw new Error('Nome é obrigatório');
+
+      const trimmedNotes = editForm.notes.trim();
+      let updatedNotesPayload = patient?.notes || null;
+      if (trimmedNotes !== getLatestPatientNoteText(patient?.notes)) {
+        if (!trimmedNotes) {
+          updatedNotesPayload = null;
+        } else {
+          const existingNotes = parsePatientNotes(patient?.notes);
+          const newEntry: PatientNoteEntry = {
+            id: crypto.randomUUID ? crypto.randomUUID() : `note-${Date.now()}`,
+            date: new Date().toISOString(),
+            author_name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Atendente',
+            author_role: role === 'professional' ? 'Profissional' : role === 'admin' ? 'Administrador' : 'Recepção',
+            text: trimmedNotes,
+          };
+          updatedNotesPayload = serializePatientNotes([newEntry, ...existingNotes]);
+        }
+      }
 
       const payload = {
         full_name: editForm.full_name.trim(),
@@ -387,7 +408,7 @@ export default function PatientDetailPage() {
         address_complement: editForm.address_complement.trim() || null,
         city: editForm.city.trim() || null,
         state: editForm.state.trim() || null,
-        notes: editForm.notes.trim() || null,
+        notes: updatedNotesPayload,
       };
 
       const { error } = await supabase
@@ -883,6 +904,7 @@ export default function PatientDetailPage() {
           <TabsTrigger value="sessions" className="flex items-center gap-1"><ClipboardList className="w-3.5 h-3.5" />Sessões</TabsTrigger>
           <TabsTrigger value="evolution" className="flex items-center gap-1"><Activity className="w-3.5 h-3.5" />Evolução</TabsTrigger>
           <TabsTrigger value="photos" className="flex items-center gap-1"><Camera className="w-3.5 h-3.5" />Fotos</TabsTrigger>
+          <TabsTrigger value="notes" className="flex items-center gap-1"><NotebookPen className="w-3.5 h-3.5" />Notas e Observações</TabsTrigger>
           <TabsTrigger value="whatsapp" className="flex items-center gap-1"><MessageCircle className="w-3.5 h-3.5" />WhatsApp</TabsTrigger>
           {!lean && <TabsTrigger value="feedback" className="flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5" />Feedback</TabsTrigger>}
         </TabsList>
@@ -917,9 +939,15 @@ export default function PatientDetailPage() {
                 ))}
               </dl>
               {patient.notes && (
-                <div className="mt-4 pt-4 border-t">
-                  <dt className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Observações</dt>
-                  <dd className="text-sm text-foreground whitespace-pre-wrap">{patient.notes}</dd>
+                <div className="mt-4 pt-4 border-t flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <dt className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Última observação</dt>
+                    <dd className="text-sm text-foreground whitespace-pre-wrap">{getLatestPatientNoteText(patient.notes)}</dd>
+                  </div>
+                  <BrandButton size="sm" variant="ghost" onClick={() => setPatientTab('notes')} className="self-start sm:self-auto text-primary">
+                    <NotebookPen className="w-3.5 h-3.5 mr-1" />
+                    Ver histórico ({parsePatientNotes(patient.notes).length})
+                  </BrandButton>
                 </div>
               )}
               
@@ -1041,6 +1069,16 @@ export default function PatientDetailPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2 self-start md:self-center">
+                          {proposal.status !== 'accepted' && (
+                            <BrandButton
+                              size="sm"
+                              variant="outline"
+                              onClick={() => navigate(`/clinic/proposals?proposalId=${proposal.id}&edit=1`)}
+                            >
+                              <Pencil className="h-3.5 w-3.5 mr-1" />
+                              Editar
+                            </BrandButton>
+                          )}
                           {canGenerateContract && (
                             <BrandButton size="sm" onClick={() => openContractDialog(proposal)}>
                               <FileSignature className="h-4 w-4" />
@@ -1228,6 +1266,21 @@ export default function PatientDetailPage() {
         {/* Photos tab */}
         <TabsContent value="photos">
           {clinicId && id && <PatientPhotosTab clinicId={clinicId} patientId={id} />}
+        </TabsContent>
+
+        {/* Notes and observations tab */}
+        <TabsContent value="notes">
+          {clinicId && id && (
+            <PatientNotesTab
+              patientId={id}
+              clinicId={clinicId}
+              rawNotes={patient?.notes}
+              onNotesUpdated={() => {
+                queryClient.invalidateQueries({ queryKey: ['patient', id] });
+                queryClient.invalidateQueries({ queryKey: ['appointments'] });
+              }}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="whatsapp">

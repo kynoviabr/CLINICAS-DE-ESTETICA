@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { addDays, endOfDay, format, startOfDay, startOfMonth, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowRight, CalendarPlus, Check, MessageCircle, Plus, ShoppingBag, UserPlus, X } from 'lucide-react';
+import { ArrowRight, CalendarPlus, Check, MessageCircle, Plus, Receipt, ShoppingBag, UserPlus, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -172,6 +172,21 @@ export default function MeuDiaPage() {
     enabled,
   });
 
+  const { data: upcomingExpenses = [] } = useQuery({
+    queryKey: ['meudia-expenses', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('expenses')
+        .select('id, description, category, amount, expense_date, paid')
+        .eq('clinic_id', clinicId!)
+        .eq('paid', false)
+        .order('expense_date');
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; description: string | null; category: string; amount: number; expense_date: string; paid: boolean }>;
+    },
+    enabled,
+  });
+
   // ---------- derivados ----------
   const personOf = (a: ApptRow) => a.patients?.full_name ? a.patients : a.leads;
   const todayAppts = appts.filter((a) => new Date(a.start_time).toDateString() === now.toDateString());
@@ -213,7 +228,19 @@ export default function MeuDiaPage() {
   });
   const pendingTasks = tasks.filter((t) => !done.includes(t.id));
 
-  const refresh = () => ['meudia-appts', 'meudia-leads', 'meudia-proposals', 'crm-leads', 'proposals'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+  const in7Days = format(addDays(now, 7), 'yyyy-MM-dd');
+  const expensesDueToday = upcomingExpenses.filter((e) => e.expense_date === today);
+  const expensesDueTodayCount = expensesDueToday.length;
+  const expensesDueTodayAmount = expensesDueToday.reduce((s, e) => s + Number(e.amount), 0);
+
+  const expensesDueThisWeek = upcomingExpenses.filter((e) => e.expense_date >= today && e.expense_date <= in7Days);
+  const expensesDueThisWeekCount = expensesDueThisWeek.length;
+  const expensesDueThisWeekAmount = expensesDueThisWeek.reduce((s, e) => s + Number(e.amount), 0);
+
+  const overdueExpenses = upcomingExpenses.filter((e) => e.expense_date < today);
+  const overdueExpensesAmount = overdueExpenses.reduce((s, e) => s + Number(e.amount), 0);
+
+  const refresh = () => ['meudia-appts', 'meudia-leads', 'meudia-proposals', 'crm-leads', 'proposals', 'meudia-expenses'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
 
   const toggleDone = (id: string) => {
     const next = done.includes(id) ? done.filter((x) => x !== id) : [...done, id];
@@ -352,8 +379,61 @@ export default function MeuDiaPage() {
         </CardContent>
       </Card>
 
-      <StockSummaryCard clinicId={clinicId} />
+      {/* Interessadas */}
+      <Card className="shadow-card">
+        <CardHeader className="pb-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <CardTitle className="text-base">Interessadas</CardTitle>
+            <Link to="/clinic/crm" className="text-sm font-medium text-primary underline-offset-2 hover:underline">Ver todas</Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {FUNNEL_COLUMNS.map((c) => {
+              const list = columns[c.key];
+              const value = list.reduce((s, l) => s + Number(l.proposals?.final_amount || 0), 0);
+              return (
+                <div key={c.key} className="space-y-2 rounded-xl bg-muted/50 p-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="text-sm font-semibold">{c.label} · {list.length}</p>
+                    {value > 0 && <p className="text-xs text-muted-foreground">{formatBRL(value)}</p>}
+                  </div>
+                  {list.length === 0 && <p className="text-xs text-muted-foreground">Ninguém aqui.</p>}
+                  {list.slice(0, 6).map((l) => {
+                    const days = daysWithoutContact(l, now);
+                    return (
+                      <div key={l.id} className="space-y-1.5 rounded-lg border bg-card p-3">
+                        <p className="truncate font-medium" title={l.full_name}>{l.full_name}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {l.treatments_of_interest?.[0] || (l.phone ? formatPhone(l.phone) : 'Sem telefone')}
+                          {l.proposals?.final_amount ? ` · ${formatBRL(Number(l.proposals.final_amount))}` : ''}
+                        </p>
+                        {c.key !== 'fechou' && days >= 3 && <p className="text-xs font-semibold text-warning">{days} dias sem contato</p>}
+                        {c.key !== 'fechou' && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {leadAction(c.key, l)}
+                            <a href={whatsappLink(l.phone, `Oi ${l.full_name.split(' ')[0]}! Aqui é da ${clinicName}.`)} target="_blank" rel="noopener noreferrer"
+                              aria-label={`WhatsApp de ${l.full_name}`} className="inline-flex h-8 w-8 items-center justify-center rounded-btn border border-border hover:bg-muted">
+                              <MessageCircle className="h-3.5 w-3.5" />
+                            </a>
+                            <button type="button" aria-label={`Marcar ${l.full_name} como perdida`} onClick={() => { setLostLead(l); setLostReason(lostReasons[0]); }}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-btn border border-border text-muted-foreground hover:bg-muted">
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {list.length > 6 && <Link to="/clinic/crm" className="block text-xs font-medium text-primary">+ {list.length - 6} no CRM</Link>}
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
+      {/* Agenda e Tarefas de hoje */}
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         {/* Agenda */}
         <Card className="shadow-card">
@@ -431,59 +511,58 @@ export default function MeuDiaPage() {
         </Card>
       </div>
 
-      {/* Interessadas */}
-      <Card className="shadow-card">
-        <CardHeader className="pb-2">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <CardTitle className="text-base">Interessadas</CardTitle>
-            <Link to="/clinic/crm" className="text-sm font-medium text-primary underline-offset-2 hover:underline">Ver todas</Link>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {FUNNEL_COLUMNS.map((c) => {
-              const list = columns[c.key];
-              const value = list.reduce((s, l) => s + Number(l.proposals?.final_amount || 0), 0);
-              return (
-                <div key={c.key} className="space-y-2 rounded-xl bg-muted/50 p-3">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <p className="text-sm font-semibold">{c.label} · {list.length}</p>
-                    {value > 0 && <p className="text-xs text-muted-foreground">{formatBRL(value)}</p>}
-                  </div>
-                  {list.length === 0 && <p className="text-xs text-muted-foreground">Ninguém aqui.</p>}
-                  {list.slice(0, 6).map((l) => {
-                    const days = daysWithoutContact(l, now);
-                    return (
-                      <div key={l.id} className="space-y-1.5 rounded-lg border bg-card p-3">
-                        <p className="truncate font-medium" title={l.full_name}>{l.full_name}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {l.treatments_of_interest?.[0] || (l.phone ? formatPhone(l.phone) : 'Sem telefone')}
-                          {l.proposals?.final_amount ? ` · ${formatBRL(Number(l.proposals.final_amount))}` : ''}
-                        </p>
-                        {c.key !== 'fechou' && days >= 3 && <p className="text-xs font-semibold text-warning">{days} dias sem contato</p>}
-                        {c.key !== 'fechou' && (
-                          <div className="flex flex-wrap gap-1.5 pt-1">
-                            {leadAction(c.key, l)}
-                            <a href={whatsappLink(l.phone, `Oi ${l.full_name.split(' ')[0]}! Aqui é da ${clinicName}.`)} target="_blank" rel="noopener noreferrer"
-                              aria-label={`WhatsApp de ${l.full_name}`} className="inline-flex h-8 w-8 items-center justify-center rounded-btn border border-border hover:bg-muted">
-                              <MessageCircle className="h-3.5 w-3.5" />
-                            </a>
-                            <button type="button" aria-label={`Marcar ${l.full_name} como perdida`} onClick={() => { setLostLead(l); setLostReason(lostReasons[0]); }}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-btn border border-border text-muted-foreground hover:bg-muted">
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {list.length > 6 && <Link to="/clinic/crm" className="block text-xs font-medium text-primary">+ {list.length - 6} no CRM</Link>}
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Estoque e Contas a Pagar */}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <StockSummaryCard clinicId={clinicId} />
+
+        <Card className="shadow-card">
+          <CardHeader className="pb-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Receipt className="h-4 w-4" /> Contas a Pagar
+              </CardTitle>
+              <Link to="/clinic/despesas" className="text-sm font-medium text-primary underline-offset-2 hover:underline">
+                Abrir despesas
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="flex items-center justify-between border-b pb-2">
+              <div>
+                <p className="font-medium text-foreground">Vencendo Hoje</p>
+                <p className="text-xs text-muted-foreground">
+                  {expensesDueTodayCount === 0
+                    ? 'Nenhuma conta para hoje'
+                    : `${expensesDueTodayCount} conta(s) a pagar hoje`}
+                </p>
+              </div>
+              <span className={`text-base font-semibold ${expensesDueTodayCount > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                {formatBRL(expensesDueTodayAmount)}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-foreground">Vencendo esta Semana</p>
+                <p className="text-xs text-muted-foreground">
+                  {expensesDueThisWeekCount === 0
+                    ? 'Nenhuma conta nos próximos 7 dias'
+                    : `${expensesDueThisWeekCount} conta(s) nos próximos 7 dias`}
+                </p>
+              </div>
+              <span className="text-base font-semibold text-foreground">
+                {formatBRL(expensesDueThisWeekAmount)}
+              </span>
+            </div>
+
+            {overdueExpenses.length > 0 && (
+              <p className="text-xs text-destructive pt-1 border-t">
+                Atenção: {overdueExpenses.length} conta(s) atrasada(s) totalizando {formatBRL(overdueExpensesAmount)}.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <Dialog open={newLeadOpen} onOpenChange={setNewLeadOpen}>
         <DialogContent className="max-w-md">

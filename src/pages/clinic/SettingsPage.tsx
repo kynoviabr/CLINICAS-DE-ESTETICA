@@ -18,7 +18,8 @@ import { FeaturesCard } from '@/components/settings/FeaturesCard';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, ClipboardList, FileText, MessageCircle } from 'lucide-react';
+import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, ClipboardList, FileText, MessageCircle, Bot } from 'lucide-react';
+import { AutomationsSettingsTab } from '@/components/settings/AutomationsSettingsTab';
 import CategoriesTab from '@/components/settings/CategoriesTab';
 import CostItemsTab from '@/components/settings/CostItemsTab';
 import ParametersTab from '@/components/settings/ParametersTab';
@@ -258,7 +259,14 @@ export default function SettingsPage() {
           {show('goals') && <TabsTrigger value="goals"><Target className="w-4 h-4 mr-1" />Metas</TabsTrigger>}
           <TabsTrigger value="parameters"><SlidersHorizontal className="w-4 h-4 mr-1" />Parâmetros</TabsTrigger>
           {role === 'admin' && <TabsTrigger value="whatsapp"><MessageCircle className="w-4 h-4 mr-1" />WhatsApp</TabsTrigger>}
+          {role === 'admin' && <TabsTrigger value="automations"><Bot className="w-4 h-4 mr-1" />Automações</TabsTrigger>}
         </TabsList>
+
+        {role === 'admin' && (
+          <TabsContent value="automations">
+            <AutomationsSettingsTab />
+          </TabsContent>
+        )}
 
         {role === 'admin' && (
           <TabsContent value="whatsapp">

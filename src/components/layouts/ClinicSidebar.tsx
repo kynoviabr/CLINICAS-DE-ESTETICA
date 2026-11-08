@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, FileText, ClipboardList,
   CalendarDays, Activity, Camera, MessageSquare, Settings, LogOut,
-  Menu, X, Stethoscope, FileSignature, BarChart3, TrendingUp, Star, KanbanSquare, Landmark, Goal, ShoppingBag, Package, Receipt, MessageCircle } from 'lucide-react';
+  Menu, X, Stethoscope, FileSignature, BarChart3, TrendingUp, Star, KanbanSquare, Landmark, Goal, ShoppingBag, Package, Receipt, MessageCircle, Bot } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -43,6 +43,7 @@ const navItems: NavItem[] = [
   { to: '/clinic/photos', icon: Camera, label: 'Fotos', roles: ['admin', 'professional'], permissionKey: 'photos.view' },
   { to: '/clinic/feedback', icon: Star, label: 'Avaliações', roles: ['admin', 'receptionist', 'professional'], permissionKey: 'feedback.view' },
   { to: '/clinic/reports', icon: MessageSquare, label: 'Relatórios', roles: ['admin', 'sales'], permissionKey: 'reports.view' },
+  { to: '/clinic/automacoes', icon: Bot, label: 'Automações', roles: ['admin', 'receptionist'], permissionKey: 'settings.view' },
   { to: '/clinic/settings', icon: Settings, label: 'Configurações', roles: ['admin'], permissionKey: 'settings.view' },
 ];
 
@@ -66,8 +67,10 @@ export default function ClinicSidebar() {
   const filteredNav = navItems.filter((item) => {
     if (!role || !item.roles.includes(role as AppRole)) return false;
     // Funcionalidades que a clínica pode desligar em Configurações.
+    if (item.to === '/clinic/financeiro' && !isEnabled('finance')) return false;
     if (item.to === '/clinic/estoque' && !isEnabled('stock')) return false;
     if (item.to === '/clinic/despesas' && !isEnabled('expenses')) return false;
+    if (item.to === '/clinic/automacoes' && !isEnabled('automations')) return false;
     if (accessLoading) return false;
     return has(item.permissionKey);
   });

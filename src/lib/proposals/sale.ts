@@ -61,6 +61,9 @@ export interface ProposalDocument {
   clientEmail?: string | null;
   items: SaleItem[];
   total: number;
+  standardTotal?: number;
+  discountAmount?: number;
+  discountPercent?: number;
   paymentSummary?: string;
   notes?: string;
 }
@@ -115,7 +118,13 @@ export function buildProposalHtml(doc: ProposalDocument): string {
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <p style="text-align:right;font-size:20px;font-weight:bold;margin:14px 0">Total: ${formatBRL(doc.total)}</p>
+    ${doc.discountAmount && doc.discountAmount > 0 ? `
+    <div style="margin:14px 0;text-align:right;font-size:13px">
+      <div style="color:#6b7280">Valor padrão: ${formatBRL(doc.standardTotal ?? doc.total)}</div>
+      <div style="color:#16a34a;font-weight:600;margin-top:2px">Desconto Especial: - ${formatBRL(doc.discountAmount)}${doc.discountPercent ? ` (${doc.discountPercent}%)` : ''}</div>
+      <p style="font-size:20px;font-weight:bold;margin:6px 0 0">Total Final: ${formatBRL(doc.total)}</p>
+    </div>` : `
+    <p style="text-align:right;font-size:20px;font-weight:bold;margin:14px 0">Total: ${formatBRL(doc.total)}</p>`}
     ${doc.paymentSummary ? `<div style="font-size:13px;margin:10px 0"><strong>Condições de pagamento:</strong> ${escapeHtml(doc.paymentSummary)}</div>` : ''}
     ${doc.notes ? `<div style="font-size:13px;white-space:pre-line;margin:10px 0"><strong>Observações:</strong> ${escapeHtml(doc.notes)}</div>` : ''}
     <div style="margin-top:16px;font-size:12px;color:#374151">

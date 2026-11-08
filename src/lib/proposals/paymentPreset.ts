@@ -39,7 +39,8 @@ export const sanitizePaymentSnapshot = (snapshot?: PaymentPresetSnapshot | null)
 
 export const parseProposalNotesPayload = (rawNotes?: string | null): { plainNotes: string; paymentPreset: PaymentPresetSnapshot | null } => {
   const noteText = rawNotes || '';
-  const regex = new RegExp(`\\n?${PAYMENT_PRESET_MARKER}([A-Za-z0-9+/=]+)\\s*$`);
+  const escapedMarker = PAYMENT_PRESET_MARKER.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+  const regex = new RegExp(`(?:\\r?\\n)*${escapedMarker}([A-Za-z0-9+/=]+)\\s*$`);
   const match = noteText.match(regex);
   if (!match) return { plainNotes: noteText, paymentPreset: null };
 

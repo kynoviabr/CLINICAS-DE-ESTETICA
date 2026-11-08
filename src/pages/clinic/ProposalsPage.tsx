@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, FileText, Trash2, Search, Eye, Send, Check, X, Printer, Filter, DollarSign } from 'lucide-react';
+import { Plus, FileText, Trash2, Search, Eye, Send, Check, X, Printer, Filter, DollarSign, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -81,6 +81,8 @@ export default function ProposalsPage() {
   const [items, setItems] = useState<ProposalItem[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [itemTab, setItemTab] = useState('treatment');
+  const [discountType, setDiscountType] = useState<'nominal' | 'percent'>('nominal');
+  const [discountValue, setDiscountValue] = useState<string>('');
   const [approvedPrompt, setApprovedPrompt] = useState<ProposalWithPatient | null>(null);
   const [proposalPaymentEnabled, setProposalPaymentEnabled] = useState(false);
   const [proposalPaymentCondition, setProposalPaymentCondition] = useState<PaymentCondition>('cash');
@@ -92,6 +94,7 @@ export default function ProposalsPage() {
   const shouldOpenNewFromQuery = searchParams.get('openNew') === '1';
   const prefillProposalId = searchParams.get('proposalId');
   const shouldOpenViewFromQuery = searchParams.get('view') === '1';
+  const shouldOpenEditFromQuery = searchParams.get('edit') === '1';
   const returnTo = searchParams.get('returnTo');
   const returnLeadId = searchParams.get('returnLeadId');
   const crmReturnUrl = returnTo === 'crm' && returnLeadId ? `/clinic/crm?leadId=${returnLeadId}` : null;
@@ -155,7 +158,23 @@ export default function ProposalsPage() {
     enabled: !!clinicId && !!prefillLeadId,
   });
 
-  const total = items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+  const standardTotal = items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+  const numDiscountValue = parseFloat(discountValue.replace(',', '.')) || 0;
+  let discountAmount = 0;
+  let discountPercent = 0;
+
+  if (numDiscountValue > 0) {
+    if (discountType === 'nominal') {
+      discountAmount = Math.min(standardTotal, numDiscountValue);
+      discountPercent = standardTotal > 0 ? (discountAmount / standardTotal) * 100 : 0;
+    } else {
+      discountPercent = Math.min(100, numDiscountValue);
+      discountAmount = (standardTotal * discountPercent) / 100;
+    }
+  }
+  const finalTotal = Math.max(0, Math.round((standardTotal - discountAmount) * 100) / 100);
+  const total = finalTotal;
+
   const normalizeDigits = (value?: string | null) => (value || '').replace(/\D/g, '');
   const normalizedSearch = search.trim().toLowerCase();
   const normalizedSearchDigits = normalizeDigits(search);
@@ -204,6 +223,19 @@ export default function ProposalsPage() {
     setSearchParams(nextParams, { replace: true });
   }, [shouldOpenViewFromQuery, prefillProposalId, proposals, viewDialog, searchParams, setSearchParams]);
 
+  useEffect(() => {
+    if (!shouldOpenEditFromQuery || !prefillProposalId || proposals.length === 0 || dialogOpen) return;
+    const targetProposal = proposals.find((proposal) => proposal.id === prefillProposalId);
+    if (!targetProposal) return;
+
+    openEdit(targetProposal);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('proposalId');
+    nextParams.delete('edit');
+    setSearchParams(nextParams, { replace: true });
+  }, [shouldOpenEditFromQuery, prefillProposalId, proposals, dialogOpen, searchParams, setSearchParams]);
+
   const generateProposalNumber = () => {
     const now = new Date();
     const yymm = format(now, 'yyyyMM');
@@ -248,7 +280,7 @@ export default function ProposalsPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       const num = editingId ? undefined : generateProposalNumber();
-      const presetValidation = validatePaymentPreset(total);
+      const presetValidation = validatePaymentPreset(finalTotal);
       if (!presetValidation.ok) {
         throw new Error(presetValidation.message);
       }
@@ -267,8 +299,10 @@ export default function ProposalsPage() {
       if (editingId) {
         const { error } = await supabase.from('proposals').update({
           patient_id: selectedPatient,
-          total_amount: total,
-          final_amount: total,
+          total_amount: standardTotal,
+          discount_percent: discountPercent > 0 ? discountPercent : null,
+          discount_amount: discountAmount > 0 ? discountAmount : null,
+          final_amount: finalTotal,
           notes: notesPayload,
           valid_until: validUntil || null,
         }).eq('id', editingId);
@@ -292,8 +326,10 @@ export default function ProposalsPage() {
           clinic_id: clinicId!,
           patient_id: selectedPatient,
           proposal_number: num!,
-          total_amount: total,
-          final_amount: total,
+          total_amount: standardTotal,
+          discount_percent: discountPercent > 0 ? discountPercent : null,
+          discount_amount: discountAmount > 0 ? discountAmount : null,
+          final_amount: finalTotal,
           notes: notesPayload,
           valid_until: validUntil || null,
           created_by: user?.id || null,
@@ -385,6 +421,8 @@ export default function ProposalsPage() {
     setValidUntil(defaultValidUntil());
     setItems([]);
     setEditingId(null);
+    setDiscountType('nominal');
+    setDiscountValue('');
     setProposalPaymentEnabled(false);
     setProposalPaymentCondition('cash');
     setProposalSelectedPaymentMethods([]);
@@ -427,6 +465,18 @@ export default function ProposalsPage() {
     setSelectedPatient(proposal.patient_id);
     setNotes(parsed.plainNotes);
     setValidUntil(proposal.valid_until || '');
+
+    if (proposal.discount_percent && Number(proposal.discount_percent) > 0) {
+      setDiscountType('percent');
+      setDiscountValue(String(proposal.discount_percent));
+    } else if (proposal.discount_amount && Number(proposal.discount_amount) > 0) {
+      setDiscountType('nominal');
+      setDiscountValue(String(proposal.discount_amount));
+    } else {
+      setDiscountType('nominal');
+      setDiscountValue('');
+    }
+
     if (parsed.paymentPreset) {
       setProposalPaymentEnabled(true);
       setProposalPaymentCondition(parsed.paymentPreset.condition);
@@ -475,6 +525,9 @@ export default function ProposalsPage() {
         unit_price: Number(i.unit_price), min_price: null,
       })),
       total: Number(proposal.final_amount),
+      standardTotal: Number(proposal.total_amount || proposal.final_amount),
+      discountAmount: Number(proposal.discount_amount || 0),
+      discountPercent: Number(proposal.discount_percent || 0),
       paymentSummary,
       notes: parsed.plainNotes || undefined,
     });
@@ -657,8 +710,8 @@ export default function ProposalsPage() {
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
                           <BrandButton variant="ghost" size="sm" onClick={() => openView(p)} title="Ver"><Eye className="w-3.5 h-3.5" /></BrandButton>
-                          {p.status === 'draft' && (
-                            <BrandButton variant="ghost" size="sm" onClick={() => openEdit(p)} title="Editar"><FileText className="w-3.5 h-3.5" /></BrandButton>
+                          {p.status !== 'accepted' && (p.status as string) !== 'converted' && (
+                            <BrandButton variant="ghost" size="sm" onClick={() => openEdit(p)} title="Editar"><Pencil className="w-3.5 h-3.5" /></BrandButton>
                           )}
                           {(p.status === 'draft' || p.status === 'sent') && (
                             <BrandButton
@@ -799,7 +852,59 @@ export default function ProposalsPage() {
                   );
                 })}
                 {items.length > 0 && (
-                  <p className="text-right font-bold text-foreground mt-2">Total: R$ {total.toFixed(2)}</p>
+                  <div className="space-y-3 rounded-lg border p-3 bg-secondary/15 mt-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-semibold text-foreground">Desconto Especial</Label>
+                      <div className="inline-flex rounded-md border p-0.5 bg-background">
+                        <button
+                          type="button"
+                          onClick={() => setDiscountType('nominal')}
+                          className={`px-2.5 py-1 text-xs font-medium rounded transition ${discountType === 'nominal' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
+                        >
+                          R$ (Nominal)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDiscountType('percent')}
+                          className={`px-2.5 py-1 text-xs font-medium rounded transition ${discountType === 'percent' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
+                        >
+                          % (Porcentagem)
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-muted-foreground w-8 text-right">
+                        {discountType === 'nominal' ? 'R$' : '%'}
+                      </span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder={discountType === 'nominal' ? '0,00' : '0'}
+                        value={discountValue}
+                        onChange={(e) => setDiscountValue(e.target.value)}
+                        className="h-9 flex-1"
+                      />
+                    </div>
+                    <div className="text-xs space-y-1.5 text-muted-foreground pt-2 border-t">
+                      <div className="flex justify-between">
+                        <span>Valor padrão:</span>
+                        <span className="font-medium text-foreground">R$ {standardTotal.toFixed(2)}</span>
+                      </div>
+                      {discountAmount > 0 && (
+                        <div className="flex justify-between text-success font-semibold">
+                          <span>
+                            Desconto especial ({discountType === 'percent' ? `${discountPercent.toFixed(1)}%` : `R$ ${discountAmount.toFixed(2)}`}):
+                          </span>
+                          <span>- R$ {discountAmount.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-foreground font-bold text-sm pt-1 border-t">
+                        <span>Valor final:</span>
+                        <span className="text-primary text-base">R$ {finalTotal.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
                 )}
 
                 <div className="space-y-2 pt-2 border-t">
@@ -841,7 +946,7 @@ export default function ProposalsPage() {
                       setPaymentDetails={setProposalPaymentDetails}
                     />
                     <div className="rounded-md border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
-                      Valor da proposta: <span className="font-semibold text-foreground">R$ {total.toFixed(2)}</span> ·
+                      Valor da proposta: <span className="font-semibold text-foreground">R$ {finalTotal.toFixed(2)}</span> ·
                       Soma informada: <span className="font-semibold text-foreground">R$ {proposalPaymentSum.toFixed(2)}</span>
                       {!proposalPaymentValidation.ok && (
                         <span className="block text-destructive mt-1">
@@ -886,7 +991,14 @@ export default function ProposalsPage() {
                   <div><span className="text-muted-foreground">Paciente:</span> <span className="font-medium">{viewDialog.patients?.full_name}</span></div>
                   <div><span className="text-muted-foreground">Data:</span> <span className="font-medium">{format(new Date(viewDialog.created_at), 'dd/MM/yyyy', { locale: ptBR })}</span></div>
                   {viewDialog.valid_until && <div><span className="text-muted-foreground">Validade:</span> <span className="font-medium">{format(new Date(viewDialog.valid_until + 'T12:00'), 'dd/MM/yyyy', { locale: ptBR })}</span></div>}
-                  <div><span className="text-muted-foreground">Valor Total:</span> <span className="font-bold">R$ {Number(viewDialog.final_amount).toFixed(2)}</span></div>
+                  <div><span className="text-muted-foreground">Valor Padrão:</span> <span className="font-medium">R$ {Number(viewDialog.total_amount || viewDialog.final_amount).toFixed(2)}</span></div>
+                  {Number(viewDialog.discount_amount || 0) > 0 && (
+                    <div className="text-success font-medium col-span-2 sm:col-span-1">
+                      <span>Desconto Especial{Number(viewDialog.discount_percent || 0) > 0 ? ` (${viewDialog.discount_percent}%)` : ''}:</span>{' '}
+                      <span>- R$ {Number(viewDialog.discount_amount).toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div><span className="text-muted-foreground">Valor Final:</span> <span className="font-bold text-primary">R$ {Number(viewDialog.final_amount).toFixed(2)}</span></div>
                 </div>
 
                 {viewDialog.items?.length > 0 && (
@@ -930,6 +1042,20 @@ export default function ProposalsPage() {
                   <BrandButton variant="outline" size="sm" onClick={() => handlePrint(viewDialog)}>
                     <Printer className="w-4 h-4" /> Imprimir
                   </BrandButton>
+
+                  {viewDialog.status !== 'accepted' && (viewDialog.status as string) !== 'converted' && (
+                    <BrandButton
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const target = viewDialog;
+                        setViewDialog(null);
+                        openEdit(target);
+                      }}
+                    >
+                      <Pencil className="w-4 h-4" /> Editar
+                    </BrandButton>
+                  )}
 
                   {viewDialog.status === 'draft' && (
                     <BrandButton size="sm" onClick={() => statusMutation.mutate({ id: viewDialog.id, status: 'sent' })}>

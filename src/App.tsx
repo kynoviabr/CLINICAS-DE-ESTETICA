@@ -108,6 +108,7 @@ const App = () => (
                 <Route path="feedback" element={<FeedbackPage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="automacoes" element={<Navigate to="/clinic/settings?aba=automations" replace />} />
                 <Route path="metas/acompanhamento" element={<GoalsTrackingPage />} />
                 <Route path="metas/minha-meta" element={<GoalsTrackingPage />} />
                 <Route path="metas/equipe" element={<GoalsTrackingPage />} />
