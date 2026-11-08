@@ -240,8 +240,16 @@ async function resolveContact(db: SupabaseClient, clinicId: string, c: Contact):
 }
 
 const BOOKING_FIELDS = "id, start_time, end_time, status, appointment_type, treatment:treatments(name), professional:professionals(full_name, show_name_to_clients)";
-// deno-lint-ignore no-explicit-any
-const bookingJson = (a: any) => ({
+type BookingRow = {
+  id: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  appointment_type?: string | null;
+  treatment?: { name?: string | null } | null;
+  professional?: { full_name?: string | null; show_name_to_clients?: boolean | null } | null;
+};
+const bookingJson = (a: BookingRow) => ({
   id: a.id, start: localIso(new Date(a.start_time)), end: localIso(new Date(a.end_time)), status: a.status,
   serviceName: a.appointment_type === "evaluation" && !a.treatment?.name ? "Avaliação" : a.treatment?.name ?? null,
   professionalName: a.professional?.show_name_to_clients === false ? null : a.professional?.full_name ?? null,

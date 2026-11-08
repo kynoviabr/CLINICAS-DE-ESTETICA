@@ -1,13 +1,17 @@
+import { useState } from 'react';
 import { BrandButton } from '@/components/ui/brand-button';
 import { BrandBadge } from '@/components/ui/brand-badge';
 import { format } from 'date-fns';
-import { Plus } from 'lucide-react';
+import { Plus, GripVertical } from 'lucide-react';
 import { availabilityStateAt, dayHours, daySlots, slotOf } from '@/lib/agenda/daySlots';
 import { statusConfig } from '@/lib/agenda/model';
 import type { AgendaPageController } from './useAgendaPage';
 import { DayColumnsView } from './DayColumnsView';
 
 export function DayView({ ctx }: { ctx: AgendaPageController }) {
+  const [draggingApptId, setDraggingApptId] = useState<string | null>(null);
+  const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
+
   const {
     currentDate,
     viewMode,
@@ -28,6 +32,7 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
     setDialogOpen,
     isProfessional,
     myProfessionalId,
+    moveAppointmentMutation,
   } = ctx;
 
   const dayAppts = getApptsForDay(currentDate);
@@ -62,6 +67,8 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
     return <DayColumnsView ctx={ctx} professionalIds={columnProfessionals} />;
   }
 
+  const isDraggable = (status: string) => !['cancelled', 'completed', 'rescheduled'].includes(status);
+
   return (
     <>
     {viewMode === 'day' && (
@@ -90,10 +97,44 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
             const availabilityState = availabilityStateAt(availability, currentDate.getDay(), filterProfessionals, time);
             const open = availabilityState === 'working' || availabilityState === 'unconfigured';
             const free = starting.length === 0 && !block && !isBusy(time) && open;
+            const isHovered = dragOverSlot === time;
             return (
-              <div key={time} className="flex gap-3 py-1.5 min-h-[48px]">
+              <div
+                key={time}
+                onDragOver={(e) => {
+                  if (draggingApptId) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (dragOverSlot !== time) setDragOverSlot(time);
+                  }
+                }}
+                onDragLeave={(e) => {
+                  if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                  if (dragOverSlot === time) setDragOverSlot(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOverSlot(null);
+                  const appointmentId = e.dataTransfer.getData('text/plain') || draggingApptId;
+                  if (!appointmentId) return;
+                  setDraggingApptId(null);
+                  moveAppointmentMutation.mutate({
+                    appointmentId,
+                    newDate: format(currentDate, 'yyyy-MM-dd'),
+                    newTime: time,
+                  });
+                }}
+                className={`flex gap-3 py-1.5 min-h-[48px] rounded-lg transition-colors px-1 ${
+                  isHovered ? 'bg-primary/10 ring-2 ring-primary/40 ring-dashed' : ''
+                }`}
+              >
                 <div className="w-12 shrink-0 pt-1 text-xs font-medium text-muted-foreground tabular-nums">{time}</div>
                 <div className="flex-1 min-w-0 space-y-2">
+                  {isHovered && starting.length === 0 && !block && (
+                    <div className="rounded-md border border-dashed border-primary/50 bg-primary/5 py-1 px-3 text-xs font-medium text-primary text-center">
+                      Mover agendamento para {time}
+                    </div>
+                  )}
                   {block && starting.length === 0 && (
                     <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">Bloqueado · {block.reason}</div>
                   )}
@@ -102,15 +143,34 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
                   )}
                   {starting.map((a) => {
                     const sc = statusConfig[a.status];
+                    const canDrag = isDraggable(a.status);
+                    const isDraggingThis = draggingApptId === a.id;
                     return (
                       <div
                         key={a.id}
-                        className={`p-4 rounded-lg border cursor-pointer hover:shadow-md transition-shadow ${sc?.style || ''}`}
+                        draggable={canDrag}
+                        onDragStart={(e) => {
+                          if (!canDrag) return;
+                          e.dataTransfer.setData('text/plain', a.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                          setDraggingApptId(a.id);
+                        }}
+                        onDragEnd={() => {
+                          setDraggingApptId(null);
+                          setDragOverSlot(null);
+                        }}
+                        className={`p-4 rounded-lg border cursor-pointer hover:shadow-md transition-all ${sc?.style || ''} ${
+                          canDrag ? 'cursor-grab active:cursor-grabbing' : ''
+                        } ${isDraggingThis ? 'opacity-40 scale-[0.99] border-dashed ring-2 ring-primary ring-offset-2' : ''}`}
                         onClick={() => setViewAppt(a)}
+                        title={canDrag ? 'Arraste para mover para outro horário' : undefined}
                       >
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
+                              {canDrag && (
+                                <GripVertical className="h-4 w-4 text-muted-foreground/60 shrink-0 hover:text-foreground" />
+                              )}
                               <p className="font-semibold text-foreground">{getAppointmentDisplayName(a)}</p>
                               {a.appointment_type === 'evaluation' && (
                                 <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-700">
@@ -133,6 +193,8 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
                               <BrandButton
                                 size="sm"
                                 variant="outline"
+                                draggable={false}
+                                onDragStart={(event) => event.stopPropagation()}
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   setViewAppt(a);

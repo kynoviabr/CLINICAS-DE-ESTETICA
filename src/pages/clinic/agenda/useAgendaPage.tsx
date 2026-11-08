@@ -351,7 +351,9 @@ export function useAgendaPage() {
   const hasAvailabilityWindow = (professionalId: string | null, startTime: Date, endTime: Date) => {
     if (!professionalId) return true;
     const dayOfWeek = startTime.getDay();
-    const slots = availability.filter((slot) => slot.professional_id === professionalId && slot.day_of_week === dayOfWeek && slot.is_active);
+    const own = availability.filter((slot) => slot.professional_id === professionalId && slot.is_active);
+    if (own.length === 0) return true;
+    const slots = own.filter((slot) => slot.day_of_week === dayOfWeek);
     if (slots.length === 0) return false;
 
     const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
@@ -907,6 +909,88 @@ export function useAgendaPage() {
       toast({ title: 'Profissional reatribuído!' });
     },
     onError: (error) => toast({ title: 'Não foi possível reatribuir', description: error.message, variant: 'destructive' }),
+  });
+
+  const moveAppointmentMutation = useMutation({
+    mutationFn: async ({
+      appointmentId,
+      newDate,
+      newTime,
+      newProfessionalId,
+    }: {
+      appointmentId: string;
+      newDate: string;
+      newTime: string;
+      newProfessionalId?: string | null;
+    }) => {
+      if (!clinicId) throw new Error('Clínica não encontrada.');
+      const appointment = appointments.find((a) => a.id === appointmentId);
+      if (!appointment) throw new Error('Agendamento não encontrado.');
+
+      if (['cancelled', 'completed', 'rescheduled'].includes(appointment.status)) {
+        throw new Error('Não é possível mover um agendamento finalizado ou cancelado.');
+      }
+
+      const currentStart = getAppointmentStartDate(appointment);
+      const currentEnd = getAppointmentEndDate(appointment);
+      const durationMs = currentEnd.getTime() - currentStart.getTime();
+      const durationMinutes = Math.max(15, Math.round(durationMs / 60000));
+
+      const newStartTime = new Date(`${newDate}T${newTime}:00`);
+      const newEndTime = new Date(newStartTime.getTime() + durationMinutes * 60000);
+
+      const targetProfessionalId = newProfessionalId !== undefined ? newProfessionalId : appointment.professional_id;
+
+      // Se soltou no mesmo horário e com o mesmo profissional, não faz nada
+      if (
+        currentStart.getTime() === newStartTime.getTime() &&
+        (appointment.professional_id || null) === (targetProfessionalId || null)
+      ) {
+        return;
+      }
+
+      if (targetProfessionalId && !hasAvailabilityWindow(targetProfessionalId, newStartTime, newEndTime)) {
+        throw new Error('Esse novo horário está fora da disponibilidade semanal do profissional.');
+      }
+
+      await assertNoSchedulingConflicts({
+        professionalId: targetProfessionalId,
+        startTime: newStartTime,
+        endTime: newEndTime,
+        ignoreAppointmentId: appointment.id,
+      });
+
+      const patch: TablesUpdate<'appointments'> = {
+        start_time: newStartTime.toISOString(),
+        end_time: newEndTime.toISOString(),
+        scheduled_at: newStartTime.toISOString(),
+        duration_minutes: durationMinutes,
+      };
+
+      if (newProfessionalId !== undefined) {
+        patch.professional_id = newProfessionalId;
+      }
+
+      const { error } = await supabase
+        .from('appointments')
+        .update(patch)
+        .eq('id', appointment.id)
+        .eq('clinic_id', clinicId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['appointments'] });
+      qc.invalidateQueries({ queryKey: ['crm-leads'] });
+      toast({ title: 'Agendamento remanejado com sucesso!' });
+    },
+    onError: (err: Error) => {
+      toast({
+        title: 'Não foi possível mover o agendamento',
+        description: err.message,
+        variant: 'destructive',
+      });
+    },
   });
 
   const createBlockMutation = useMutation({
@@ -1466,6 +1550,7 @@ export function useAgendaPage() {
     updateStatusMutation,
     appointmentExceptionMutation,
     reassignProfessionalMutation,
+    moveAppointmentMutation,
     createBlockMutation,
     deleteBlockMutation,
     sendReminderQueueMutation,

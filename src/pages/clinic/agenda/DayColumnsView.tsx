@@ -1,11 +1,15 @@
+import { useState } from 'react';
 import { format } from 'date-fns';
-import { Plus } from 'lucide-react';
+import { Plus, GripVertical } from 'lucide-react';
 import { availabilityStateAt, dayHoursForMany, daySlots, slotOf } from '@/lib/agenda/daySlots';
 import { statusConfig } from '@/lib/agenda/model';
 import type { AgendaPageController } from './useAgendaPage';
 
 /** Visão Dia com uma coluna por profissional escolhida (nome no topo). */
 export function DayColumnsView({ ctx, professionalIds }: { ctx: AgendaPageController; professionalIds: string[] }) {
+  const [draggingApptId, setDraggingApptId] = useState<string | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+
   const {
     currentDate,
     setViewAppt,
@@ -22,6 +26,7 @@ export function DayColumnsView({ ctx, professionalIds }: { ctx: AgendaPageContro
     setSelectedTime,
     setSelectedProfessional,
     setDialogOpen,
+    moveAppointmentMutation,
   } = ctx;
 
   const weekday = currentDate.getDay();
@@ -67,30 +72,84 @@ export function DayColumnsView({ ctx, professionalIds }: { ctx: AgendaPageContro
                 const availabilityState = availabilityStateAt(availability, weekday, [id], time);
                 const works = availabilityState === 'working' || availabilityState === 'unconfigured';
                 const free = starting.length === 0 && !busy && !blocked && works;
+                const cellKey = `${id}_${time}`;
+                const isHovered = dragOverKey === cellKey;
                 return (
-                  <div key={id} className={`min-h-[44px] border-l p-0.5 space-y-0.5 ${!works && starting.length === 0 ? 'bg-muted/40' : ''}`}>
+                  <div
+                    key={id}
+                    onDragOver={(e) => {
+                      if (draggingApptId) {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        if (dragOverKey !== cellKey) setDragOverKey(cellKey);
+                      }
+                    }}
+                    onDragLeave={(e) => {
+                      if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                      if (dragOverKey === cellKey) setDragOverKey(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOverKey(null);
+                      const appointmentId = e.dataTransfer.getData('text/plain') || draggingApptId;
+                      if (!appointmentId) return;
+                      setDraggingApptId(null);
+                      moveAppointmentMutation.mutate({
+                        appointmentId,
+                        newDate: format(currentDate, 'yyyy-MM-dd'),
+                        newTime: time,
+                        newProfessionalId: id,
+                      });
+                    }}
+                    className={`min-h-[44px] border-l p-0.5 space-y-0.5 transition-colors ${
+                      !works && starting.length === 0 ? 'bg-muted/40' : ''
+                    } ${isHovered ? 'bg-primary/10 ring-2 ring-primary/40 ring-dashed' : ''}`}
+                  >
                     {blocked && starting.length === 0 && (
                       <div className="truncate rounded bg-amber-50 px-1.5 py-1 text-[10px] text-amber-700" title={block?.reason}>Bloqueado</div>
                     )}
                     {availabilityState === 'pause' && starting.length === 0 && !blocked && (
                       <div className="truncate rounded bg-amber-50 px-1.5 py-1 text-[10px] text-amber-700">Pausa</div>
                     )}
-                    {starting.map((a) => (
-                      <button
-                        type="button"
-                        key={a.id}
-                        className={`block w-full rounded p-1.5 text-left text-[11px] text-white ${statusConfig[a.status]?.style || ''}`}
-                        style={{ backgroundColor: getProfColor(a.professional_id) }}
-                        onClick={() => setViewAppt(a)}
-                      >
-                        <div className="font-semibold">
-                          {format(getAppointmentStartDate(a), 'HH:mm')}–{format(getAppointmentEndDate(a), 'HH:mm')}
-                          {a.appointment_type === 'evaluation' && <span className="ml-1 rounded bg-white/20 px-1 text-[9px]">Avaliação</span>}
-                        </div>
-                        <div className="truncate">{getAppointmentDisplayName(a)}</div>
-                        <div className="truncate opacity-80">{(a.treatments as { name?: string | null } | null)?.name}</div>
-                      </button>
-                    ))}
+                    {starting.map((a) => {
+                      const canDrag = !['cancelled', 'completed', 'rescheduled'].includes(a.status);
+                      const isDraggingThis = draggingApptId === a.id;
+                      return (
+                        <button
+                          type="button"
+                          key={a.id}
+                          draggable={canDrag}
+                          onDragStart={(e) => {
+                            if (!canDrag) return;
+                            e.dataTransfer.setData('text/plain', a.id);
+                            e.dataTransfer.effectAllowed = 'move';
+                            setDraggingApptId(a.id);
+                          }}
+                          onDragEnd={() => {
+                            setDraggingApptId(null);
+                            setDragOverKey(null);
+                          }}
+                          className={`block w-full rounded p-1.5 text-left text-[11px] text-white transition-all ${
+                            statusConfig[a.status]?.style || ''
+                          } ${canDrag ? 'cursor-grab active:cursor-grabbing' : ''} ${
+                            isDraggingThis ? 'opacity-40 scale-[0.98] ring-2 ring-white/60' : ''
+                          }`}
+                          style={{ backgroundColor: getProfColor(a.professional_id) }}
+                          onClick={() => setViewAppt(a)}
+                          title={canDrag ? 'Arraste para mover horário ou profissional' : undefined}
+                        >
+                          <div className="font-semibold flex items-center justify-between">
+                            <span>
+                              {format(getAppointmentStartDate(a), 'HH:mm')}–{format(getAppointmentEndDate(a), 'HH:mm')}
+                              {a.appointment_type === 'evaluation' && <span className="ml-1 rounded bg-white/20 px-1 text-[9px]">Avaliação</span>}
+                            </span>
+                            {canDrag && <GripVertical className="h-3 w-3 opacity-70 shrink-0" />}
+                          </div>
+                          <div className="truncate">{getAppointmentDisplayName(a)}</div>
+                          <div className="truncate opacity-80">{(a.treatments as { name?: string | null } | null)?.name}</div>
+                        </button>
+                      );
+                    })}
                     {free && (
                       <button
                         type="button"
