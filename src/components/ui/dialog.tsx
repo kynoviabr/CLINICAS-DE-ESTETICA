@@ -40,6 +40,10 @@ const DialogContent = React.forwardRef<
         "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%]",
         "gap-5 border border-border bg-card p-8 shadow-stripe-xl",
         "rounded-modal duration-250",
+        // Celular: janela em tela cheia, com rolagem, para formulários longos caberem.
+        "max-h-[90dvh] overflow-y-auto",
+        "max-sm:inset-0 max-sm:left-0 max-sm:top-0 max-sm:translate-x-0 max-sm:translate-y-0",
+        "max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:max-w-none max-sm:rounded-none max-sm:border-0 max-sm:p-5 max-sm:pt-12",
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
         "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",

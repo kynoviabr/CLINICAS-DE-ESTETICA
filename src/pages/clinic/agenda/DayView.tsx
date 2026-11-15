@@ -7,10 +7,12 @@ import { availabilityStateAt, dayHours, daySlots, slotOf } from '@/lib/agenda/da
 import { statusConfig, formatDurationMinutes } from '@/lib/agenda/model';
 import type { AgendaPageController } from './useAgendaPage';
 import { DayColumnsView } from './DayColumnsView';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 export function DayView({ ctx }: { ctx: AgendaPageController }) {
   const [draggingApptId, setDraggingApptId] = useState<string | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
+  const isMobile = useIsMobile();
 
   const {
     currentDate,
@@ -69,7 +71,8 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
 
   // 2 ou mais profissionais escolhidas: uma coluna para cada.
   const columnProfessionals = filterProfessionals.filter((id) => id !== 'unassigned');
-  if (viewMode === 'day' && columnProfessionals.length >= 2) {
+  // No celular as colunas não cabem: mostra a lista do dia (com o nome da profissional em cada horário).
+  if (viewMode === 'day' && columnProfessionals.length >= 2 && !isMobile) {
     return <DayColumnsView ctx={ctx} professionalIds={columnProfessionals} />;
   }
 

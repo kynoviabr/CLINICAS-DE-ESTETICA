@@ -234,7 +234,8 @@ export function CrmBoard({ ctx }: { ctx: CrmPageController }) {
               </div>
             </div>
           )}
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px]">
             <thead className="bg-secondary/50">
               <tr>
                 <th className="w-12 px-4 py-3 text-left text-xs font-semibold text-muted-foreground">
@@ -339,6 +340,7 @@ export function CrmBoard({ ctx }: { ctx: CrmPageController }) {
               })}
             </tbody>
           </table>
+          </div>
         </CardContent>
       </Card>
     )}
