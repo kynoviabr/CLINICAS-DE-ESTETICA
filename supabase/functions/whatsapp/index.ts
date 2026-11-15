@@ -4,6 +4,7 @@
 // Ações: connect_start / connect_finish (admin), templates, send_text, send_template, suggest (copiloto da Aura IA),
 // ai_mode (admin: copilot = sugerir resposta, auto = IA responde sozinha), ai_status / ai_pause (IA numa conversa).
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { captureError } from "../_shared/monitoring.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -253,7 +254,7 @@ Deno.serve(async (req) => {
     throw new HttpError(400, "Ação inválida.");
   } catch (err) {
     const e = err as HttpError;
-    if (!(err instanceof HttpError)) console.error(err);
+    if (!(err instanceof HttpError)) await captureError("whatsapp", err);
     return reply({ error: e.message || "Erro inesperado", code: e.code }, e.status || 500);
   }
 });

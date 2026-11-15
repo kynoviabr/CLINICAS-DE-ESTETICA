@@ -9,6 +9,7 @@
 // com horário (no máximo 5 minutos de diferença). A clínica vem no cabeçalho X-Aura-Workspace (= clinic_id).
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { computeSlots, isSlotFree, localIso, addDays, localDate, setupIssues, type AgendaInput, type Pro } from "../_shared/agenda.ts";
+import { captureError } from "../_shared/monitoring.ts";
 
 const EVALUATION_ID = "evaluation";
 const BUSY = "(cancelled,rescheduled,no_show)";
@@ -354,7 +355,7 @@ Deno.serve(async (req) => {
     if (req.method === "POST" && cancel) return await cancelBooking(db, clinicId, cancel[1], body.contact || {}, String(body.reason || "Pedido do cliente"));
     return json({ error: "not_supported" }, 501);
   } catch (e) {
-    console.error("aura-api", route, e);
+    await captureError("aura-api", e, { route });
     return json({ error: "internal_error" }, 500);
   }
 });
