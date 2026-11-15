@@ -1321,6 +1321,87 @@ export type Database = {
           },
         ]
       }
+      contract_links: {
+        Row: {
+          clinic_id: string
+          contract_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          failed_attempts: number
+          first_opened_at: string | null
+          id: string
+          last_opened_at: string | null
+          revoked_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          clinic_id: string
+          contract_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          failed_attempts?: number
+          first_opened_at?: string | null
+          id?: string
+          last_opened_at?: string | null
+          revoked_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          clinic_id?: string
+          contract_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          failed_attempts?: number
+          first_opened_at?: string | null
+          id?: string
+          last_opened_at?: string | null
+          revoked_at?: string | null
+          token_hash?: string
+        }
+        Relationships: []
+      }
+      contract_signatures: {
+        Row: {
+          clinic_id: string
+          contract_id: string
+          document_hash: string
+          id: string
+          ip: string | null
+          link_id: string | null
+          signed_at: string
+          signer_name: string
+          user_agent: string | null
+          verified_by: string
+        }
+        Insert: {
+          clinic_id: string
+          contract_id: string
+          document_hash: string
+          id?: string
+          ip?: string | null
+          link_id?: string | null
+          signed_at?: string
+          signer_name: string
+          user_agent?: string | null
+          verified_by: string
+        }
+        Update: {
+          clinic_id?: string
+          contract_id?: string
+          document_hash?: string
+          id?: string
+          ip?: string | null
+          link_id?: string | null
+          signed_at?: string
+          signer_name?: string
+          user_agent?: string | null
+          verified_by?: string
+        }
+        Relationships: []
+      }
       contracts: {
         Row: {
           approved_at: string | null
@@ -2622,12 +2703,55 @@ export type Database = {
           },
         ]
       }
+      proposal_acceptances: {
+        Row: {
+          accepted_at: string
+          clinic_id: string
+          document_hash: string
+          id: string
+          ip: string | null
+          link_id: string | null
+          proposal_id: string
+          signer_name: string
+          snapshot: Json
+          user_agent: string | null
+          verified_by: string
+        }
+        Insert: {
+          accepted_at?: string
+          clinic_id: string
+          document_hash: string
+          id?: string
+          ip?: string | null
+          link_id?: string | null
+          proposal_id: string
+          signer_name: string
+          snapshot: Json
+          user_agent?: string | null
+          verified_by: string
+        }
+        Update: {
+          accepted_at?: string
+          clinic_id?: string
+          document_hash?: string
+          id?: string
+          ip?: string | null
+          link_id?: string | null
+          proposal_id?: string
+          signer_name?: string
+          snapshot?: Json
+          user_agent?: string | null
+          verified_by?: string
+        }
+        Relationships: []
+      }
       proposal_links: {
         Row: {
           clinic_id: string
           created_at: string
           created_by: string | null
           expires_at: string
+          failed_attempts: number
           first_opened_at: string | null
           id: string
           last_opened_at: string | null
@@ -2641,6 +2765,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           expires_at: string
+          failed_attempts?: number
           first_opened_at?: string | null
           id?: string
           last_opened_at?: string | null
@@ -4145,6 +4270,22 @@ export type Database = {
       }
       create_proposal_link: {
         Args: { p_proposal_id: string; p_days?: number }
+        Returns: Json
+      }
+      accept_public_proposal: {
+        Args: { p_full_name: string; p_identity: string; p_token: string }
+        Returns: Json
+      }
+      create_contract_link: {
+        Args: { p_contract_id: string; p_days?: number }
+        Returns: Json
+      }
+      get_public_contract: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      sign_public_contract: {
+        Args: { p_full_name: string; p_identity: string; p_token: string }
         Returns: Json
       }
       create_appointment_link: {

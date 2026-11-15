@@ -25,6 +25,10 @@ export default function ProposalLinkPanel({ proposalId }: { proposalId: string }
       return data || [];
     },
   });
+  const { data: acceptance } = useQuery({
+    queryKey: ['proposal-acceptance', proposalId],
+    queryFn: async () => (await supabase.from('proposal_acceptances').select('signer_name, accepted_at, ip').eq('proposal_id', proposalId).maybeSingle()).data,
+  });
   const s = summarizeLinks(rows);
 
   const copy = useMutation({
@@ -55,6 +59,11 @@ export default function ProposalLinkPanel({ proposalId }: { proposalId: string }
 
   return (
     <div className="space-y-2 rounded-lg border p-3">
+      {acceptance && (
+        <p className="rounded-md bg-emerald-50 p-2 text-sm text-emerald-900">
+          Aceita digitalmente por <strong>{acceptance.signer_name}</strong> em {fmt(acceptance.accepted_at)}.
+        </p>
+      )}
       <div className="flex items-center gap-2 text-sm">
         {s.lastOpened ? <Eye className="h-4 w-4 text-emerald-600" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
         {s.lastOpened

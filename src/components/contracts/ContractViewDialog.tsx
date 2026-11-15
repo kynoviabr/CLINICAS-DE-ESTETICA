@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ContractStatusBadge } from './ContractStatusBadge';
+import ContractSignaturePanel from './ContractSignaturePanel';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, Copy, ExternalLink, FileUp, Printer, TriangleAlert } from 'lucide-react';
 import { format } from 'date-fns';
@@ -448,6 +449,7 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
         )}
 
         <div className="space-y-4 mt-2">
+          <ContractSignaturePanel contract={c} />
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <span className="text-muted-foreground">Paciente:</span>

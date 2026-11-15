@@ -23,3 +23,22 @@ describe('link seguro da proposta', () => {
     expect(s).toEqual({ total: 3, active: 1, activeUntil: '2026-12-03T00:00:00Z', lastOpened: '2026-11-03T10:00:00Z', opens: 2 });
   });
 });
+
+import { contractLinkMessage, contractLinkUrl, identityReady, signingError } from '@/lib/signing/acceptance';
+
+describe('aceite digital', () => {
+  it('confere o formato do dado de identidade', () => {
+    expect(identityReady('birth_date', '1988-03-10')).toBe(true);
+    expect(identityReady('birth_date', '10/03/1988')).toBe(false);
+    expect(identityReady('cpf', '123')).toBe(true);
+    expect(identityReady('cpf', '12')).toBe(false);
+    expect(identityReady('none', '')).toBe(true);
+  });
+  it('mensagens', () => {
+    expect(signingError('identity', 3)).toContain('Restam 3');
+    expect(signingError('locked')).toContain('bloqueado');
+    const url = contractLinkUrl('https://x/', 'a'.repeat(64));
+    expect(url).toBe(`https://x/contrato/${'a'.repeat(64)}`);
+    expect(contractLinkMessage('Ana', 'Clínica', 'C-1', url)).toContain(url);
+  });
+});
