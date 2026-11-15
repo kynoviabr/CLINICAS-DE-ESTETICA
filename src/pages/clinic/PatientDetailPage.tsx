@@ -1026,7 +1026,7 @@ export default function PatientDetailPage() {
                     Veja rapidamente as propostas comerciais ligadas a este paciente.
                   </p>
                 </div>
-                <BrandButton variant="outline" onClick={() => navigate('/clinic/proposals')}>
+                <BrandButton variant="outline" onClick={() => navigate(`/clinic/proposals?busca=${encodeURIComponent(patient.cpf || patient.full_name || '')}`)}>
                   Abrir módulo de propostas
                 </BrandButton>
               </div>

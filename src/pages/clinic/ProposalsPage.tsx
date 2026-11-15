@@ -73,8 +73,8 @@ export default function ProposalsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewDialog, setViewDialog] = useState<(ProposalWithPatient & { items?: ProposalItemWithTreatment[] }) | null>(null);
   const [filterStatus, setFilterStatus] = useState('all');
-  const [quickFilter, setQuickFilter] = useState<'all' | 'draft' | 'sent' | 'accepted'>('draft');
-  const [search, setSearch] = useState('');
+  const [quickFilter, setQuickFilter] = useState<'all' | 'draft' | 'sent' | 'accepted'>('all');
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('busca') || '');
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
 
@@ -192,10 +192,12 @@ export default function ProposalsPage() {
   const visibleProposals = proposals.filter((proposal) => {
     const proposalNumber = (proposal.proposal_number || '').toLowerCase();
     const patientCpf = normalizeDigits(proposal.patients?.cpf);
+    const patientName = (proposal.patients?.full_name || '').toLowerCase();
 
     const matchesSearch = !normalizedSearch ||
       proposalNumber.includes(normalizedSearch) ||
-      patientCpf.includes(normalizedSearchDigits);
+      patientName.includes(normalizedSearch) ||
+      (normalizedSearchDigits.length >= 3 && patientCpf.includes(normalizedSearchDigits));
     if (!matchesSearch) return false;
 
     if (dateStart && proposal.created_at < `${dateStart}T00:00:00`) return false;
@@ -818,7 +820,7 @@ export default function ProposalsPage() {
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar por nº da proposta ou CPF..." className="pl-10" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Buscar por nº da proposta, nome ou CPF..." className="pl-10" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <Select value={filterStatus} onValueChange={handleStatusFilterChange}>
           <SelectTrigger className="w-[180px]">
