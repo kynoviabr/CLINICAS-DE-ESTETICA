@@ -4288,6 +4288,22 @@ export type Database = {
         Args: { p_full_name: string; p_identity: string; p_token: string }
         Returns: Json
       }
+      create_portal_link: {
+        Args: { p_patient_id: string }
+        Returns: Json
+      }
+      portal_link_status: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      create_my_anamnese_link: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      my_portal_summary: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       create_appointment_link: {
         Args: { p_appointment_id: string }
         Returns: Json

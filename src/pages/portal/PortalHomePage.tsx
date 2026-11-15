@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { ClipboardList, Loader2 } from 'lucide-react';
+import { nextPortalStep } from '@/lib/portal/access';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -20,6 +23,23 @@ export default function PortalHomePage() {
   const [nextSession, setNextSession] = useState<NextAppointment | null>(null);
   const [progress, setProgress] = useState({ done: 0, total: 1 });
   const [photoCount, setPhotoCount] = useState(0);
+  const [openingAnamnese, setOpeningAnamnese] = useState(false);
+  const [anamneseError, setAnamneseError] = useState('');
+  const { data: summary } = useQuery({
+    queryKey: ['my-portal-summary', user?.id],
+    enabled: !!user,
+    queryFn: async () => (await supabase.rpc('my_portal_summary')).data as { anamnese_status: string | null; has_birth_date: boolean; contracts_to_sign: number } | null,
+  });
+  const step = nextPortalStep(summary);
+
+  const openAnamnese = async () => {
+    setOpeningAnamnese(true);
+    setAnamneseError('');
+    const { data, error } = await supabase.rpc('create_my_anamnese_link');
+    setOpeningAnamnese(false);
+    if (error) { setAnamneseError(error.message); return; }
+    window.location.href = `/anamnese/${(data as { token: string }).token}`;
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -78,6 +98,22 @@ export default function PortalHomePage() {
           <div className="h-full rounded-full bg-primary-foreground/80 transition-all" style={{ width: `${pct}%` }} />
         </div>
       </div>
+
+      {step && (
+        <Card className="border-amber-200 bg-amber-50 shadow-card">
+          <CardContent className="space-y-2 p-4">
+            <p className="flex items-center gap-2 font-semibold text-amber-900"><ClipboardList className="h-4 w-4" /> {step.title}</p>
+            <p className="text-sm text-amber-900/80">{step.text}</p>
+            {step.kind === 'anamnese' && (step.canAct ? (
+              <button type="button" onClick={openAnamnese} disabled={openingAnamnese}
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-600 text-sm font-semibold text-white disabled:opacity-60">
+                {openingAnamnese && <Loader2 className="h-4 w-4 animate-spin" />} Preencher agora
+              </button>
+            ) : <p className="text-xs text-amber-900/80">Peça à clínica para cadastrar sua data de nascimento.</p>)}
+            {anamneseError && <p className="text-xs text-red-700">{anamneseError}</p>}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         {quickLinks.map(({ icon: Icon, label, value, to }) => (

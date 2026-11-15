@@ -33,3 +33,6 @@ verify_jwt = false
 
 [functions.automacoes]
 verify_jwt = false
+
+[functions.portal-acesso]
+verify_jwt = false

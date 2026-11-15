@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { compressImage } from '@/lib/photos/compress';
+import PortalAccessButton from '@/components/patient/PortalAccessButton';
 import { useUrlState } from '@/hooks/useUrlState';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -777,16 +778,12 @@ export default function PatientDetailPage() {
                     Contrato {latestContract.contract_number}
                   </Badge>
                 )}
-                {portalAccess ? (
+                {portalAccess && (
                   <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                     <ExternalLink className="w-3 h-3 mr-1" />Portal ativo
                   </Badge>
-                ) : (
-                  <Button size="sm" variant="outline" onClick={handleGrantPortalAccess} disabled={grantingAccess || !patient.email}>
-                    {grantingAccess ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <ExternalLink className="w-3 h-3 mr-1" />}
-                    Conceder acesso ao portal
-                  </Button>
                 )}
+                <PortalAccessButton patient={patient} active={!!portalAccess} />
               </div>
               <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                 {patient.email && (
