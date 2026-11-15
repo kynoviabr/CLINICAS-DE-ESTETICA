@@ -9,6 +9,8 @@ import { ptBR } from 'date-fns/locale';
 import { Eye, Hash, Calendar, Clock, User as UserIcon, FileText, Paperclip } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import type { Database } from '@/integrations/supabase/types';
+import { openStoredFile } from '@/lib/storedFile';
+import { toast as sonnerToast } from 'sonner';
 
 type AnamneseRow = Database['public']['Tables']['patient_anamneses']['Row'];
 
@@ -210,7 +212,7 @@ export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: P
             <div className="flex items-center gap-2 p-2 rounded-lg bg-secondary/50 text-sm mb-4">
               <Paperclip className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
               <span className="truncate flex-1">{a.document_name || 'Documento'}</span>
-              <BrandButton size="sm" variant="outline" onClick={() => window.open(a.document_url, '_blank')}>
+              <BrandButton size="sm" variant="outline" onClick={() => openStoredFile(a.document_url, 'patient-anamneses').catch((e: Error) => sonnerToast.error(e.message))}>
                 <Eye className="w-3 h-3" /> Ver
               </BrandButton>
             </div>
