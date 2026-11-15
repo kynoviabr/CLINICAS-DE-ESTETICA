@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ClipboardList, Loader2 } from 'lucide-react';
+import { CalendarPlus, ClipboardList, Loader2 } from 'lucide-react';
 import { nextPortalStep } from '@/lib/portal/access';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -82,6 +82,7 @@ export default function PortalHomePage() {
   const pct = Math.round((progress.done / progress.total) * 100);
 
   const quickLinks = [
+    { icon: CalendarPlus, label: 'Agendar', value: 'Marque seu horário', to: '/portal/agendar' },
     { icon: CalendarDays, label: 'Sessões', value: `${progress.done}/${progress.total}`, to: '/portal/sessions' },
     { icon: Activity, label: 'Evolução', to: '/portal/evolution' },
     { icon: Camera, label: 'Fotos', value: `${photoCount} registros`, to: '/portal/photos' },

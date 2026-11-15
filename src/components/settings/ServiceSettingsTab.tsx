@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
+import OnlineBookingCard from '@/components/settings/OnlineBookingCard';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BrandButton } from '@/components/ui/brand-button';
@@ -372,6 +373,8 @@ export default function ServiceSettingsTab() {
             )}
           </CardContent>
         </Card>
+
+        <OnlineBookingCard clinicId={clinicId} canEdit={canEdit} enabled={form.online_booking_enabled} onChange={(v) => set('online_booking_enabled', v)} />
 
         <Card className="shadow-card">
           <CardHeader><CardTitle className="text-base">Regras da agenda</CardTitle></CardHeader>
