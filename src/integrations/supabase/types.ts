@@ -3266,6 +3266,12 @@ export type Database = {
           },
         ]
       }
+      retention_contacts: {
+        Row: { clinic_id: string; contacted_at: string; contacted_by: string | null; id: string; kind: string; patient_id: string; treatment_id: string | null }
+        Insert: { clinic_id: string; contacted_at?: string; contacted_by?: string | null; id?: string; kind: string; patient_id: string; treatment_id?: string | null }
+        Update: { clinic_id?: string; contacted_at?: string; contacted_by?: string | null; id?: string; kind?: string; patient_id?: string; treatment_id?: string | null }
+        Relationships: []
+      }
       session_records: {
         Row: {
           appointment_id: string | null
@@ -3664,6 +3670,7 @@ export type Database = {
           duration_minutes: number
           id: string
           is_active: boolean
+          maintenance_days: number | null
           min_price: number | null
           name: string
           num_sessions: number
@@ -3686,6 +3693,7 @@ export type Database = {
           duration_minutes?: number
           id?: string
           is_active?: boolean
+          maintenance_days?: number | null
           min_price?: number | null
           name: string
           num_sessions?: number
@@ -3708,6 +3716,7 @@ export type Database = {
           duration_minutes?: number
           id?: string
           is_active?: boolean
+          maintenance_days?: number | null
           min_price?: number | null
           name?: string
           num_sessions?: number
@@ -4303,6 +4312,14 @@ export type Database = {
       my_portal_summary: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      retention_lists: {
+        Args: { p_clinic_id: string; p_inactive_days?: number }
+        Returns: { kind: string; patient_id: string; full_name: string; phone: string | null; treatment_id: string | null; treatment_name: string | null; reference_date: string; detail: string }[]
+      }
+      retention_results: {
+        Args: { p_clinic_id: string; p_from: string; p_to: string }
+        Returns: { kind: string; contacted: number; returned: number; revenue: number }[]
       }
       create_appointment_link: {
         Args: { p_appointment_id: string }
