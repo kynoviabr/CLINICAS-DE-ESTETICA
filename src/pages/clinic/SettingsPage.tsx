@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useUrlState } from '@/hooks/useUrlState';
 import { supabase } from '@/integrations/supabase/client';
+import { compressImage } from '@/lib/photos/compress';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useBranding } from '@/contexts/BrandingContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -153,14 +154,15 @@ export default function SettingsPage() {
       toast({ title: 'Arquivo inválido', description: 'Selecione uma imagem (JPG, PNG, WebP)', variant: 'destructive' });
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
+    setUploading(true);
+    const img = await compressImage(file, 800, { quality: 0.9, keepAlpha: true });
+    if (img.blob.size > 2 * 1024 * 1024) {
       toast({ title: 'Arquivo muito grande', description: 'O logo deve ter no máximo 2MB', variant: 'destructive' });
+      setUploading(false);
       return;
     }
-    setUploading(true);
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
-    const filePath = `${clinicId}/logo.${ext}`;
-    const { error: uploadError } = await supabase.storage.from('clinic-logos').upload(filePath, file, { upsert: true, contentType: file.type });
+    const filePath = `${clinicId}/logo.${img.ext}`;
+    const { error: uploadError } = await supabase.storage.from('clinic-logos').upload(filePath, img.blob, { upsert: true, contentType: img.type });
     if (uploadError) { toast({ title: 'Erro no upload', description: uploadError.message, variant: 'destructive' }); setUploading(false); return; }
     const { data: { publicUrl } } = supabase.storage.from('clinic-logos').getPublicUrl(filePath);
     const urlWithCacheBust = `${publicUrl}?t=${Date.now()}`;

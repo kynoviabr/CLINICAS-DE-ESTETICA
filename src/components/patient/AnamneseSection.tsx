@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { compressImage } from '@/lib/photos/compress';
 import { useAuth } from '@/contexts/AuthContext';
 import { BrandButton } from '@/components/ui/brand-button';
 import { Badge } from '@/components/ui/badge';
@@ -113,20 +114,19 @@ export default function AnamneseSection({ patientId, clinicId }: AnamneseSection
       toast({ title: 'Tipo de arquivo inválido', description: 'Envie PDF ou imagem (JPG, PNG, WebP)', variant: 'destructive' });
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast({ title: 'Arquivo muito grande', description: 'Máximo 10MB', variant: 'destructive' });
-      return;
-    }
-
     setUploading(true);
     try {
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+      const img = await compressImage(file, 2000, { quality: 0.85 });
+      if (img.blob.size > 10 * 1024 * 1024) {
+        toast({ title: 'Arquivo muito grande', description: 'Máximo 10MB', variant: 'destructive' });
+        return;
+      }
       const timestamp = Date.now();
-      const filePath = `${clinicId}/${patientId}/docs/anamnese_${timestamp}.${ext}`;
+      const filePath = `${clinicId}/${patientId}/docs/anamnese_${timestamp}.${img.ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from('patient-files')
-        .upload(filePath, file, { contentType: file.type });
+        .upload(filePath, img.blob, { contentType: img.type });
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage.from('patient-files').getPublicUrl(filePath);

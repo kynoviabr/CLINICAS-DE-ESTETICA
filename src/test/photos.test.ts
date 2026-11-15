@@ -25,3 +25,22 @@ describe('fotos da paciente', () => {
     expect(formatBytes(4.2 * 1024 * 1024)).toBe('4,2 MB');
   });
 });
+
+describe('compressImage', () => {
+  it('PDF passa sem mudar', async () => {
+    const { compressImage } = await import('@/lib/photos/compress');
+    const pdf = new File(['%PDF-1.4'], 'exame.pdf', { type: 'application/pdf' });
+    const r = await compressImage(pdf, 2000);
+    expect(r.blob).toBe(pdf);
+    expect(r.ext).toBe('pdf');
+    expect(r.name).toBe('exame.pdf');
+  });
+
+  it('imagem que não abre volta original', async () => {
+    const { compressImage } = await import('@/lib/photos/compress');
+    const bad = new File(['nao e imagem'], 'foto.png', { type: 'image/png' });
+    const r = await compressImage(bad, 512);
+    expect(r.blob).toBe(bad);
+    expect(r.ext).toBe('png');
+  });
+});
