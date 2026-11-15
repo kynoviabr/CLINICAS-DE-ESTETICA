@@ -18,6 +18,8 @@ const PublicAnamnesePage = lazy(() => import("./pages/PublicAnamnesePage"));
 const PublicAppointmentPage = lazy(() => import("./pages/PublicAppointmentPage"));
 const PublicContractPage = lazy(() => import("./pages/PublicContractPage"));
 const PortalEntryPage = lazy(() => import("./pages/PortalEntryPage"));
+const PublicBookingPage = lazy(() => import("./pages/PublicBookingPage"));
+const PortalBookingPage = lazy(() => import("./pages/portal/PortalBookingPage"));
 const PublicProposalPage = lazy(() => import("./pages/PublicProposalPage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
 const NoAccessPage = lazy(() => import("./pages/NoAccessPage"));
@@ -74,6 +76,7 @@ const App = () => (
               <Route path="/agendamento/:token" element={<PublicAppointmentPage />} />
               <Route path="/contrato/:token" element={<PublicContractPage />} />
               <Route path="/portal/entrar/:token" element={<PortalEntryPage />} />
+              <Route path="/agendar/:slug" element={<PublicBookingPage />} />
               <Route path="/proposta/:id" element={<PublicProposalPage />} />
               <Route path="/p/:id" element={<PublicProposalPage />} />
               <Route path="/sem-acesso" element={
@@ -133,6 +136,7 @@ const App = () => (
                 </ProtectedRoute>
               }>
                 <Route index element={<PortalHomePage />} />
+                <Route path="agendar" element={<PortalBookingPage />} />
                 <Route path="contract" element={<PortalContractPage />} />
                 <Route path="payments" element={<PortalPaymentsPage />} />
                 <Route path="sessions" element={<PortalSessionsPage />} />

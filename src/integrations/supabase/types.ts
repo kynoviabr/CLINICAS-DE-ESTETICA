@@ -818,6 +818,7 @@ export type Database = {
           min_notice_minutes: number
           notes: string | null
           offers_evaluation: boolean
+          online_booking_enabled: boolean
           parking: string
           parking_notes: string | null
           payment_methods: string[]
@@ -844,6 +845,7 @@ export type Database = {
           min_notice_minutes?: number
           notes?: string | null
           offers_evaluation?: boolean
+          online_booking_enabled?: boolean
           parking?: string
           parking_notes?: string | null
           payment_methods?: string[]
@@ -870,6 +872,7 @@ export type Database = {
           min_notice_minutes?: number
           notes?: string | null
           offers_evaluation?: boolean
+          online_booking_enabled?: boolean
           parking?: string
           parking_notes?: string | null
           payment_methods?: string[]
@@ -4311,6 +4314,10 @@ export type Database = {
       }
       my_portal_summary: {
         Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      public_booking_page: {
+        Args: { p_slug: string }
         Returns: Json
       }
       retention_lists: {

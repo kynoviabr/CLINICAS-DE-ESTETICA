@@ -36,3 +36,6 @@ verify_jwt = false
 
 [functions.portal-acesso]
 verify_jwt = false
+
+[functions.agendamento-online]
+verify_jwt = false

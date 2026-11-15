@@ -43,6 +43,7 @@ export type ServiceForm = {
   booking_horizon_days: string;
   buffer_minutes: string;
   reschedule_notice_hours: string;
+  online_booking_enabled: boolean;
   price_display: string;
   policies: string;
   notes: string;
@@ -54,7 +55,7 @@ export function defaultServiceForm(): ServiceForm {
     payment_methods: [], max_installments: '', installments_min_value: '', payment_notes: '',
     parking: 'unknown', parking_notes: '', accepts_insurance: false, insurance_plans: '', insurance_notes: '',
     offers_evaluation: true, evaluation_free: true, evaluation_minutes: '30', evaluation_price: '',
-    min_notice_hours: '1', booking_horizon_days: '30', buffer_minutes: '0', reschedule_notice_hours: '',
+    min_notice_hours: '1', booking_horizon_days: '30', buffer_minutes: '0', reschedule_notice_hours: '', online_booking_enabled: false,
     price_display: 'exact', policies: '', notes: '', faq: [],
   };
 }
@@ -84,6 +85,7 @@ export function rowToForm(r: Row): ServiceForm {
     booking_horizon_days: str(r.booking_horizon_days) || d.booking_horizon_days,
     buffer_minutes: str(r.buffer_minutes) || '0',
     reschedule_notice_hours: str(r.reschedule_notice_hours),
+    online_booking_enabled: r.online_booking_enabled === true,
     price_display: str(r.price_display) || 'exact',
     policies: str(r.policies),
     notes: str(r.notes),
@@ -110,6 +112,7 @@ export function formToRow(f: ServiceForm) {
     booking_horizon_days: num(f.booking_horizon_days) ?? 30,
     buffer_minutes: num(f.buffer_minutes) ?? 0,
     reschedule_notice_hours: num(f.reschedule_notice_hours),
+    online_booking_enabled: f.online_booking_enabled,
     price_display: f.price_display,
     policies: f.policies.trim() || null,
     notes: f.notes.trim() || null,
