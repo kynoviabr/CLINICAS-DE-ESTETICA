@@ -22,6 +22,8 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatBRL, whatsappLink } from '@/lib/proposals/sale';
 import { proposalLinkErrorMessage } from '@/lib/proposals/publicLink';
+import AcceptForm from '@/components/public/AcceptForm';
+import { signingError, type IdentityCheck } from '@/lib/signing/acceptance';
 import { buildPaymentPresetSummary, parseProposalNotesPayload } from '@/lib/proposals/paymentPreset';
 
 interface PublicProposalData {
@@ -57,6 +59,9 @@ interface PublicProposalData {
     unit_price: number;
     num_sessions: number | null;
   }>;
+  acceptance: { accepted_at: string; signer_name: string } | null;
+  identity_check: IdentityCheck;
+  can_accept: boolean;
 }
 
 export default function PublicProposalPage() {
@@ -64,6 +69,9 @@ export default function PublicProposalPage() {
   const [proposal, setProposal] = useState<PublicProposalData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [accepting, setAccepting] = useState(false);
+  const [acceptError, setAcceptError] = useState('');
+  const [showAccept, setShowAccept] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -131,6 +139,18 @@ export default function PublicProposalPage() {
   const validityDate = proposal.valid_until
     ? format(new Date(`${proposal.valid_until}T12:00:00`), 'dd/MM/yyyy', { locale: ptBR })
     : null;
+
+  const handleAccept = async (fullName: string, identity: string) => {
+    setAccepting(true);
+    setAcceptError('');
+    const { data, error: rpcError } = await supabase.rpc('accept_public_proposal', { p_token: token!, p_full_name: fullName, p_identity: identity });
+    setAccepting(false);
+    const r = data as { ok?: boolean; reason?: string; attempts_left?: number } | null;
+    if (rpcError || !r?.ok) { setAcceptError(signingError(r?.reason, r?.attempts_left)); return; }
+    setProposal({ ...proposal, status: 'accepted', can_accept: false, acceptance: { accepted_at: new Date().toISOString(), signer_name: fullName.trim() } });
+    setShowAccept(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handlePrint = () => {
     window.print();
@@ -316,6 +336,39 @@ export default function PublicProposalPage() {
             )}
           </div>
         </div>
+
+        {proposal.acceptance ? (
+          <Card className="rounded-2xl border-emerald-200 bg-emerald-50 shadow-sm">
+            <CardContent className="flex items-start gap-3 p-5">
+              <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-emerald-600" />
+              <div>
+                <p className="font-semibold text-emerald-900">Proposta aceita</p>
+                <p className="text-sm text-emerald-800">
+                  Aceita por {proposal.acceptance.signer_name} em {format(new Date(proposal.acceptance.accepted_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}. A clínica vai enviar o contrato para você assinar.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : proposal.can_accept && (
+          <Card id="aceite" className="rounded-2xl border-0 bg-white shadow-sm">
+            <CardContent className="space-y-3 p-5 sm:p-6">
+              <p className="text-base font-bold text-slate-900">Aceitar proposta</p>
+              {showAccept ? (
+                <AcceptForm
+                  identityCheck={proposal.identity_check}
+                  agreeText={`Li e aceito a proposta nº ${proposal.proposal_number}, no valor de ${formatBRL(finalTotal)}, com os tratamentos e condições acima.`}
+                  buttonLabel="Aceitar proposta"
+                  busy={accepting}
+                  error={acceptError}
+                  color={clinic.primary_color}
+                  onSubmit={handleAccept}
+                />
+              ) : (
+                <p className="text-sm text-slate-600">Gostou? Aceite aqui mesmo, pelo celular. Depois a clínica envia o contrato para você assinar.</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </main>
 
       {/* Barra Fixa Inferior de Ações para Mobile e Desktop */}
@@ -330,13 +383,24 @@ export default function PublicProposalPage() {
             <Download className="w-4 h-4 mr-1.5 text-slate-500" /> Baixar PDF
           </BrandButton>
 
-          <button
-            type="button"
-            onClick={handleOpenWhatsApp}
-            className="flex-1 h-11 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 transition-transform active:scale-[0.98]"
-          >
-            <MessageCircle className="w-4 h-4" /> Aprovar no WhatsApp
-          </button>
+          {proposal.can_accept && !proposal.acceptance ? (
+            <button
+              type="button"
+              onClick={() => { setShowAccept(true); setTimeout(() => document.getElementById('aceite')?.scrollIntoView({ behavior: 'smooth' }), 50); }}
+              className="flex-1 h-11 px-4 rounded-xl text-white font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 transition-transform active:scale-[0.98]"
+              style={{ backgroundColor: clinic.primary_color || '#059669' }}
+            >
+              <CheckCircle2 className="w-4 h-4" /> Aceitar proposta
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleOpenWhatsApp}
+              className="flex-1 h-11 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 transition-transform active:scale-[0.98]"
+            >
+              <MessageCircle className="w-4 h-4" /> Falar no WhatsApp
+            </button>
+          )}
         </div>
       </footer>
     </div>
