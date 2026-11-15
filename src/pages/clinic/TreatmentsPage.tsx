@@ -29,6 +29,7 @@ interface TreatmentForm {
   default_price: string;
   min_price: string;
   duration_minutes: string;
+  maintenance_days: string;
   num_sessions: string;
   renewal_enabled: boolean;
   renewal_trigger_days: string;
@@ -46,7 +47,7 @@ interface CostLineItem {
 
 const emptyForm: TreatmentForm = {
   name: '', category_id: '', description: '', price: '',
-  default_price: '', min_price: '', duration_minutes: '60', num_sessions: '1',
+  default_price: '', min_price: '', duration_minutes: '60', maintenance_days: '', num_sessions: '1',
   renewal_enabled: true, renewal_trigger_days: '7',
   price_display: 'default', requires_evaluation: false, ai_bookable: true, professional_ids: [],
 };
@@ -147,6 +148,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
         default_price: data.default_price ? parseFloat(data.default_price) : null,
         min_price: data.min_price ? parseFloat(data.min_price) : null,
         duration_minutes: parseInt(data.duration_minutes) || 60,
+        maintenance_days: data.maintenance_days ? Math.min(730, Math.max(7, parseInt(data.maintenance_days) || 0)) : null,
         num_sessions: parseInt(data.num_sessions) || 1,
         renewal_enabled: data.renewal_enabled,
         renewal_trigger_days: Math.max(1, parseInt(data.renewal_trigger_days) || 7),
@@ -223,6 +225,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
       default_price: t.default_price ? String(t.default_price) : '',
       min_price: t.min_price ? String(t.min_price) : '',
       duration_minutes: String(t.duration_minutes),
+      maintenance_days: t.maintenance_days ? String(t.maintenance_days) : '',
       num_sessions: String(t.num_sessions),
       renewal_enabled: t.renewal_enabled ?? true,
       renewal_trigger_days: String(t.renewal_trigger_days ?? 7),
@@ -494,6 +497,11 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
               <div className="space-y-2">
                 <Label>Nº Sessões</Label>
                 <Input type="number" value={form.num_sessions} onChange={e => setForm({ ...form, num_sessions: e.target.value })} />
+              </div>
+              <div className="col-span-2 space-y-2">
+                <Label>Manutenção recomendada (dias)</Label>
+                <Input type="number" min={7} max={730} placeholder="Ex.: 120 para toxina. Vazio = sem manutenção" value={form.maintenance_days} onChange={e => setForm({ ...form, maintenance_days: e.target.value })} />
+                <p className="text-xs text-muted-foreground">Quando vencer, o paciente aparece em Retorno de pacientes para a equipe chamar.</p>
               </div>
             </div>
 

@@ -28,6 +28,7 @@ export function isMenuPermissionKey(key: string): key is MenuPermissionKey {
 export const PATH_PERMISSION_MAP: Array<{ prefix: string; key: MenuPermissionKey }> = [
   { prefix: '/clinic/settings', key: 'settings.view' },
   { prefix: '/clinic/crm', key: 'crm.view' },
+  { prefix: '/clinic/retorno', key: 'crm.view' },
   { prefix: '/clinic/patients', key: 'patients.view' },
   { prefix: '/clinic/treatments', key: 'treatments.view' },
   { prefix: '/clinic/vendas', key: 'proposals.view' },
