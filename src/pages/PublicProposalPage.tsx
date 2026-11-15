@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatBRL, whatsappLink } from '@/lib/proposals/sale';
+import { proposalLinkErrorMessage } from '@/lib/proposals/publicLink';
 import { buildPaymentPresetSummary, parseProposalNotesPayload } from '@/lib/proposals/paymentPreset';
 
 interface PublicProposalData {
@@ -36,7 +37,6 @@ interface PublicProposalData {
   notes: string | null;
   patient: {
     full_name: string | null;
-    phone: string | null;
   };
   clinic: {
     id: string;
@@ -60,14 +60,14 @@ interface PublicProposalData {
 }
 
 export default function PublicProposalPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id: token } = useParams<{ id: string }>();
   const [proposal, setProposal] = useState<PublicProposalData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!id) {
-      setError('Identificador da proposta não informado.');
+    if (!token) {
+      setError(proposalLinkErrorMessage('invalid'));
       setLoading(false);
       return;
     }
@@ -76,12 +76,13 @@ export default function PublicProposalPage() {
       try {
         setLoading(true);
         const { data, error: rpcError } = await supabase.rpc('get_public_proposal', {
-          p_proposal_id: id,
+          p_token: token,
         });
 
         if (rpcError) throw rpcError;
-        if (!data) {
-          setError('Proposta não encontrada ou expirada.');
+        const res = data as { ok?: boolean; reason?: string } | null;
+        if (!res || res.ok === false) {
+          setError(proposalLinkErrorMessage(res?.reason));
           return;
         }
 
@@ -95,7 +96,7 @@ export default function PublicProposalPage() {
     };
 
     fetchProposal();
-  }, [id]);
+  }, [token]);
 
   if (loading) {
     return (

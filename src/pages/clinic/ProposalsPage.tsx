@@ -19,6 +19,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, FileText, Trash2, Search, Eye, Send, Check, X, Printer, Filter, DollarSign, Pencil, MessageCircle, Loader2, UserPlus, Sparkles } from 'lucide-react';
 import QuickPatientModal from '@/components/patient/QuickPatientModal';
+import ProposalLinkPanel from '@/components/proposals/ProposalLinkPanel';
+import { createProposalLink } from '@/lib/proposals/publicLink';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -632,7 +634,7 @@ export default function ProposalsPage() {
       }
 
       // Link público web para carregar diretamente no celular do cliente
-      const proposalWebUrl = `${window.location.origin}/proposta/${proposal.id}`;
+      const { url: proposalWebUrl } = await createProposalLink(proposal.id);
 
       const firstName = clientName.trim().split(/\s+/)[0] || clientName;
       const validityText = proposal.valid_until
@@ -1264,6 +1266,8 @@ export default function ProposalsPage() {
                     {buildPaymentPresetSummary(parseProposalNotesPayload(viewDialog.notes).paymentPreset)}
                   </p>
                 )}
+
+                <ProposalLinkPanel proposalId={viewDialog.id} />
 
                 <div className="flex flex-wrap gap-2 pt-4 border-t">
                   <BrandButton

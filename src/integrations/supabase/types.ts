@@ -2550,6 +2550,48 @@ export type Database = {
           },
         ]
       }
+      proposal_links: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          first_opened_at: string | null
+          id: string
+          last_opened_at: string | null
+          open_count: number
+          proposal_id: string
+          revoked_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          first_opened_at?: string | null
+          id?: string
+          last_opened_at?: string | null
+          open_count?: number
+          proposal_id: string
+          revoked_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          first_opened_at?: string | null
+          id?: string
+          last_opened_at?: string | null
+          open_count?: number
+          proposal_id?: string
+          revoked_at?: string | null
+          token_hash?: string
+        }
+        Relationships: []
+      }
       proposals: {
         Row: {
           clinic_id: string
@@ -4026,8 +4068,16 @@ export type Database = {
         Returns: Json
       }
       get_public_proposal: {
-        Args: { p_proposal_id: string }
+        Args: { p_token: string }
         Returns: Json
+      }
+      create_proposal_link: {
+        Args: { p_proposal_id: string; p_days?: number }
+        Returns: Json
+      }
+      revoke_proposal_links: {
+        Args: { p_proposal_id: string }
+        Returns: number
       }
       anamnese_link_open: {
         Args: { p_birth_date: string; p_token: string }
