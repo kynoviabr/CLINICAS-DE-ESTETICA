@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import QuickPatientModal from '@/components/patient/QuickPatientModal';
 import { format } from 'date-fns';
 import { useEffect, useRef } from 'react';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useClinicPlan } from '@/hooks/useClinicPlan';
 import { isLeanPlan } from '@/lib/plans';
 import { type ViewMode } from '@/lib/agenda/model';
@@ -69,11 +70,20 @@ export default function AppointmentsPage() {
 
   // Essencial abre direto no dia de hoje (se a URL não pediu outra visão).
   const openedOnDay = useRef(false);
+  // No celular também abre no dia: o mês e a semana não cabem na tela.
+  const isMobile = useIsMobile();
   useEffect(() => {
-    if (!lean || openedOnDay.current) return;
+    if ((!lean && !isMobile) || openedOnDay.current) return;
     openedOnDay.current = true;
     if (!searchParams.get('visao')) setViewMode('day');
-  }, [lean, searchParams, setViewMode]);
+  }, [lean, isMobile, searchParams, setViewMode]);
+
+  const openNew = () => {
+    resetForm();
+    setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
+    if (isProfessional && myProfessionalId) setSelectedProfessional(myProfessionalId);
+    setDialogOpen(true);
+  };
 
   const goToday = () => {
     setCurrentDate(new Date());
@@ -142,14 +152,7 @@ export default function AppointmentsPage() {
             </BrandButton>
           </>
           )}
-          <BrandButton onClick={() => {
-            resetForm();
-            setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
-            if (isProfessional && myProfessionalId) {
-              setSelectedProfessional(myProfessionalId);
-            }
-            setDialogOpen(true);
-          }}>
+          <BrandButton onClick={openNew}>
             <Plus className="w-4 h-4" /> Novo Agendamento
           </BrandButton>
         </div>
@@ -350,6 +353,11 @@ export default function AppointmentsPage() {
           setSelectedPatient(patient.id);
         }}
       />
+      {/* Celular: botão fixo para marcar sem rolar até o topo. */}
+      <button type="button" onClick={openNew} aria-label="Novo agendamento"
+        className="fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg sm:hidden">
+        <Plus className="h-6 w-6" />
+      </button>
     </div>
   );
 }
