@@ -41,10 +41,9 @@ export default function DocumentUploadAction({ anamneseId, patientId, size = 'sm
       const { error: upErr } = await supabase.storage.from('patient-anamneses').upload(path, img.blob, { contentType: img.type });
       if (upErr) throw upErr;
 
-      const { data: { publicUrl } } = supabase.storage.from('patient-anamneses').getPublicUrl(path);
 
       const { error: dbErr } = await supabase.from('patient_anamneses').update({
-        document_url: publicUrl,
+        document_url: path,
         document_name: img.name,
         document_mime_type: img.type,
         document_uploaded_at: new Date().toISOString(),

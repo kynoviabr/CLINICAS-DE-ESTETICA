@@ -10,6 +10,8 @@ import { Upload, Eye, FileText, ClipboardEdit, AlertTriangle } from 'lucide-reac
 import { format, addDays, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import AnamnesisFormModal from './AnamnesisFormModal';
+import { openStoredFile } from '@/lib/storedFile';
+import { toast as sonnerToast } from 'sonner';
 
 interface AnamneseSectionProps {
   patientId: string;
@@ -129,7 +131,6 @@ export default function AnamneseSection({ patientId, clinicId }: AnamneseSection
         .upload(filePath, img.blob, { contentType: img.type });
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage.from('patient-files').getPublicUrl(filePath);
 
       const validUntil = addDays(new Date(), validityDays);
 
@@ -137,7 +138,7 @@ export default function AnamneseSection({ patientId, clinicId }: AnamneseSection
         anamnese_number: '', // o banco gera o número (trigger)
         clinic_id: clinicId,
         patient_id: patientId,
-        file_url: publicUrl,
+        file_url: filePath,
         uploaded_at: new Date().toISOString(),
         uploaded_by: user?.id,
         valid_until: validUntil.toISOString().split('T')[0],
@@ -193,7 +194,7 @@ export default function AnamneseSection({ patientId, clinicId }: AnamneseSection
           <Upload className="w-3 h-3" /> {uploading ? 'Enviando...' : 'Upload de documento'}
         </BrandButton>
         {anamnese?.file_url && (
-          <BrandButton variant="outline" size="sm" onClick={() => window.open(anamnese.file_url, '_blank')}>
+          <BrandButton variant="outline" size="sm" onClick={() => openStoredFile(anamnese.file_url, 'patient-files').catch((e: Error) => sonnerToast.error(e.message))}>
             <Eye className="w-3 h-3" /> Visualizar documento
           </BrandButton>
         )}
