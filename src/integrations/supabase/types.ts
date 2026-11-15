@@ -819,6 +819,8 @@ export type Database = {
           notes: string | null
           offers_evaluation: boolean
           online_booking_enabled: boolean
+          referral_enabled: boolean
+          referral_reward: string | null
           parking: string
           parking_notes: string | null
           payment_methods: string[]
@@ -846,6 +848,8 @@ export type Database = {
           notes?: string | null
           offers_evaluation?: boolean
           online_booking_enabled?: boolean
+          referral_enabled?: boolean
+          referral_reward?: string | null
           parking?: string
           parking_notes?: string | null
           payment_methods?: string[]
@@ -873,6 +877,8 @@ export type Database = {
           notes?: string | null
           offers_evaluation?: boolean
           online_booking_enabled?: boolean
+          referral_enabled?: boolean
+          referral_reward?: string | null
           parking?: string
           parking_notes?: string | null
           payment_methods?: string[]
@@ -4315,6 +4321,26 @@ export type Database = {
       my_portal_summary: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      my_referral: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      public_referral_page: {
+        Args: { p_code: string }
+        Returns: Json
+      }
+      submit_referral: {
+        Args: { p_code: string; p_name: string; p_phone: string }
+        Returns: Json
+      }
+      referral_list: {
+        Args: { p_clinic_id: string }
+        Returns: { lead_id: string; lead_name: string; lead_stage: string; created_at: string; referrer_id: string; referrer_name: string; referrer_phone: string | null; reward_given_at: string | null }[]
+      }
+      mark_referral_reward: {
+        Args: { p_lead_id: string }
+        Returns: undefined
       }
       public_booking_page: {
         Args: { p_slug: string }

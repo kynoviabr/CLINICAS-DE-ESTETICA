@@ -377,6 +377,22 @@ export default function ServiceSettingsTab() {
         <OnlineBookingCard clinicId={clinicId} canEdit={canEdit} enabled={form.online_booking_enabled} onChange={(v) => set('online_booking_enabled', v)} />
 
         <Card className="shadow-card">
+          <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+            <div>
+              <CardTitle className="text-base">Indicação de amigos</CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">Cada paciente ganha um link pessoal no portal. O indicado entra no CRM e, quando fecha, a recompensa fica liberada em Retorno &gt; Indicações.</p>
+            </div>
+            <Switch disabled={!canEdit} checked={form.referral_enabled} onCheckedChange={(v) => set('referral_enabled', v)} aria-label="Indicação de amigos" />
+          </CardHeader>
+          {form.referral_enabled && (
+            <CardContent className="space-y-1">
+              <Label>Recompensa para quem indica</Label>
+              <Input disabled={!canEdit} placeholder="Ex.: R$ 50 de crédito na próxima sessão" value={form.referral_reward} onChange={(e) => set('referral_reward', e.target.value)} />
+            </CardContent>
+          )}
+        </Card>
+
+        <Card className="shadow-card">
           <CardHeader><CardTitle className="text-base">Regras da agenda</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
             <div className="space-y-1"><Label>Antecedência mínima (horas)</Label><Input disabled={!canEdit} type="number" min={0} value={form.min_notice_hours} onChange={(e) => set('min_notice_hours', e.target.value)} /></div>

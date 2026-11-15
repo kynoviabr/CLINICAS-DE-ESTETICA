@@ -11,6 +11,7 @@ import { BrandButton } from '@/components/ui/brand-button';
 import { useToast } from '@/hooks/use-toast';
 import { whatsappLink } from '@/lib/proposals/sale';
 import { formatBRL } from '@/lib/proposals/sale';
+import ReferralsTab from '@/components/retention/ReferralsTab';
 import { RETENTION_TABS, groupRetention, retentionMessage, type RetentionKind, type RetentionRow } from '@/lib/retention/lists';
 
 const monthStart = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };
@@ -22,7 +23,7 @@ export default function RetentionPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<RetentionKind>('maintenance');
+  const [tab, setTab] = useState<RetentionKind | 'referrals'>('maintenance');
 
   const { data: rows = [], isLoading, refetch, isFetching } = useQuery({
     queryKey: ['retention-lists', clinicId],
@@ -87,10 +88,12 @@ export default function RetentionPage() {
         ))}
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as RetentionKind)}>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as RetentionKind | 'referrals')}>
         <TabsList className="flex h-auto w-full flex-wrap justify-start">
           {RETENTION_TABS.map((t) => <TabsTrigger key={t.kind} value={t.kind}>{t.label} ({groups[t.kind].length})</TabsTrigger>)}
+          <TabsTrigger value="referrals">Indicações</TabsTrigger>
         </TabsList>
+        <TabsContent value="referrals"><ReferralsTab clinicId={clinicId} /></TabsContent>
         {RETENTION_TABS.map((t) => (
           <TabsContent key={t.kind} value={t.kind} className="space-y-3">
             <p className="text-xs text-muted-foreground">{t.hint} Quem você chamar some da lista por 30 dias.</p>

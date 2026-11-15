@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CalendarPlus, ClipboardList, Loader2 } from 'lucide-react';
 import { nextPortalStep } from '@/lib/portal/access';
+import ReferralCard from '@/components/portal/ReferralCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -151,6 +152,7 @@ export default function PortalHomePage() {
           </CardContent>
         </Card>
       )}
+      <ReferralCard />
     </div>
   );
 }
