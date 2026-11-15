@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
+import { setMonitoringContext } from '@/lib/monitoring';
 
 interface BrandingData {
   clinicId: string | null;
@@ -106,13 +107,14 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
       // Try to get clinic from user_roles first (staff)
       const { data: roleData } = await supabase
         .from('user_roles')
-        .select('clinic_id')
+        .select('clinic_id, role')
         .eq('user_id', user.id)
         .eq('is_active', true)
         .limit(1)
         .maybeSingle();
 
       let clinicId = roleData?.clinic_id;
+      let role: string | null = roleData?.role ?? null;
 
       // If not staff, try patient app access
       if (!clinicId) {
@@ -124,7 +126,10 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
           .limit(1)
           .maybeSingle();
         clinicId = (portalData)?.clinic_id;
+        if (clinicId) role = 'patient';
       }
+
+      setMonitoringContext({ clinicId, role });
 
       if (!clinicId) {
         setBranding({ ...defaultBranding, loading: false });

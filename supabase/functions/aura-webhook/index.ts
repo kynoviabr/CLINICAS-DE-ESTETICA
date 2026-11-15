@@ -3,6 +3,7 @@
 // e conta à Aura quem é o contato (paciente ou lead), para a IA saber com quem fala.
 // Publicada sem login do Supabase: a proteção é a assinatura.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { captureError } from "../_shared/monitoring.ts";
 
 function toHex(buf: ArrayBuffer) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -67,7 +68,7 @@ Deno.serve(async (req) => {
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const { data, error } = await admin.rpc("whatsapp_ingest_aura_event", { p_event: event });
   if (error) {
-    console.error("whatsapp_ingest_aura_event", event?.type, error.message);
+    await captureError("aura-webhook", new Error(`whatsapp_ingest_aura_event: ${error.message}`), { event: event?.type });
     return json({ ok: false }, 500); // a Aura tenta de novo; o banco ignora repetição
   }
   const result = data as IngestResult;
