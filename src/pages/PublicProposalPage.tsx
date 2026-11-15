@@ -75,7 +75,7 @@ export default function PublicProposalPage() {
     const fetchProposal = async () => {
       try {
         setLoading(true);
-        const { data, error: rpcError } = await (supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)('get_public_proposal', {
+        const { data, error: rpcError } = await supabase.rpc('get_public_proposal', {
           p_proposal_id: id,
         });
 

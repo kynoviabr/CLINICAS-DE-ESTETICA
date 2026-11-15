@@ -4025,6 +4025,10 @@ export type Database = {
         Args: { p_token: string }
         Returns: Json
       }
+      get_public_proposal: {
+        Args: { p_proposal_id: string }
+        Returns: Json
+      }
       anamnese_link_open: {
         Args: { p_birth_date: string; p_token: string }
         Returns: Json
