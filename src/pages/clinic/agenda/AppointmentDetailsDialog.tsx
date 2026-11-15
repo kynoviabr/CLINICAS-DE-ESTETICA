@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { whatsappLink } from '@/lib/proposals/sale';
 import { supabase } from '@/integrations/supabase/client';
 import { anamneseLinkMessage, anamneseLinkUrl } from '@/lib/anamnese/link';
+import { createAppointmentLink, reminderMessage } from '@/lib/appointments/patientLink';
 import type { AgendaPageController } from './useAgendaPage';
 
 export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController }) {
@@ -52,7 +53,10 @@ export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController })
     }
   }, [viewAppt]);
 
-  const handleSendReminder = () => {
+  const [reminderLoading, setReminderLoading] = useState(false);
+
+  /** Lembrete com link: o paciente confirma, remarca ou cancela pelo celular, sem precisar responder. */
+  const handleSendReminder = async () => {
     if (!viewAppt) return;
     const patientData = getSelectedPatientData(viewAppt.patient_id);
     const recipientName = getAppointmentDisplayName(viewAppt);
@@ -70,22 +74,28 @@ export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController })
       return;
     }
 
-    const clinicLabel = clinicName || 'nossa clínica';
-    const recipientFirstName = recipientName.split(' ')[0] || recipientName;
-    const dateLabel = format(getAppointmentStartDate(viewAppt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
-    const treatmentLabel =
-      (viewAppt.treatments as { name?: string | null } | null)?.name ||
-      (viewAppt.appointment_type === 'evaluation' ? 'Avaliação' : 'Atendimento');
-    const professionalLabel = getProfessionalLabel(viewAppt.professional_id);
-
-    const reminderText = `Olá, ${recipientFirstName}! Esperamos que você esteja bem.\n\nPassando para lembrar do seu atendimento na *${clinicLabel}*:\n\n✨ *Procedimento:* ${treatmentLabel}\n📅 *Data:* ${dateLabel}\n👩‍⚕️ *Especialista:* ${professionalLabel}\n\nPor gentileza, poderia nos confirmar sua presença?\n👉 Responda *1* (ou *SIM*) para Confirmar\n👉 Responda *2* caso precise Reagendar ou Cancelar\n\nQualquer dúvida, estamos à sua disposição!`;
-
-    const url = whatsappLink(phone, reminderText);
-    window.open(url, '_blank', 'noopener,noreferrer');
-    toast({
-      title: 'WhatsApp aberto!',
-      description: `Lembrete padrão preparado para envio para ${recipientFirstName}.`,
-    });
+    // Abre a aba já no clique (no celular, abrir depois de esperar é bloqueado).
+    const tab = window.open('', '_blank');
+    setReminderLoading(true);
+    try {
+      const { url } = await createAppointmentLink(viewAppt.id);
+      const message = reminderMessage({
+        firstName: recipientName.split(' ')[0] || recipientName,
+        clinicName: clinicName || 'nossa clínica',
+        service: (viewAppt.treatments as { name?: string | null } | null)?.name || (viewAppt.appointment_type === 'evaluation' ? 'Avaliação' : 'Atendimento'),
+        when: format(getAppointmentStartDate(viewAppt), "EEEE, dd/MM 'às' HH:mm", { locale: ptBR }),
+        professional: viewAppt.professional_id ? getProfessionalLabel(viewAppt.professional_id) : null,
+        url,
+      });
+      const wa = whatsappLink(phone, message);
+      if (tab) tab.location.href = wa; else window.location.href = wa;
+      toast({ title: 'WhatsApp aberto!', description: 'Lembrete com link para confirmar, remarcar ou cancelar.' });
+    } catch (err: unknown) {
+      tab?.close();
+      toast({ title: 'Não foi possível gerar o lembrete', description: err instanceof Error ? err.message : 'Tente de novo.', variant: 'destructive' });
+    } finally {
+      setReminderLoading(false);
+    }
   };
 
   const handleSendAnamnese = async () => {
@@ -184,7 +194,7 @@ export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController })
                     })()}
                   </span>
                 </div>
-                <div className="flex justify-between items-center"><span className="text-muted-foreground">Status:</span><BrandBadge status={statusConfig[viewAppt.status]?.badge || 'default'}>{statusConfig[viewAppt.status]?.label || viewAppt.status}</BrandBadge></div>
+                <div className="flex justify-between items-center"><span className="text-muted-foreground">Status:</span><span className="flex items-center gap-2">{viewAppt.confirmed_via === 'patient_link' && viewAppt.status === 'confirmed' && <span className="text-xs text-emerald-700">pelo paciente</span>}<BrandBadge status={statusConfig[viewAppt.status]?.badge || 'default'}>{statusConfig[viewAppt.status]?.label || viewAppt.status}</BrandBadge></span></div>
               </div>
 
               {/* Seção de Notas */}
@@ -338,9 +348,10 @@ export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController })
                       variant="outline"
                       className="border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 font-medium"
                       onClick={handleSendReminder}
+                      disabled={reminderLoading}
                     >
                       <MessageCircle className="w-4 h-4 mr-1 text-emerald-600 dark:text-emerald-400" />
-                      Enviar Lembrete
+                      {reminderLoading ? 'Gerando link...' : 'Enviar Lembrete'}
                     </BrandButton>
 
                     <BrandButton
