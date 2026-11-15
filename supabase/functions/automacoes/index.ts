@@ -1,5 +1,5 @@
 // Automações da clínica (Configurações > Automações).
-// - action "run": chamado a cada 15 min pelo agendador do banco (cabeçalho x-runner-token = AUTOMATIONS_RUNNER_TOKEN).
+// - action "run": chamado a cada 15 min pelo agendador do banco (x-runner-token = segredo automations_runner_token do Vault).
 //   Para cada clínica com o lembrete ligado e WhatsApp conectado, manda o modelo aprovado com o link de confirmar/remarcar.
 // - action "test": a administradora manda um lembrete de exemplo para o próprio número (precisa estar logada).
 // O envio passa pela API da Aura (AURA_API_URL + AURA_API_KEY), como o resto do WhatsApp do Clinova.
@@ -124,8 +124,10 @@ Deno.serve(async (req) => {
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
   try {
     if (body.action === "run") {
+      const given = req.headers.get("x-runner-token") || "";
       const expected = (Deno.env.get("AUTOMATIONS_RUNNER_TOKEN") || "").trim();
-      if (!expected || req.headers.get("x-runner-token") !== expected) return json({ ok: false, reason: "unauthorized" }, 401);
+      const ok = expected ? given === expected : !!(await db.rpc("automations_token_ok", { p_token: given })).data;
+      if (!ok) return json({ ok: false, reason: "unauthorized" }, 401);
       if (!canSendNow(Date.now())) return json({ ok: true, skipped: "quiet_hours" });
       const { data: cfgs } = await db.from("clinic_automations").select("clinic_id, reminder_hours_before, reminder_template, reminder_language").eq("reminder_enabled", true);
       const results: Record<string, unknown> = {};

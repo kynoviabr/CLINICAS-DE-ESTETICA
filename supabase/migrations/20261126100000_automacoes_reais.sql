@@ -68,3 +68,21 @@ BEGIN
     $job$);
   END IF;
 END $$;
+
+-- A função automacoes confere o x-runner-token com o segredo do Vault (sem precisar de segredo duplicado na função).
+CREATE OR REPLACE FUNCTION public.automations_token_ok(p_token text)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE v text;
+BEGIN
+  IF to_regclass('vault.decrypted_secrets') IS NULL OR coalesce(p_token, '') = '' THEN RETURN false; END IF;
+  EXECUTE 'SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = $1' INTO v USING 'automations_runner_token';
+  RETURN v IS NOT NULL AND v = p_token;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.automations_token_ok(text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.automations_token_ok(text) TO service_role;
