@@ -453,6 +453,7 @@ export type Database = {
           clinic_id: string
           completed_at: string | null
           confirmed_at: string | null
+          confirmed_via: string | null
           contract_id: string | null
           contract_item_id: string | null
           created_at: string
@@ -485,6 +486,7 @@ export type Database = {
           clinic_id: string
           completed_at?: string | null
           confirmed_at?: string | null
+          confirmed_via?: string | null
           contract_id?: string | null
           contract_item_id?: string | null
           created_at?: string
@@ -517,6 +519,7 @@ export type Database = {
           clinic_id?: string
           completed_at?: string | null
           confirmed_at?: string | null
+          confirmed_via?: string | null
           contract_id?: string | null
           contract_item_id?: string | null
           created_at?: string
@@ -4073,6 +4076,10 @@ export type Database = {
       }
       create_proposal_link: {
         Args: { p_proposal_id: string; p_days?: number }
+        Returns: Json
+      }
+      create_appointment_link: {
+        Args: { p_appointment_id: string }
         Returns: Json
       }
       revoke_proposal_links: {
