@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
+import { compressImage } from '@/lib/photos/compress';
 import { useUrlState } from '@/hooks/useUrlState';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -321,10 +322,10 @@ export default function PatientDetailPage() {
 
     setUploadingAvatar(true);
     try {
-      const extension = file.name.split('.').pop() || 'jpg';
-      const filePath = `${clinicId}/${id}/avatar-${Date.now()}.${extension}`;
-      const { error: uploadError } = await supabase.storage.from(PATIENT_FILES_BUCKET).upload(filePath, file, {
-        contentType: file.type,
+      const img = await compressImage(file, 512);
+      const filePath = `${clinicId}/${id}/avatar-${Date.now()}.${img.ext}`;
+      const { error: uploadError } = await supabase.storage.from(PATIENT_FILES_BUCKET).upload(filePath, img.blob, {
+        contentType: img.type,
         upsert: true,
       });
       if (uploadError) throw uploadError;

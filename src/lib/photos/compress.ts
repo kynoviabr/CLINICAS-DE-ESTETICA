@@ -76,3 +76,34 @@ export function formatBytes(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
 }
+
+export type CompressedImage = { blob: Blob; ext: string; type: string; name: string };
+
+/**
+ * Reduz qualquer imagem antes de enviar (avatar, logo, documento fotografado).
+ * Converte para WebP no tamanho máximo pedido. PDF e outros tipos passam sem mudar.
+ * Se o navegador não gerar WebP ou a conversão ficar maior, mantém o original
+ * (com keepAlpha=false, tenta JPEG antes de desistir).
+ */
+export async function compressImage(file: File, maxSide: number, opts: { quality?: number; keepAlpha?: boolean } = {}): Promise<CompressedImage> {
+  const original = { blob: file as Blob, ext: (file.name.split('.').pop() || 'bin').toLowerCase(), type: file.type, name: file.name };
+  if (!file.type.startsWith('image/') || file.type === 'image/svg+xml' || file.type === 'image/gif') return original;
+  let source: ImageBitmap | HTMLImageElement;
+  try { source = await decode(file); } catch { return original; }
+  try {
+    const base = file.name.replace(/\.[^.]+$/, '');
+    let blob = await render(source, maxSide, 'image/webp', opts.quality ?? 0.82);
+    let ext = 'webp';
+    if (blob.type !== 'image/webp') {
+      if (opts.keepAlpha) return original;
+      blob = await render(source, maxSide, 'image/jpeg', opts.quality ?? 0.82);
+      ext = 'jpg';
+    }
+    if (blob.size >= file.size) return original;
+    return { blob, ext, type: blob.type, name: `${base}.${ext}` };
+  } catch {
+    return original;
+  } finally {
+    if ('close' in source) source.close();
+  }
+}
