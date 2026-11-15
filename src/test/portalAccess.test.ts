@@ -30,3 +30,14 @@ describe('rotinas de retorno', () => {
     expect(g.maintenance).toHaveLength(0);
   });
 });
+
+import { referralError, referralShareText, referralUrl } from '@/lib/referral/referral';
+
+describe('indicação de amigos', () => {
+  it('link e mensagem', () => {
+    const url = referralUrl('https://x/', 'ab12cd34');
+    expect(url).toBe('https://x/indicar/ab12cd34');
+    expect(referralShareText('Clínica X', url)).toContain(url);
+    expect(referralError('invalid_phone')).toContain('DDD');
+  });
+});

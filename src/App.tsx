@@ -19,6 +19,7 @@ const PublicAppointmentPage = lazy(() => import("./pages/PublicAppointmentPage")
 const PublicContractPage = lazy(() => import("./pages/PublicContractPage"));
 const PortalEntryPage = lazy(() => import("./pages/PortalEntryPage"));
 const PublicBookingPage = lazy(() => import("./pages/PublicBookingPage"));
+const PublicReferralPage = lazy(() => import("./pages/PublicReferralPage"));
 const PortalBookingPage = lazy(() => import("./pages/portal/PortalBookingPage"));
 const PublicProposalPage = lazy(() => import("./pages/PublicProposalPage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
@@ -77,6 +78,7 @@ const App = () => (
               <Route path="/contrato/:token" element={<PublicContractPage />} />
               <Route path="/portal/entrar/:token" element={<PortalEntryPage />} />
               <Route path="/agendar/:slug" element={<PublicBookingPage />} />
+              <Route path="/indicar/:code" element={<PublicReferralPage />} />
               <Route path="/proposta/:id" element={<PublicProposalPage />} />
               <Route path="/p/:id" element={<PublicProposalPage />} />
               <Route path="/sem-acesso" element={
