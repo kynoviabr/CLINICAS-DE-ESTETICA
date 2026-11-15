@@ -444,6 +444,45 @@ export type Database = {
           },
         ]
       }
+      automation_runs: {
+        Row: {
+          appointment_id: string | null
+          attempts: number
+          clinic_id: string
+          created_at: string
+          detail: string | null
+          id: string
+          kind: string
+          recipient_name: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          attempts?: number
+          clinic_id: string
+          created_at?: string
+          detail?: string | null
+          id?: string
+          kind?: string
+          recipient_name?: string | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string | null
+          attempts?: number
+          clinic_id?: string
+          created_at?: string
+          detail?: string | null
+          id?: string
+          kind?: string
+          recipient_name?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       appointments: {
         Row: {
           appointment_type: string
@@ -874,6 +913,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      clinic_automations: {
+        Row: {
+          clinic_id: string
+          reminder_enabled: boolean
+          reminder_hours_before: number
+          reminder_language: string
+          reminder_template: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          clinic_id: string
+          reminder_enabled?: boolean
+          reminder_hours_before?: number
+          reminder_language?: string
+          reminder_template?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          clinic_id?: string
+          reminder_enabled?: boolean
+          reminder_hours_before?: number
+          reminder_language?: string
+          reminder_template?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       clinics: {
         Row: {
