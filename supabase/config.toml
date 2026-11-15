@@ -30,3 +30,6 @@ verify_jwt = false
 
 [functions.agendamento-paciente]
 verify_jwt = false
+
+[functions.automacoes]
+verify_jwt = false

@@ -1,435 +1,206 @@
-import { useState } from 'react';
-import {
-  Bot,
-  CalendarCheck,
-  Clock,
-  MessageSquare,
-  Sparkles,
-  CheckCircle2,
-  AlertCircle,
-  Eye,
-  Sliders,
-  Send,
-  HelpCircle,
-  ChevronRight,
-  MousePointerClick,
-  Check,
-  Calendar
-} from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { AlertCircle, CalendarCheck, CheckCircle2, Loader2, Send, XCircle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useBranding } from '@/contexts/BrandingContext';
+import { useUserRole } from '@/hooks/useUserRole';
+import { useWhatsappChannel, useWhatsappTemplates } from '@/hooks/useWhatsapp';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { BrandButton } from '@/components/ui/brand-button';
-import { BrandBadge } from '@/components/ui/brand-badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { useBranding } from '@/contexts/BrandingContext';
+import { HOURS_OPTIONS, previewReminder, summarizeRuns, type AutomationRun } from '@/lib/automations/reminders';
 
+type Config = { reminder_enabled: boolean; reminder_hours_before: number; reminder_template: string; reminder_language: string };
+const DEFAULT: Config = { reminder_enabled: false, reminder_hours_before: 24, reminder_template: 'aura_lembrete_horario', reminder_language: 'pt_BR' };
+
+const STATUS = {
+  sent: { label: 'Enviado', icon: CheckCircle2, tone: 'text-emerald-700' },
+  failed: { label: 'Falhou', icon: XCircle, tone: 'text-red-700' },
+  skipped: { label: 'Não enviado', icon: AlertCircle, tone: 'text-amber-700' },
+} as const;
+
+/** Configurações > Automações: lembrete automático pelo WhatsApp oficial, com link para confirmar, remarcar ou cancelar. */
 export function AutomationsSettingsTab() {
+  const { clinicId, clinicName } = useBranding();
+  const { role } = useUserRole();
+  const isAdmin = role === 'admin';
   const { toast } = useToast();
-  const { clinicName } = useBranding();
+  const qc = useQueryClient();
+  const { data: channel } = useWhatsappChannel(clinicId);
+  const connected = channel?.status === 'connected';
+  const { data: templates, isLoading: loadingTemplates } = useWhatsappTemplates(clinicId, connected);
+  const [form, setForm] = useState<Config>(DEFAULT);
+  const [testPhone, setTestPhone] = useState('');
 
-  // Estados locais para demonstração visual e configuração
-  const [reminderActive, setReminderActive] = useState(true);
-  const [reminderTime, setReminderTime] = useState('08:00');
-  const [advanceNotice, setAdvanceNotice] = useState('1_day');
-  const [useInteractiveButtons, setUseInteractiveButtons] = useState(true);
-  const [btnConfirm, setBtnConfirm] = useState('Confirmar presença');
-  const [btnReschedule, setBtnReschedule] = useState('Reagendar ou Cancelar');
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [messageTemplate, setMessageTemplate] = useState(
-    `Olá, {primeiro_nome}! Esperamos que você esteja bem.\n\nPassando para lembrar do seu atendimento na {nome_da_clinica}:\n\n✨ Procedimento: {tratamento}\n📅 Data: amanhã ({data}) às {horario}\n👩‍⚕️ Especialista: {profissional}\n\nPor gentileza, confirme sua presença clicando em um dos botões abaixo:`
-  );
+  const { data: saved } = useQuery({
+    queryKey: ['clinic-automations', clinicId],
+    enabled: !!clinicId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('clinic_automations').select('*').eq('clinic_id', clinicId!).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  useEffect(() => { if (saved) setForm({ ...DEFAULT, ...saved }); }, [saved]);
 
-  const handleSave = () => {
-    toast({
-      title: 'Configurações salvas!',
-      description: 'Modelo com botões interativos e horários atualizados para a Aura IA.',
-    });
-  };
+  const { data: runs = [] } = useQuery({
+    queryKey: ['automation-runs', clinicId],
+    enabled: !!clinicId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('automation_runs')
+        .select('id, kind, status, detail, recipient_name, created_at, updated_at').eq('clinic_id', clinicId!)
+        .order('updated_at', { ascending: false }).limit(50);
+      if (error) throw error;
+      return (data || []) as AutomationRun[];
+    },
+  });
+  const stats = useMemo(() => summarizeRuns(runs), [runs]);
 
-  const handleTestSend = () => {
-    toast({
-      title: 'Simulação de disparo com Botões Interativos!',
-      description: 'Mensagem formatada com botões nativos [Confirmar] e [Reagendar] gerada pela Aura IA.',
-    });
-  };
+  const usable = (templates || []).filter((t) => t.variables === 3);
+  const selectedTemplate = usable.find((t) => t.name === form.reminder_template && t.language === form.reminder_language);
+  const blocker = !connected ? 'Conecte o WhatsApp em Configurações > WhatsApp para ligar o lembrete.'
+    : !loadingTemplates && !selectedTemplate ? 'O modelo escolhido ainda não foi aprovado pela Meta. Escolha um modelo aprovado.'
+      : null;
+
+  const save = useMutation({
+    mutationFn: async (next: Config) => {
+      if (next.reminder_enabled && blocker) throw new Error(blocker);
+      const { error } = await supabase.from('clinic_automations').upsert({ clinic_id: clinicId!, ...next, updated_at: new Date().toISOString() });
+      if (error) throw error;
+    },
+    onSuccess: (_d, next) => {
+      qc.invalidateQueries({ queryKey: ['clinic-automations', clinicId] });
+      toast({ title: 'Automação salva', description: next.reminder_enabled ? `Lembrete ligado: ${next.reminder_hours_before} h antes de cada atendimento.` : 'Lembrete desligado.' });
+    },
+    onError: (e: Error) => toast({ title: 'Não foi possível salvar', description: e.message, variant: 'destructive' }),
+  });
+
+  const test = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('automacoes', { body: { action: 'test', clinicId, phone: testPhone, name: 'Teste' } });
+      const body = (data || (await (error as { context?: Response } | null)?.context?.json?.().catch(() => null))) as { ok?: boolean; error?: string } | null;
+      if (!body?.ok) throw new Error(body?.error || 'Não foi possível enviar o teste.');
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['automation-runs', clinicId] });
+      toast({ title: 'Teste enviado', description: 'Confira no WhatsApp do número informado.' });
+    },
+    onError: (e: Error) => toast({ title: 'Teste não enviado', description: e.message, variant: 'destructive' }),
+  });
+
+  const preview = previewReminder(selectedTemplate?.body, clinicName || 'sua clínica');
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Banner / Header com Aura IA */}
-      <Card className="border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-transparent shadow-card">
-        <CardContent className="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-                <Bot className="h-4 w-4" />
-              </span>
-              <h2 className="text-lg font-heading font-semibold text-foreground">
-                Automações da Clínica com Aura IA
-              </h2>
-              <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                <Sparkles className="h-3 w-3" /> Aura IA
-              </span>
-            </div>
-            <p className="text-sm text-muted-foreground max-w-2xl">
-              Configure réguas automáticas para envio de lembretes, pedidos de confirmação de agendamentos e acompanhamento de clientes via WhatsApp.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <BrandButton variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
-              <Eye className="w-3.5 h-3.5 mr-1" /> Ver modelo da mensagem
-            </BrandButton>
-            <BrandButton size="sm" onClick={handleSave}>
-              Salvar alterações
-            </BrandButton>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tabela / Grid das Automações */}
+    <div className="space-y-6">
       <Card className="shadow-card">
-        <CardHeader className="pb-3 border-b">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+        <CardHeader className="border-b pb-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <CardTitle className="text-base flex items-center gap-2">
-                <CalendarCheck className="h-4 w-4 text-primary" />
-                Réguas de Agendamento e Confirmação
-              </CardTitle>
+              <CardTitle className="flex items-center gap-2 text-base"><CalendarCheck className="h-4 w-4 text-primary" /> Lembrete de atendimento</CardTitle>
               <CardDescription className="text-xs">
-                Mensagens enviadas automaticamente para os pacientes da sua agenda.
+                Antes de cada atendimento marcado, o paciente recebe no WhatsApp oficial da clínica um lembrete com o link para confirmar, remarcar ou cancelar.
               </CardDescription>
             </div>
-            <BrandBadge status={reminderActive ? 'approved' : 'draft'}>
-              {reminderActive ? '1 Automação Ativa' : 'Pausada'}
-            </BrandBadge>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <Switch
+                checked={form.reminder_enabled}
+                disabled={!isAdmin || save.isPending}
+                onCheckedChange={(v) => { const next = { ...form, reminder_enabled: v }; setForm(next); save.mutate(next); }}
+                aria-label="Lembrete automático"
+              />
+              {form.reminder_enabled ? 'Ligado' : 'Desligado'}
+            </label>
           </div>
         </CardHeader>
-        <CardContent className="p-0 divide-y">
-          {/* Automação 1: Lembrete diário e confirmação */}
-          <div className="p-5 space-y-4 hover:bg-muted/10 transition-colors">
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-              <div className="space-y-1.5 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-foreground text-sm sm:text-base">
-                    Lembrete diário com pedido de confirmação de agendamento
-                  </span>
-                  <span className="text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full">
-                    Recomendado
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground max-w-3xl">
-                  Envia diariamente via WhatsApp para cada paciente com consulta agendada, informando o dia, horário, tratamento e profissional, e solicitando confirmação de presença (Sim/Não). A resposta do paciente atualiza o status na Agenda para "Confirmado" automaticamente.
-                </p>
-              </div>
+        <CardContent className="space-y-4 p-5">
+          {blocker && (
+            <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {blocker}</p>
+          )}
+          {!isAdmin && <p className="text-xs text-muted-foreground">Só a administração da clínica altera as automações.</p>}
 
-              <div className="flex items-center gap-3 shrink-0">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {reminderActive ? 'Ativado' : 'Desativado'}
-                </span>
-                <Switch
-                  checked={reminderActive}
-                  onCheckedChange={setReminderActive}
-                  aria-label="Ativar lembrete diário"
-                />
-              </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Quando enviar</Label>
+              <Select disabled={!isAdmin} value={String(form.reminder_hours_before)} onValueChange={(v) => setForm({ ...form, reminder_hours_before: Number(v) })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{HOURS_OPTIONS.map((o) => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}</SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Envia das 8h às 20h. Só para atendimentos ainda não confirmados.</p>
             </div>
-
-            {/* Parâmetros do Lembrete */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-3 border-t text-xs">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium flex items-center gap-1.5 text-muted-foreground">
-                  <Clock className="w-3.5 h-3.5" /> Horário de disparo
-                </Label>
-                <Select value={reminderTime} onValueChange={setReminderTime} disabled={!reminderActive}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="07:00">07:00 da manhã</SelectItem>
-                    <SelectItem value="08:00">08:00 da manhã (Padrão)</SelectItem>
-                    <SelectItem value="09:00">09:00 da manhã</SelectItem>
-                    <SelectItem value="10:00">10:00 da manhã</SelectItem>
-                    <SelectItem value="14:00">14:00 da tarde</SelectItem>
-                    <SelectItem value="18:00">18:00 da tarde</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium flex items-center gap-1.5 text-muted-foreground">
-                  <Sliders className="w-3.5 h-3.5" /> Antecedência do aviso
-                </Label>
-                <Select value={advanceNotice} onValueChange={setAdvanceNotice} disabled={!reminderActive}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1_day">1 dia antes do agendamento (Véspera)</SelectItem>
-                    <SelectItem value="2_days">2 dias antes do agendamento</SelectItem>
-                    <SelectItem value="same_day">No próprio dia do agendamento (manhã)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium flex items-center gap-1.5 text-muted-foreground">
-                  <MessageSquare className="w-3.5 h-3.5" /> Canal de entrega
-                </Label>
-                <div className="h-8 rounded-md border bg-muted/40 px-3 flex items-center justify-between text-xs font-medium">
-                  <span className="flex items-center gap-1.5 text-foreground">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" /> WhatsApp (Aura IA)
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">Oficial</span>
-                </div>
-              </div>
+            <div className="space-y-1.5">
+              <Label>Modelo aprovado pela Meta</Label>
+              <Select disabled={!isAdmin || !connected || !usable.length} value={selectedTemplate ? `${form.reminder_template}|${form.reminder_language}` : undefined}
+                onValueChange={(v) => { const [name, language] = v.split('|'); setForm({ ...form, reminder_template: name, reminder_language: language }); }}>
+                <SelectTrigger><SelectValue placeholder={loadingTemplates ? 'Carregando…' : 'Nenhum modelo aprovado'} /></SelectTrigger>
+                <SelectContent>{usable.map((t) => <SelectItem key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>{t.name} ({t.language})</SelectItem>)}</SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Precisa ter 3 campos: nome, clínica e data com o link.</p>
             </div>
+          </div>
 
-            {/* Ações rápidas */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-xs">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                <span>
-                  Próxima execução: <strong>Amanhã às {reminderTime}</strong> para os atendimentos agendados.
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <BrandButton variant="ghost" size="sm" onClick={() => setPreviewOpen(true)} className="h-7 text-xs">
-                  Editar mensagem
-                </BrandButton>
-                <BrandButton variant="outline" size="sm" onClick={handleTestSend} className="h-7 text-xs">
-                  <Send className="w-3 h-3 mr-1" /> Testar envio
+          {preview && (
+            <div className="space-y-1.5">
+              <Label>Como o paciente recebe</Label>
+              <p className="whitespace-pre-wrap rounded-lg bg-emerald-50 p-3 text-sm text-emerald-950 dark:bg-emerald-950/30 dark:text-emerald-100">{preview}</p>
+            </div>
+          )}
+
+          {isAdmin && (
+            <div className="flex flex-wrap gap-2">
+              <BrandButton size="sm" onClick={() => save.mutate(form)} disabled={save.isPending}>
+                {save.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Salvar
+              </BrandButton>
+            </div>
+          )}
+
+          {isAdmin && connected && (
+            <div className="space-y-1.5 border-t pt-4">
+              <Label htmlFor="test-phone">Enviar um teste para o seu WhatsApp</Label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input id="test-phone" inputMode="tel" placeholder="(11) 99999-9999" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} className="sm:max-w-xs" />
+                <BrandButton size="sm" variant="outline" onClick={() => test.mutate()} disabled={test.isPending || testPhone.replace(/\D/g, '').length < 10 || !selectedTemplate}>
+                  {test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Enviar teste
                 </BrandButton>
               </div>
             </div>
-          </div>
-
-          {/* Automação 2 (Demonstrativo Roadmap): Pesquisa de Satisfação Pós-Atendimento */}
-          <div className="p-5 space-y-3 opacity-75 bg-muted/5">
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-foreground text-sm">
-                    Pesquisa de satisfação e avaliação pós-sessão (NPS)
-                  </span>
-                  <span className="text-[11px] font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                    Em breve com Aura IA
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground max-w-2xl">
-                  Envia mensagem 2 horas após a sessão ser marcada como "Atendida" solicitando a avaliação do atendimento de 1 a 5 estrelas e depoimento do cliente.
-                </p>
-              </div>
-              <Switch checked={false} disabled aria-label="Em breve" />
-            </div>
-          </div>
-
-          {/* Automação 3 (Demonstrativo Roadmap): Régua de Retorno / Renovação */}
-          <div className="p-5 space-y-3 opacity-75 bg-muted/5">
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-foreground text-sm">
-                    Régua de retorno e manutenção (clientes há mais de 60 dias sem visita)
-                  </span>
-                  <span className="text-[11px] font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                    Em breve com Aura IA
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground max-w-2xl">
-                  Aura IA identifica clientes que terminaram seus pacotes ou estão há mais de 60 dias sem agendar e convida para uma reavaliação personalizada.
-                </p>
-              </div>
-              <Switch checked={false} disabled aria-label="Em breve" />
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Métricas e Estatísticas Visuais */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="shadow-card">
-          <CardContent className="p-4 space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">Lembretes enviados (este mês)</p>
-            <p className="text-2xl font-bold font-heading text-foreground">142</p>
-            <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" /> 100% entregues via WhatsApp
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-card">
-          <CardContent className="p-4 space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">Taxa de confirmação</p>
-            <p className="text-2xl font-bold font-heading text-primary">89.4%</p>
-            <p className="text-[11px] text-muted-foreground">
-              Redução estimada de 75% nas faltas (no-show)
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-card">
-          <CardContent className="p-4 space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">Respostas processadas pela Aura IA</p>
-            <p className="text-2xl font-bold font-heading text-foreground">127</p>
-            <p className="text-[11px] text-muted-foreground">
-              Status da agenda atualizados automaticamente
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Modal de Edição e Prévia da Mensagem */}
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Bot className="h-5 w-5 text-primary" />
-              Modelo de Mensagem e Botões da Aura IA
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 pt-2">
-            {/* Opção de Botões Interativos Nativos */}
-            <div className="rounded-lg border bg-primary/5 p-3.5 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <MousePointerClick className="w-4 h-4 text-primary" />
-                    <Label className="text-xs font-semibold text-foreground cursor-pointer" htmlFor="btn-toggle">
-                      Botões Interativos Oficiais no WhatsApp (Aura IA)
-                    </Label>
-                    <span className="text-[10px] bg-primary/20 text-primary font-bold px-1.5 py-0.5 rounded">
-                      Recomendado
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Utiliza a API Oficial do WhatsApp (Meta). O paciente recebe botões clicáveis nativos e não precisa digitar nada para confirmar.
-                  </p>
-                </div>
-                <Switch
-                  id="btn-toggle"
-                  checked={useInteractiveButtons}
-                  onCheckedChange={setUseInteractiveButtons}
-                />
-              </div>
-
-              {useInteractiveButtons && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-primary/10">
-                  <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Texto do Botão 1 (Confirmação)</Label>
-                    <Input
-                      size={1}
-                      value={btnConfirm}
-                      onChange={(e) => setBtnConfirm(e.target.value)}
-                      placeholder="Ex: Confirmar presença"
-                      className="h-8 text-xs bg-background"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Texto do Botão 2 (Reagendamento)</Label>
-                    <Input
-                      size={1}
-                      value={btnReschedule}
-                      onChange={(e) => setBtnReschedule(e.target.value)}
-                      placeholder="Ex: Reagendar ou Cancelar"
-                      className="h-8 text-xs bg-background"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold">Texto do Lembrete</Label>
-              <Textarea
-                rows={5}
-                value={messageTemplate}
-                onChange={(e) => setMessageTemplate(e.target.value)}
-                className="text-xs font-mono"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Variáveis disponíveis: <code className="bg-muted px-1 rounded">{'{primeiro_nome}'}</code>, <code className="bg-muted px-1 rounded">{'{nome_da_clinica}'}</code>, <code className="bg-muted px-1 rounded">{'{data}'}</code>, <code className="bg-muted px-1 rounded">{'{horario}'}</code>, <code className="bg-muted px-1 rounded">{'{profissional}'}</code>, <code className="bg-muted px-1 rounded">{'{tratamento}'}</code>.
-              </p>
-            </div>
-
-            {/* Prévia simulada no WhatsApp com Botões Nativos */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold text-muted-foreground">
-                  Prévia de como o paciente recebe no WhatsApp:
-                </Label>
-                <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> WhatsApp Business Cloud API
-                </span>
-              </div>
-
-              <div className="rounded-xl border bg-emerald-50/40 dark:bg-emerald-950/20 p-4 flex flex-col items-start">
-                <div className="max-w-sm w-full bg-card rounded-2xl rounded-tl-none border shadow-sm overflow-hidden text-xs">
-                  {/* Corpo do balão da mensagem */}
-                  <div className="p-3.5 space-y-2">
-                    <p className="whitespace-pre-line text-foreground leading-relaxed">
-                      {messageTemplate
-                        .replace('{primeiro_nome}', 'Maria')
-                        .replace('{nome_da_clinica}', clinicName || 'Clinova')
-                        .replace('{data}', '09/11/2026')
-                        .replace('{horario}', '10:30')
-                        .replace('{profissional}', 'Dra. Rafaela')
-                        .replace('{tratamento}', 'Limpeza de pele premium')}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground text-right pt-1">08:00 ✓✓</p>
-                  </div>
-
-                  {/* Botões Interativos Nativos do WhatsApp Oficial */}
-                  {useInteractiveButtons ? (
-                    <div className="border-t border-border/80 divide-y divide-border/80 bg-muted/20">
-                      <button
-                        type="button"
-                        onClick={() => toast({ title: 'Simulação: Botão Confirmar clicado pelo paciente!', description: 'O agendamento seria confirmado automaticamente na agenda.' })}
-                        className="w-full py-2.5 px-3 text-center text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                        {btnConfirm || 'Confirmar presença'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toast({ title: 'Simulação: Botão Reagendar clicado!', description: 'A Aura IA abriria o fluxo interativo de remarcação de horário.' })}
-                        className="w-full py-2.5 px-3 text-center text-xs font-semibold text-sky-600 dark:text-sky-400 hover:bg-sky-500/10 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Calendar className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-                        {btnReschedule || 'Reagendar ou Cancelar'}
-                      </button>
+      <Card className="shadow-card">
+        <CardHeader className="border-b pb-3">
+          <CardTitle className="text-base">Histórico de envios</CardTitle>
+          <CardDescription className="text-xs">Este mês: {stats.sent} enviados · {stats.failed} com falha · {stats.skipped} não enviados (sem telefone).</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {runs.length === 0 ? (
+            <p className="p-5 text-sm text-muted-foreground">Nenhum envio ainda.</p>
+          ) : (
+            <ul className="divide-y">
+              {runs.map((r) => {
+                const s = STATUS[r.status];
+                const Icon = s.icon;
+                return (
+                  <li key={r.id} className="flex items-start gap-3 p-3 text-sm">
+                    <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${s.tone}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate"><span className="font-medium">{r.recipient_name || 'Paciente'}</span>{r.kind === 'reminder_test' ? ' · teste' : ''}</p>
+                      <p className="truncate text-xs text-muted-foreground">{s.label}{r.detail ? ` · ${r.detail}` : ''}</p>
                     </div>
-                  ) : (
-                    <div className="p-2 border-t bg-muted/10 text-center text-[11px] text-muted-foreground">
-                      Modo texto simples: paciente responde com 1 ou 2
-                    </div>
-                  )}
-                </div>
-
-                {useInteractiveButtons && (
-                  <p className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-primary" />
-                    <strong>Aura IA com Botões Nativos:</strong> ao tocar no botão, a confirmação é registrada em tempo real no Clinova.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <BrandButton variant="outline" onClick={() => setPreviewOpen(false)}>
-                Fechar
-              </BrandButton>
-              <BrandButton onClick={() => { setPreviewOpen(false); handleSave(); }}>
-                Salvar Modelo
-              </BrandButton>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+                    <span className="shrink-0 text-xs text-muted-foreground">{format(new Date(r.updated_at || r.created_at), 'dd/MM HH:mm', { locale: ptBR })}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
