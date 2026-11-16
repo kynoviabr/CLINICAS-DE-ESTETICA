@@ -1,7 +1,8 @@
 import { supabase } from '@/integrations/supabase/client';
 import { PHOTO_BUCKET, storagePathOf } from '@/lib/photos/storage';
+import { logAccess } from '@/lib/accessLog';
 
-type Stored = { photo_url: string; thumbnail_url: string | null };
+type Stored = { photo_url: string; thumbnail_url: string | null; patient_id?: string | null };
 
 /** Links temporários (1 h) para fotos do armazenamento privado. */
 export async function withSignedUrls<T extends Stored>(rows: T[]): Promise<Array<T & { fullUrl: string | null; thumbUrl: string | null }>> {
@@ -10,6 +11,7 @@ export async function withSignedUrls<T extends Stored>(rows: T[]): Promise<Array
   if (paths.length) {
     const { data } = await supabase.storage.from(PHOTO_BUCKET).createSignedUrls(paths, 60 * 60);
     (data || []).forEach((u) => { if (u.path && u.signedUrl) signed.set(u.path, u.signedUrl); });
+    for (const pid of new Set(rows.map((r) => r.patient_id).filter(Boolean) as string[])) logAccess(pid, 'photos_view');
   }
   return rows.map((r) => {
     const fullUrl = signed.get(storagePathOf(r.photo_url) ?? '') ?? null;
