@@ -37,7 +37,7 @@ async function serviceFor(db: SupabaseClient, clinicId: string, serviceId: strin
 }
 
 async function slots(db: SupabaseClient, clinicId: string, svc: Service, s: Settings, fromRaw: unknown) {
-  const today = localDate(Date.now());
+  const today = localDate(Date.now(), s.offsetMin);
   const from = isDate(fromRaw) && fromRaw > today ? fromRaw : today;
   const to = addDays(from, 6);
   const lastDay = addDays(today, s.booking_horizon_days);
@@ -53,7 +53,7 @@ async function notify(db: SupabaseClient, clinicId: string, patientId: string | 
   if (rows.length) await db.from("notifications").insert(rows);
 }
 
-const when = (iso: string) => { const l = localIso(new Date(iso)); return `${l.slice(8, 10)}/${l.slice(5, 7)} às ${l.slice(11, 16)}`; };
+const when = (iso: string, off?: number) => { const l = localIso(new Date(iso), off); return `${l.slice(8, 10)}/${l.slice(5, 7)} às ${l.slice(11, 16)}`; };
 const digits = (v: unknown) => String(v ?? "").replace(/\D/g, "");
 
 async function book(db: SupabaseClient, clinicId: string, svc: Service, s: Settings, startRaw: unknown, professionalId: unknown, who: { patientId: string | null; leadId: string | null }, note: string) {
@@ -61,7 +61,7 @@ async function book(db: SupabaseClient, clinicId: string, svc: Service, s: Setti
   if (Number.isNaN(start.getTime())) return { error: "invalid_start" };
   const pro = svc.pros.find((p) => p.id === professionalId);
   if (!pro) return { error: "slot_unavailable" };
-  const day = localIso(start).slice(0, 10);
+  const day = localIso(start, s.offsetMin).slice(0, 10);
   const data = await loadAgenda(db, clinicId, svc.pros, svc.durationMin, s, day, day);
   if (!isSlotFree(data, pro.id, start)) return { error: "slot_unavailable" };
   const end = new Date(start.getTime() + svc.durationMin * 60_000);
@@ -106,8 +106,8 @@ Deno.serve(async (req) => {
       const r = await book(db, clinic.id, svc, s, body.start, body.professionalId, { patientId: null, leadId: lead.id }, "Avaliação marcada pelo link público (Instagram/site).");
       if ("error" in r) { await db.from("leads").update({ deleted_at: new Date().toISOString() }).eq("id", lead.id); return fail(r.error!); }
       await db.from("leads").update({ appointment_id: r.appointment.id }).eq("id", lead.id);
-      await notify(db, clinic.id, null, "Nova avaliação pelo link", `${name} marcou avaliação para ${when(r.appointment.start_time)}. Já está no CRM.`);
-      return json({ ok: true, start: localIso(new Date(r.appointment.start_time)), professionalName: r.professionalName, clinicName: clinic.name });
+      await notify(db, clinic.id, null, "Nova avaliação pelo link", `${name} marcou avaliação para ${when(r.appointment.start_time, s.offsetMin)}. Já está no CRM.`);
+      return json({ ok: true, start: localIso(new Date(r.appointment.start_time), s.offsetMin), professionalName: r.professionalName, clinicName: clinic.name });
     }
 
     // ---------- Portal: paciente logado ----------
@@ -142,8 +142,8 @@ Deno.serve(async (req) => {
         const r = await book(db, pu.clinic_id, svc, s, body.start, body.professionalId, { patientId: pu.patient_id, leadId: null }, `${svc.name} marcado pelo paciente no portal.`);
         if ("error" in r) return fail(r.error!);
         const { data: p } = await db.from("patients").select("full_name").eq("id", pu.patient_id).maybeSingle();
-        await notify(db, pu.clinic_id, pu.patient_id, "Paciente marcou pelo portal", `${p?.full_name || "Paciente"} marcou ${svc.name} para ${when(r.appointment.start_time)}.`);
-        return json({ ok: true, start: localIso(new Date(r.appointment.start_time)), professionalName: r.professionalName });
+        await notify(db, pu.clinic_id, pu.patient_id, "Paciente marcou pelo portal", `${p?.full_name || "Paciente"} marcou ${svc.name} para ${when(r.appointment.start_time, s.offsetMin)}.`);
+        return json({ ok: true, start: localIso(new Date(r.appointment.start_time), s.offsetMin), professionalName: r.professionalName });
       }
     }
     return fail("invalid_action", 400);

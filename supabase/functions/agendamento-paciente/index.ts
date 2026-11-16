@@ -49,14 +49,14 @@ async function view(db: SupabaseClient, a: Appt) {
     clinic,
     firstName: personName(a).trim().split(/\s+/)[0],
     appointment: {
-      start: localIso(new Date(a.start_time)), end: localIso(new Date(a.end_time)), status: a.status,
+      start: localIso(new Date(a.start_time), s.offsetMin), end: localIso(new Date(a.end_time), s.offsetMin), status: a.status,
       serviceName: a.treatment?.name || (a.appointment_type === "evaluation" ? "Avaliação" : "Atendimento"),
       professionalName: a.professional?.show_name_to_clients === false ? null : a.professional?.full_name ?? null,
     },
     ...perms,
     canReschedule: perms.canChange && !!a.professional_id,
-    changeDeadline: localIso(changeDeadline(a.start_time, s.reschedule_notice_hours)),
-    lastDay: addDays(localDate(Date.now()), s.booking_horizon_days),
+    changeDeadline: localIso(changeDeadline(a.start_time, s.reschedule_notice_hours), s.offsetMin),
+    lastDay: addDays(localDate(Date.now(), s.offsetMin), s.booking_horizon_days),
   };
 }
 
@@ -72,8 +72,8 @@ async function notifyStaff(db: SupabaseClient, a: Appt, title: string, message: 
   }
 }
 
-const when = (iso: string) => {
-  const l = localIso(new Date(iso));
+const when = (iso: string, off?: number) => {
+  const l = localIso(new Date(iso), off);
   return `${l.slice(8, 10)}/${l.slice(5, 7)} às ${l.slice(11, 16)}`;
 };
 
@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
       if (!perms.canConfirm) return json({ ok: false, reason: "not_allowed" }, 409);
       await db.from("appointments").update({ status: "confirmed", confirmed_at: nowIso, confirmed_via: "patient_link" }).eq("id", appt.id);
       await db.from("appointment_links").update({ last_action: "confirmed", last_action_at: nowIso }).eq("id", link.id);
-      await notifyStaff(db, appt, "Atendimento confirmado pelo paciente", `${personName(appt)} confirmou ${when(appt.start_time)}.`);
+      await notifyStaff(db, appt, "Atendimento confirmado pelo paciente", `${personName(appt)} confirmou ${when(appt.start_time, s.offsetMin)}.`);
       return json(await view(db, { ...appt, status: "confirmed" }));
     }
 
@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
       const reason = String(body.reason || "").trim().slice(0, 200);
       await db.from("appointments").update({ status: "cancelled", cancelled_reason: `Cancelado pelo paciente pelo link${reason ? `: ${reason}` : ""}` }).eq("id", appt.id);
       await db.from("appointment_links").update({ last_action: "cancelled", last_action_at: nowIso }).eq("id", link.id);
-      await notifyStaff(db, appt, "Atendimento cancelado pelo paciente", `${personName(appt)} cancelou ${when(appt.start_time)}${reason ? ` (${reason})` : ""}. O horário ficou livre.`);
+      await notifyStaff(db, appt, "Atendimento cancelado pelo paciente", `${personName(appt)} cancelou ${when(appt.start_time, s.offsetMin)}${reason ? ` (${reason})` : ""}. O horário ficou livre.`);
       return json(await view(db, { ...appt, status: "cancelled" }));
     }
 
@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
       const duration = durationOf(appt);
 
       if (action === "slots") {
-        const today = localDate(Date.now());
+        const today = localDate(Date.now(), s.offsetMin);
         const from = isDate(body.from) && body.from > today ? body.from : today;
         const to = addDays(from, 6);
         const data = await loadAgenda(db, appt.clinic_id, pros, duration, s, from, to, appt.id);
@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
 
       const start = new Date(String(body.start || ""));
       if (Number.isNaN(start.getTime())) return json({ ok: false, reason: "invalid_start" }, 400);
-      const day = localIso(start).slice(0, 10);
+      const day = localIso(start, s.offsetMin).slice(0, 10);
       const data = await loadAgenda(db, appt.clinic_id, pros, duration, s, day, day, appt.id);
       if (!isSlotFree(data, appt.professional_id, start)) return json({ ok: false, reason: "slot_unavailable" }, 409);
       const end = new Date(start.getTime() + duration * 60_000);
@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
         await db.from("leads").update({ appointment_id: created.id }).eq("clinic_id", appt.clinic_id).eq("id", appt.lead_id);
       }
       await db.from("appointment_links").update({ appointment_id: created.id, expires_at: start.toISOString(), last_action: "rescheduled", last_action_at: nowIso }).eq("id", link.id);
-      await notifyStaff(db, appt, "Atendimento remarcado pelo paciente", `${personName(appt)} remarcou de ${when(appt.start_time)} para ${when(start.toISOString())}.`);
+      await notifyStaff(db, appt, "Atendimento remarcado pelo paciente", `${personName(appt)} remarcou de ${when(appt.start_time, s.offsetMin)} para ${when(start.toISOString(), s.offsetMin)}.`);
       return json(await view(db, created as unknown as Appt));
     }
 
