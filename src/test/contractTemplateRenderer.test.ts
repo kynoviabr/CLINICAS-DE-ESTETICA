@@ -43,7 +43,7 @@ describe('contractTemplateRenderer', () => {
 
     // With payer
     const dataWithPayer = { ...data, payer: { name: 'Maria' } };
-    const res2 = renderContractTemplate(html, dataWithPayer);
+    const res2 = renderContractTemplate(html, dataWithPayer as unknown as typeof data);
     expect(res2.html).toBe('Pagador: Maria Fim');
   });
 

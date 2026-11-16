@@ -17,7 +17,7 @@ type AnamneseRow = Database['public']['Tables']['patient_anamneses']['Row'];
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  anamnese: AnamneseRow;
+  anamnese: AnamneseRow | null;
 }
 
 const sourceLabels: Record<string, string> = {

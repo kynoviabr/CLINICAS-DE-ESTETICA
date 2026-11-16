@@ -161,7 +161,7 @@ export default function CombosTab({ readOnly = false }: CombosTabProps = {}) {
     setForm({
       name: combo.name,
       promotional_price: combo.promotional_price ? String(combo.promotional_price) : '',
-      active: combo.active,
+      active: combo.active ?? true,
       items: (combo.treatment_combo_items || []).map((ci) => ({
         treatment_id: ci.treatment_id,
         quantity: ci.quantity || 1,
