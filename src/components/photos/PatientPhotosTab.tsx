@@ -233,6 +233,17 @@ export function PatientPhotosTab({ clinicId, patientId }: { clinicId: string; pa
                 <Textarea rows={2} value={editMeta.description} onChange={(e) => setEditMeta({ ...editMeta, description: e.target.value })} />
               </div>
               <div className="flex gap-2">
+                <label className="flex w-full items-center gap-2 text-sm">
+                  <input type="checkbox" className="h-4 w-4" checked={!!(open as { marketing_allowed?: boolean }).marketing_allowed}
+                    onChange={async (e) => {
+                      const v = e.target.checked;
+                      const { error } = await supabase.from('patient_photos').update({ marketing_allowed: v }).eq('id', open.id);
+                      if (error) { toast({ title: 'Não liberada', description: error.message, variant: 'destructive' }); return; }
+                      setOpen({ ...open, marketing_allowed: v } as typeof open);
+                      toast({ title: v ? 'Foto liberada para divulgação' : 'Foto tirada da divulgação' });
+                    }} />
+                  Liberar para divulgação (exige consentimento de imagem)
+                </label>
                 <BrandButton variant="outline" className="text-destructive" disabled={remove.isPending}
                   onClick={() => { if (window.confirm('Excluir esta foto? Não dá para desfazer.')) remove.mutate(open, { onSuccess: () => { setOpen(null); toast({ title: 'Foto excluída' }); } }); }}>
                   <Trash2 className="h-4 w-4" /> Excluir

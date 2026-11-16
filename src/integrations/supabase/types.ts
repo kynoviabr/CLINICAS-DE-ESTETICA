@@ -2165,12 +2165,19 @@ export type Database = {
           },
         ]
       }
+      patient_consents: {
+        Row: { anamnese_id: string | null; clinic_id: string; created_at: string; granted: boolean; id: string; kind: string; note: string | null; patient_id: string; recorded_by: string | null; source: string }
+        Insert: { anamnese_id?: string | null; clinic_id: string; created_at?: string; granted: boolean; id?: string; kind: string; note?: string | null; patient_id: string; recorded_by?: string | null; source: string }
+        Update: { anamnese_id?: string | null; clinic_id?: string; created_at?: string; granted?: boolean; id?: string; kind?: string; note?: string | null; patient_id?: string; recorded_by?: string | null; source?: string }
+        Relationships: []
+      }
       patient_photos: {
         Row: {
           clinic_id: string
           created_at: string
           description: string | null
           id: string
+          marketing_allowed: boolean
           patient_id: string
           photo_type: Database["public"]["Enums"]["photo_type"]
           photo_url: string
@@ -2185,6 +2192,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          marketing_allowed?: boolean
           patient_id: string
           photo_type?: Database["public"]["Enums"]["photo_type"]
           photo_url: string
@@ -2199,6 +2207,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          marketing_allowed?: boolean
           patient_id?: string
           photo_type?: Database["public"]["Enums"]["photo_type"]
           photo_url?: string
@@ -2337,6 +2346,7 @@ export type Database = {
           address: string | null
           address_complement: string | null
           address_number: string | null
+          anonymized_at: string | null
           avatar_url: string | null
           city: string | null
           clinic_id: string
@@ -2368,6 +2378,7 @@ export type Database = {
           address?: string | null
           address_complement?: string | null
           address_number?: string | null
+          anonymized_at?: string | null
           avatar_url?: string | null
           city?: string | null
           clinic_id: string
@@ -2399,6 +2410,7 @@ export type Database = {
           address?: string | null
           address_complement?: string | null
           address_number?: string | null
+          anonymized_at?: string | null
           avatar_url?: string | null
           city?: string | null
           clinic_id?: string
@@ -4340,6 +4352,18 @@ export type Database = {
       access_log_list: {
         Args: { p_clinic_id: string; p_patient_id?: string | null; p_user_id?: string | null; p_limit?: number }
         Returns: { id: number; created_at: string; user_id: string; user_name: string | null; patient_id: string | null; patient_name: string | null; action: string; detail: string | null }[]
+      }
+      set_patient_consent: {
+        Args: { p_patient_id: string; p_kind: string; p_granted: boolean; p_note?: string | null }
+        Returns: undefined
+      }
+      export_patient_data: {
+        Args: { p_patient_id: string }
+        Returns: Json
+      }
+      anonymize_patient: {
+        Args: { p_patient_id: string; p_confirm: string }
+        Returns: undefined
       }
       my_referral: {
         Args: Record<PropertyKey, never>
