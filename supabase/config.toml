@@ -1,4 +1,5 @@
-project_id = "tunoirtswleljvyohdxp"
+# Nome do projeto local (supabase start). O projeto remoto vem do workflow de publicação (supabase link --project-ref).
+project_id = "klinova-local"
 
 [api]
 port = 55321
