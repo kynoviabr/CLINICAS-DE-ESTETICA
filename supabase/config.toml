@@ -39,3 +39,6 @@ verify_jwt = false
 
 [functions.agendamento-online]
 verify_jwt = false
+
+[functions.mfa-reset]
+verify_jwt = false
