@@ -14,3 +14,18 @@ describe('registro de acessos', () => {
     expect(ACCESS_LABEL.record_view).toBe('Abriu a ficha');
   });
 });
+
+import { currentConsents } from '@/lib/lgpd/consents';
+
+describe('consentimentos', () => {
+  it('vale o registro mais recente de cada tipo', () => {
+    const c = currentConsents([
+      { kind: 'image_marketing', granted: true, source: 'staff', note: null, created_at: '2026-11-01T10:00:00Z' },
+      { kind: 'image_marketing', granted: false, source: 'staff', note: 'revogou', created_at: '2026-11-10T10:00:00Z' },
+      { kind: 'photos_clinical', granted: true, source: 'anamnese', note: null, created_at: '2026-11-01T10:00:00Z' },
+    ]);
+    expect(c.image_marketing?.granted).toBe(false);
+    expect(c.photos_clinical?.granted).toBe(true);
+    expect(c.data_processing).toBeUndefined();
+  });
+});

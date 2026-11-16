@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { compressImage } from '@/lib/photos/compress';
 import PortalAccessButton from '@/components/patient/PortalAccessButton';
 import AccessLogList from '@/components/security/AccessLogList';
+import LgpdPanel from '@/components/patient/LgpdPanel';
 import { logAccess } from '@/lib/accessLog';
 import { useUrlState } from '@/hooks/useUrlState';
 import { useEffect, useRef, useState } from 'react';
@@ -955,6 +956,9 @@ export default function PatientDetailPage() {
               
             </CardContent>
           </Card>
+                  <div className="mt-4">
+            <LgpdPanel patientId={id!} patientName={patient.full_name} isAdmin={role === 'admin'} anonymized={!!(patient as { anonymized_at?: string | null }).anonymized_at} />
+          </div>
         </TabsContent>
 
         {/* Anamnese tab */}
