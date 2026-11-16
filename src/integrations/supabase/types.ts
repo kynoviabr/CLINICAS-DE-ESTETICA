@@ -964,6 +964,7 @@ export type Database = {
           id: string
           is_active: boolean
           logo_url: string | null
+          mfa_required_all: boolean
           name: string
           phone: string | null
           plan_name: string
@@ -987,6 +988,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           logo_url?: string | null
+          mfa_required_all?: boolean
           name: string
           phone?: string | null
           plan_name?: string
@@ -1010,6 +1012,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           logo_url?: string | null
+          mfa_required_all?: boolean
           name?: string
           phone?: string | null
           plan_name?: string
@@ -4321,6 +4324,14 @@ export type Database = {
       my_portal_summary: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      my_mfa_policy: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      set_clinic_mfa_required_all: {
+        Args: { p_clinic_id: string; p_value: boolean }
+        Returns: undefined
       }
       my_referral: {
         Args: Record<PropertyKey, never>

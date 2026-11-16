@@ -15,7 +15,7 @@ INSERT INTO public.patients(id,clinic_id,full_name,date_of_birth,cpf) VALUES
 INSERT INTO public.treatments(id,clinic_id,name,price) VALUES ('80000000-0000-0000-0000-0000000000e1','20000000-0000-0000-0000-0000000000e1','Peeling',300);
 INSERT INTO public.proposals(id,clinic_id,patient_id,proposal_number,total_amount,final_amount,status,valid_until) VALUES
 ('90000000-0000-0000-0000-0000000000e1','20000000-0000-0000-0000-0000000000e1','70000000-0000-0000-0000-0000000000e1','P-E1',300,300,'sent',current_date+5),
-('90000000-0000-0000-0000-0000000000e2','20000000-0000-0000-0000-0000000000e1','70000000-0000-0000-0000-0000000000e2','P-E2',300,300,'sent',current_date-1);
+('90000000-0000-0000-0000-0000000000e2','20000000-0000-0000-0000-0000000000e1','70000000-0000-0000-0000-0000000000e2','P-E2',300,300,'sent',current_date-3);
 INSERT INTO public.proposal_items(proposal_id,treatment_id,quantity,unit_price,subtotal) VALUES ('90000000-0000-0000-0000-0000000000e1','80000000-0000-0000-0000-0000000000e1',1,300,300);
 INSERT INTO public.leads(id,clinic_id,full_name,proposal_id,kanban_stage) VALUES ('b0000000-0000-0000-0000-0000000000e1','20000000-0000-0000-0000-0000000000e1','Elisa','90000000-0000-0000-0000-0000000000e1','proposal_sent');
 INSERT INTO public.contracts(id,clinic_id,patient_id,contract_number,template_snapshot_html,process_status) VALUES

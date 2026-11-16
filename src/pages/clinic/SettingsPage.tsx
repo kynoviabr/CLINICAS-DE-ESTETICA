@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, ClipboardList, FileText, MessageCircle, Bot } from 'lucide-react';
 import { AutomationsSettingsTab } from '@/components/settings/AutomationsSettingsTab';
+import TeamMfaCard from '@/components/settings/TeamMfaCard';
 import CategoriesTab from '@/components/settings/CategoriesTab';
 import CostItemsTab from '@/components/settings/CostItemsTab';
 import ParametersTab from '@/components/settings/ParametersTab';
@@ -229,6 +230,13 @@ export default function SettingsPage() {
     loadTeam();
   };
 
+  const handleResetMfa = async (userId: string) => {
+    if (!window.confirm('Zerar a verificação em duas etapas desta pessoa? Ela vai cadastrar o autenticador de novo no próximo acesso.')) return;
+    const { data, error } = await supabase.functions.invoke('mfa-reset', { body: { clinicId, userId } });
+    if (error || !(data as { ok?: boolean } | null)?.ok) { toast({ title: 'Não foi possível zerar', description: (data as { error?: string } | null)?.error || error?.message, variant: 'destructive' }); return; }
+    toast({ title: 'Duas etapas zerada', description: 'No próximo acesso a pessoa cadastra o autenticador de novo.' });
+  };
+
   const handleCancelInvitation = async (invId: string) => {
     const { error } = await supabase.from('team_invitations').update({ status: 'cancelled' }).eq('id', invId);
     if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); return; }
@@ -393,6 +401,7 @@ export default function SettingsPage() {
             </TabsList>
 
             <TabsContent value="internal-team" className="space-y-4">
+            <TeamMfaCard clinicId={clinicId} isAdmin={role === 'admin'} />
             {/* Invite button */}
             <div className="flex flex-wrap items-center justify-end gap-3">
               {plan.maxUsers && (
@@ -499,6 +508,11 @@ export default function SettingsPage() {
                               className="text-xs"
                             >
                               {s.is_active ? 'Desativar' : 'Reativar'}
+                            </Button>
+                          )}
+                          {role === 'admin' && s.user_id !== user?.id && (
+                            <Button variant="ghost" size="sm" className="text-xs" onClick={() => handleResetMfa(s.user_id)}>
+                              Zerar duas etapas
                             </Button>
                           )}
                         </div>
