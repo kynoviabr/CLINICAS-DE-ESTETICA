@@ -83,7 +83,7 @@ async function catalog(db: SupabaseClient, clinicId: string) {
 
 // ---------- Dados da clínica ----------
 async function businessInfo(db: SupabaseClient, clinicId: string) {
-  const today = localDate(Date.now());
+  const today = localDate(Date.now(), (await settings(db, clinicId)).offsetMin);
   const [s, pros, links, { data: clinic }, { data: hours }, { data: closures }, { data: treatments }, { data: avail }] = await Promise.all([
     settings(db, clinicId), activePros(db, clinicId), treatmentLinks(db, clinicId),
     db.from("clinics").select("name, address, city, state, phone, support_whatsapp").eq("id", clinicId).maybeSingle(),
@@ -162,15 +162,15 @@ async function availability(db: SupabaseClient, clinicId: string, q: URLSearchPa
   const svc = await serviceFor(db, clinicId, q.get("serviceId")!, s);
   if ("error" in svc) return json({ error: svc.error }, svc.status);
   if (q.get("professionalId")) svc.pros = svc.pros.filter((p) => p.id === q.get("professionalId"));
-  if (!svc.pros.length) return json({ timezone: "America/Sao_Paulo", durationMinutes: svc.durationMin, slots: [], truncated: false, reason: "no_professional" });
+  if (!svc.pros.length) return json({ timezone: s.offsetMin === -180 ? "America/Sao_Paulo" : `UTC${s.offsetMin / 60}`, durationMinutes: svc.durationMin, slots: [], truncated: false, reason: "no_professional" });
   // Data além do prazo de agendamento: informa o limite (não é regra da clínica, é o prazo da agenda aberta).
-  const lastDay = addDays(localDate(Date.now()), s.booking_horizon_days);
+  const lastDay = addDays(localDate(Date.now(), s.offsetMin), s.booking_horizon_days);
   if (from > lastDay) {
-    return json({ timezone: "America/Sao_Paulo", durationMinutes: svc.durationMin, slots: [], truncated: false, reason: "beyond_horizon", until: lastDay, horizonDays: s.booking_horizon_days });
+    return json({ timezone: s.offsetMin === -180 ? "America/Sao_Paulo" : `UTC${s.offsetMin / 60}`, durationMinutes: svc.durationMin, slots: [], truncated: false, reason: "beyond_horizon", until: lastDay, horizonDays: s.booking_horizon_days });
   }
   const data = await agendaData(db, clinicId, svc, s, from, to);
   const r = computeSlots({ ...data, from, to, period, time });
-  return json({ timezone: "America/Sao_Paulo", durationMinutes: svc.durationMin, slots: r.slots, truncated: r.truncated, until: r.until });
+  return json({ timezone: s.offsetMin === -180 ? "America/Sao_Paulo" : `UTC${s.offsetMin / 60}`, durationMinutes: svc.durationMin, slots: r.slots, truncated: r.truncated, until: r.until });
 }
 
 /** Quem é o cliente no Clinova: paciente ou lead (acha pela conversa do WhatsApp ou cria o lead). */
@@ -207,8 +207,8 @@ type BookingRow = {
   treatment?: { name?: string | null } | null;
   professional?: { full_name?: string | null; show_name_to_clients?: boolean | null } | null;
 };
-const bookingJson = (a: BookingRow) => ({
-  id: a.id, start: localIso(new Date(a.start_time)), end: localIso(new Date(a.end_time)), status: a.status,
+const bookingJson = (a: BookingRow, off?: number) => ({
+  id: a.id, start: localIso(new Date(a.start_time), off), end: localIso(new Date(a.end_time), off), status: a.status,
   serviceName: a.appointment_type === "evaluation" && !a.treatment?.name ? "Avaliação" : a.treatment?.name ?? null,
   professionalName: a.professional?.show_name_to_clients === false ? null : a.professional?.full_name ?? null,
 });
@@ -224,11 +224,11 @@ async function createBooking(db: SupabaseClient, clinicId: string, b: { serviceI
   // Mesmo pedido repetido (rede caiu, a IA tentou de novo): devolve o agendamento já feito.
   if (tag) {
     const { data: same } = await db.from("appointments").select(BOOKING_FIELDS).eq("clinic_id", clinicId).like("notes", `%${tag}%`).maybeSingle();
-    if (same) return json({ booking: bookingJson(same) }, 200);
+    if (same) return json({ booking: bookingJson(same, s.offsetMin) }, 200);
   }
 
   // Revalida com as mesmas regras do cálculo de horários (pode ter sido ocupado depois da consulta).
-  const day = localIso(start).slice(0, 10);
+  const day = localIso(start, s.offsetMin).slice(0, 10);
   const data = await agendaData(db, clinicId, svc, s, day, day);
   if (!isSlotFree(data, b.professionalId, start)) return json({ error: "slot_unavailable" }, 409);
 
@@ -251,7 +251,7 @@ async function createBooking(db: SupabaseClient, clinicId: string, b: { serviceI
     await db.from("leads").update({ kanban_stage: "scheduled", appointment_id: appt.id, last_interaction_at: new Date().toISOString() })
       .eq("clinic_id", clinicId).eq("id", who.leadId);
   }
-  return json({ booking: bookingJson(appt) }, 201);
+  return json({ booking: bookingJson(appt, s.offsetMin) }, 201);
 }
 
 async function contactBookings(db: SupabaseClient, clinicId: string, c: Contact) {
@@ -260,7 +260,8 @@ async function contactBookings(db: SupabaseClient, clinicId: string, c: Contact)
     .not("status", "in", BUSY).order("start_time").limit(10);
   q = who.patientId ? q.eq("patient_id", who.patientId) : q.eq("lead_id", who.leadId!);
   const { data } = await q;
-  return { who, bookings: (data || []).map(bookingJson) };
+  const off = (await settings(db, clinicId)).offsetMin;
+  return { who, bookings: (data || []).map((b) => bookingJson(b, off)) };
 }
 
 async function cancelBooking(db: SupabaseClient, clinicId: string, id: string, c: Contact, reason: string) {
@@ -272,7 +273,7 @@ async function cancelBooking(db: SupabaseClient, clinicId: string, id: string, c
   const { data, error } = await db.from("appointments").update({ status: "cancelled", cancelled_reason: `${reason} (Aura IA, WhatsApp)`.slice(0, 300) })
     .eq("id", id).select(BOOKING_FIELDS).single();
   if (error) throw error;
-  return json({ booking: bookingJson(data) });
+  return json({ booking: bookingJson(data, (await settings(db, clinicId)).offsetMin) });
 }
 
 Deno.serve(async (req) => {

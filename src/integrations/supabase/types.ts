@@ -971,6 +971,7 @@ export type Database = {
           primary_color: string | null
           secondary_color: string | null
           slug: string
+          timezone: string
           state: string | null
           status: string
           support_whatsapp: string | null
@@ -1019,6 +1020,7 @@ export type Database = {
           primary_color?: string | null
           secondary_color?: string | null
           slug?: string
+          timezone?: string
           state?: string | null
           status?: string
           support_whatsapp?: string | null

@@ -6,6 +6,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { canSendNow, reminderParams, reminderWindow, shortError } from "../_shared/reminders.ts";
 import { sha256Hex } from "../_shared/patient-link.ts";
+import { offsetFor } from "../_shared/agenda.ts";
 import { captureError } from "../_shared/monitoring.ts";
 
 const cors = {
@@ -87,7 +88,7 @@ async function sendTemplate(db: SupabaseClient, clinicId: string, who: Who, temp
 
 const APPT = "id, clinic_id, start_time, patient_id, lead_id, patient:patients!appointments_patient_id_fkey(full_name, phone), lead:leads!appointments_lead_id_fkey(full_name, phone)";
 
-async function runClinic(db: SupabaseClient, cfg: { clinic_id: string; reminder_hours_before: number; reminder_template: string; reminder_language: string }, clinicName: string) {
+async function runClinic(db: SupabaseClient, cfg: { clinic_id: string; reminder_hours_before: number; reminder_template: string; reminder_language: string }, clinicName: string, offsetMin: number) {
   const w = reminderWindow(Date.now(), cfg.reminder_hours_before);
   const { data: appts, error } = await db.from("appointments").select(APPT).eq("clinic_id", cfg.clinic_id).eq("status", "scheduled")
     .gte("start_time", w.from).lte("start_time", w.to).lt("created_at", new Date(Date.now() - 2 * 3600_000).toISOString()).order("start_time").limit(100);
@@ -107,7 +108,7 @@ async function runClinic(db: SupabaseClient, cfg: { clinic_id: string; reminder_
     else {
       try {
         const url = await createLink(db, cfg.clinic_id, a.id, a.start_time);
-        await sendTemplate(db, cfg.clinic_id, who, cfg.reminder_template, cfg.reminder_language, reminderParams(who.name, clinicName, a.start_time, url));
+        await sendTemplate(db, cfg.clinic_id, who, cfg.reminder_template, cfg.reminder_language, reminderParams(who.name, clinicName, a.start_time, url, offsetMin));
       } catch (e) { status = "failed"; detail = shortError(e); }
     }
     out[status] += 1;
@@ -128,16 +129,17 @@ Deno.serve(async (req) => {
       const expected = (Deno.env.get("AUTOMATIONS_RUNNER_TOKEN") || "").trim();
       const ok = expected ? given === expected : !!(await db.rpc("automations_token_ok", { p_token: given })).data;
       if (!ok) return json({ ok: false, reason: "unauthorized" }, 401);
-      if (!canSendNow(Date.now())) return json({ ok: true, skipped: "quiet_hours" });
       const { data: cfgs } = await db.from("clinic_automations").select("clinic_id, reminder_hours_before, reminder_template, reminder_language").eq("reminder_enabled", true);
       const results: Record<string, unknown> = {};
       for (const cfg of cfgs || []) {
         const [{ data: ch }, { data: clinic }] = await Promise.all([
           db.from("whatsapp_channels").select("status").eq("clinic_id", cfg.clinic_id).maybeSingle(),
-          db.from("clinics").select("name").eq("id", cfg.clinic_id).maybeSingle(),
+          db.from("clinics").select("name, timezone").eq("id", cfg.clinic_id).maybeSingle(),
         ]);
+        const off = offsetFor(clinic?.timezone);
+        if (!canSendNow(Date.now(), off)) { results[cfg.clinic_id] = "quiet_hours"; continue; }
         if (ch?.status !== "connected") { results[cfg.clinic_id] = "whatsapp_not_connected"; continue; }
-        try { results[cfg.clinic_id] = await runClinic(db, cfg, clinic?.name || "clínica"); }
+        try { results[cfg.clinic_id] = await runClinic(db, cfg, clinic?.name || "clínica", off); }
         catch (e) { await captureError("automacoes", e, { route: "run" }); results[cfg.clinic_id] = "error"; }
       }
       return json({ ok: true, results });
@@ -154,10 +156,10 @@ Deno.serve(async (req) => {
       const { data: ch } = await db.from("whatsapp_channels").select("status").eq("clinic_id", clinicId).maybeSingle();
       if (ch?.status !== "connected") return json({ ok: false, error: "Conecte o WhatsApp em Configurações antes de testar." }, 409);
       const { data: cfg } = await db.from("clinic_automations").select("*").eq("clinic_id", clinicId).maybeSingle();
-      const { data: clinic } = await db.from("clinics").select("name").eq("id", clinicId).maybeSingle();
+      const { data: clinic } = await db.from("clinics").select("name, timezone").eq("id", clinicId).maybeSingle();
       const origin = (Deno.env.get("APP_URL") || "https://klinova-homolog.vercel.app").replace(/\/$/, "");
       const sample = new Date(Date.now() + 26 * 3600_000).toISOString();
-      const params = reminderParams(String(body.name || "Teste"), clinic?.name || "clínica", sample, `${origin}/agendamento/exemplo`);
+      const params = reminderParams(String(body.name || "Teste"), clinic?.name || "clínica", sample, `${origin}/agendamento/exemplo`, offsetFor(clinic?.timezone));
       try {
         await sendTemplate(db, clinicId, { name: String(body.name || "Teste"), phone: String(body.phone || ""), patientId: null, leadId: null },
           cfg?.reminder_template || "aura_lembrete_horario", cfg?.reminder_language || "pt_BR", params);
