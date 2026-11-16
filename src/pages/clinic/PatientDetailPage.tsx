@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { compressImage } from '@/lib/photos/compress';
 import PortalAccessButton from '@/components/patient/PortalAccessButton';
+import AccessLogList from '@/components/security/AccessLogList';
+import { logAccess } from '@/lib/accessLog';
 import { useUrlState } from '@/hooks/useUrlState';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -35,7 +37,7 @@ import {
 import PatientAnamneseTab from '@/components/anamnese/PatientAnamneseTab';
 import { PatientNotesTab } from '@/components/patient/PatientNotesTab';
 import { parsePatientNotes, getLatestPatientNoteText, serializePatientNotes, type PatientNoteEntry } from '@/lib/patients/notesHistory';
-import { FileText as FileTextIcon } from 'lucide-react';
+import { FileText as FileTextIcon, Shield } from 'lucide-react';
 import { ContractStatusBadge } from '@/components/contracts/ContractStatusBadge';
 import PayerSection, { type PayerData } from '@/components/patient/PayerSection';
 import {
@@ -122,6 +124,7 @@ export default function PatientDetailPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { clinicId, role } = useUserRole();
+  useEffect(() => { logAccess(id, 'record_view'); }, [id]);
   const queryClient = useQueryClient();
   type AppointmentRow = Database['public']['Tables']['appointments']['Row'] & { treatments?: { name?: string | null } | null };
   type SessionRow = Database['public']['Tables']['session_records']['Row'] & { treatments?: { name?: string | null } | null };
@@ -892,7 +895,7 @@ export default function PatientDetailPage() {
       )}
 
       {/* Tabs */}
-      <Tabs value={patientTab} onValueChange={setPatientTab} className="animate-fade-in">
+      <Tabs value={patientTab} onValueChange={(v) => { setPatientTab(v); if (v === 'anamnese') logAccess(id, 'anamnese_view'); }} className="animate-fade-in">
         <TabsList className="w-full flex overflow-x-auto gap-1 mb-6">
           <TabsTrigger value="data" className="flex items-center gap-1"><User className="w-3.5 h-3.5" />Dados</TabsTrigger>
           <TabsTrigger value="anamnese" className="flex items-center gap-1"><FileTextIcon className="w-3.5 h-3.5" />Anamnese</TabsTrigger>
@@ -905,6 +908,7 @@ export default function PatientDetailPage() {
           <TabsTrigger value="notes" className="flex items-center gap-1"><NotebookPen className="w-3.5 h-3.5" />Notas e Observações</TabsTrigger>
           <TabsTrigger value="whatsapp" className="flex items-center gap-1"><MessageCircle className="w-3.5 h-3.5" />WhatsApp</TabsTrigger>
           {!lean && <TabsTrigger value="feedback" className="flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5" />Feedback</TabsTrigger>}
+          {role === 'admin' && <TabsTrigger value="access-log" className="flex items-center gap-1"><Shield className="w-3.5 h-3.5" />Acessos</TabsTrigger>}
         </TabsList>
 
         {/* Data tab */}
@@ -1286,6 +1290,11 @@ export default function PatientDetailPage() {
         </TabsContent>
 
         {/* Feedback tab */}
+        <TabsContent value="access-log">
+          <p className="mb-3 text-xs text-muted-foreground">Quem abriu a ficha, a anamnese, as fotos e os contratos deste paciente. Não pode ser alterado nem apagado.</p>
+          <AccessLogList clinicId={clinicId} patientId={id} />
+        </TabsContent>
+
         <TabsContent value="feedback">
           {feedbacks.length === 0 ? (
             <Card className="shadow-card">

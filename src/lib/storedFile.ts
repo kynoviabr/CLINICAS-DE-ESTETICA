@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { logAccess, patientFromPath } from '@/lib/accessLog';
 
 /**
  * Arquivos de espaços privados (patient-files, patient-anamneses) não abrem por link público.
@@ -26,6 +27,7 @@ export async function openStoredFile(value: string | null | undefined, bucket: s
     if (!path) throw new Error('Arquivo não encontrado.');
     const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 300);
     if (error || !data?.signedUrl) throw error || new Error('Não foi possível abrir o arquivo.');
+    logAccess(patientFromPath(bucket, path), bucket === 'patient-anamneses' ? 'anamnese_document' : 'file_view', path.split('/').pop());
     if (tab) tab.location.href = data.signedUrl;
     else window.location.href = data.signedUrl;
   } catch (e) {

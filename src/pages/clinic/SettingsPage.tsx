@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, ClipboardList, FileText, MessageCircle, Bot } from 'lucide-react';
 import { AutomationsSettingsTab } from '@/components/settings/AutomationsSettingsTab';
 import TeamMfaCard from '@/components/settings/TeamMfaCard';
+import AccessLogList from '@/components/security/AccessLogList';
 import CategoriesTab from '@/components/settings/CategoriesTab';
 import CostItemsTab from '@/components/settings/CostItemsTab';
 import ParametersTab from '@/components/settings/ParametersTab';
@@ -570,6 +571,12 @@ export default function SettingsPage() {
                   </div>
                 </CardContent>
               </Card>
+            )}
+                        {role === 'admin' && (
+              <details className="rounded-lg border p-4">
+                <summary className="cursor-pointer text-sm font-medium">Registro de acessos a prontuário (últimos 300)</summary>
+                <div className="mt-3"><AccessLogList clinicId={clinicId} showPatient /></div>
+              </details>
             )}
             </TabsContent>
 

@@ -4333,6 +4333,14 @@ export type Database = {
         Args: { p_clinic_id: string; p_value: boolean }
         Returns: undefined
       }
+      log_patient_access: {
+        Args: { p_patient_id: string; p_action: string; p_detail?: string | null }
+        Returns: undefined
+      }
+      access_log_list: {
+        Args: { p_clinic_id: string; p_patient_id?: string | null; p_user_id?: string | null; p_limit?: number }
+        Returns: { id: number; created_at: string; user_id: string; user_name: string | null; patient_id: string | null; patient_name: string | null; action: string; detail: string | null }[]
+      }
       my_referral: {
         Args: Record<PropertyKey, never>
         Returns: Json
