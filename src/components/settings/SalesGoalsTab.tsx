@@ -328,7 +328,7 @@ export default function SalesGoalsTab() {
 
     const [planRes, proposalRes] = await Promise.all([
       supabase
-        .from('contract_payment_plans' as never)
+        .from('contract_payment_plans')
         .select('contract_id,total_contract_value,total_predicted_value')
         .in('contract_id', filteredIds),
       supabase

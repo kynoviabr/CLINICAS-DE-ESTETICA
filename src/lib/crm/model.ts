@@ -181,7 +181,7 @@ export function normalizePhone(phone?: string | null) {
   return phone?.replace(/\D/g, '') || '';
 }
 
-export function getSchemaMissingColumn(error) {
+export function getSchemaMissingColumn(error: { message?: string } | null | undefined) {
   const message = error?.message || '';
   const match = message.match(/Could not find the '([^']+)' column/i);
   return match?.[1] || null;

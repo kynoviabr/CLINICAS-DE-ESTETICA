@@ -139,7 +139,7 @@ export default function GoalsTrackingPage() {
     const proposals = inPeriod.map((c) => c.proposal_id).filter(Boolean) as string[];
 
     const [plansRes, propRes] = await Promise.all([
-      supabase.from('contract_payment_plans' as never).select('contract_id,total_contract_value,total_predicted_value').in('contract_id', ids),
+      supabase.from('contract_payment_plans').select('contract_id,total_contract_value,total_predicted_value').in('contract_id', ids),
       supabase.from('proposals').select('id,final_amount').in('id', proposals),
     ]);
 

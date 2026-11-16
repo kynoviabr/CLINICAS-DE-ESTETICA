@@ -58,7 +58,7 @@ export function useStaffDirectory(clinicId?: string | null, roles?: StaffRole[])
         if (professionalsError) throw professionalsError;
 
         professionalsByUser = new Map(
-          (professionals || []).map((professional) => [professional.user_id, professional.full_name])
+          (professionals || []).filter((professional) => !!professional.user_id).map((professional) => [professional.user_id as string, professional.full_name])
         );
       }
 
