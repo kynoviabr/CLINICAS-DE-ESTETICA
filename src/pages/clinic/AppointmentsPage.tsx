@@ -3,7 +3,7 @@ import { BrandButton } from '@/components/ui/brand-button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, ChevronLeft, ChevronRight, AlertTriangle, CalendarCheck2, Clock3, CheckCircle2, CalendarCog, Lock, BellRing, CalendarDays, CalendarRange } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, CalendarCog, Lock, BellRing, CalendarDays, CalendarRange } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import QuickPatientModal from '@/components/patient/QuickPatientModal';
@@ -50,7 +50,6 @@ export default function AppointmentsPage() {
     myProfessionalId,
     professionals,
     waitlistEntries,
-    operationalSummary,
     agendaSignals,
     whatsappOpsSummary,
     sendReminderQueueMutation,
@@ -157,44 +156,6 @@ export default function AppointmentsPage() {
           </BrandButton>
         </div>
       </PageHeader>
-
-      <div className="grid gap-3 md:grid-cols-5 mb-6">
-        <Card className="shadow-card animate-fade-in">
-          <CardContent className="p-4">
-            <CalendarCheck2 className="w-5 h-5 text-primary mb-2" />
-            <p className="text-2xl font-bold text-foreground">{operationalSummary.totalInView}</p>
-            <p className="text-xs text-muted-foreground">Agendamentos no período</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card animate-fade-in">
-          <CardContent className="p-4">
-            <Clock3 className="w-5 h-5 text-primary mb-2" />
-            <p className="text-2xl font-bold text-foreground">{operationalSummary.today}</p>
-            <p className="text-xs text-muted-foreground">Atendimentos de hoje</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card animate-fade-in">
-          <CardContent className="p-4">
-            <CheckCircle2 className="w-5 h-5 text-success mb-2" />
-            <p className="text-2xl font-bold text-foreground">{operationalSummary.readyForSession}</p>
-            <p className="text-xs text-muted-foreground">Prontos para sessão</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card animate-fade-in">
-          <CardContent className="p-4">
-            <AlertTriangle className="w-5 h-5 text-warning mb-2" />
-            <p className="text-2xl font-bold text-foreground">{operationalSummary.noShow}</p>
-            <p className="text-xs text-muted-foreground">Não compareceu</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card animate-fade-in border-warning/30 cursor-pointer" onClick={() => setFilterProfessional('unassigned')}>
-          <CardContent className="p-4">
-            <AlertTriangle className="w-5 h-5 text-warning mb-2" />
-            <p className="text-2xl font-bold text-foreground">{operationalSummary.unassigned}</p>
-            <p className="text-xs text-muted-foreground">Não atribuído</p>
-          </CardContent>
-        </Card>
-      </div>
 
       {!lean && (
         <div className="grid gap-3 md:grid-cols-5 mb-6">
