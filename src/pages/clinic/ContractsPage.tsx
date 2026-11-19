@@ -12,7 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { AlertTriangle, CheckCircle2, Eye, ExternalLink, FileSignature, Filter, Plus, Search, Upload } from 'lucide-react';
+import { AlertTriangle, CalendarRange, CheckCircle2, Eye, ExternalLink, FileSignature, Filter, Plus, Search, Upload, UserCheck } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
 import { getSignedContractUrl } from '@/lib/storageHelper';
 import { generateContractPDF } from '@/lib/contractPDF';
@@ -155,6 +156,17 @@ export default function ContractsPage() {
     enabled: !!clinicId,
   });
 
+  // Contagem por status (independe do filtro escolhido, para as abas mostrarem sempre o total de cada uma).
+  const { data: statusRows = [] } = useQuery({
+    queryKey: ['contracts', clinicId, 'status-counts'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('contracts').select('process_status').eq('clinic_id', clinicId!);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!clinicId,
+  });
+
   const { data: proposalItemsFilterMap = [] } = useQuery({
     queryKey: ['proposal-items-filter-map', clinicId],
     queryFn: async () => {
@@ -212,14 +224,11 @@ export default function ContractsPage() {
     enabled: !!clinicId && !!linkedPayerId && createDialog,
   });
 
-  const summary = useMemo(() => {
-    return {
-      generated: contracts.filter((contract) => contract.process_status === 'pending_upload').length,
-      signedReceived: contracts.filter((contract) => contract.process_status === 'pending_confirmation').length,
-      active: contracts.filter((contract) => contract.process_status === 'confirmed').length,
-      needsReview: contracts.filter((contract) => contract.process_status === 'overdue').length,
-    };
-  }, [contracts]);
+  const statusCounts = useMemo(() => {
+    const acc: Record<string, number> = { all: statusRows.length };
+    for (const row of statusRows) acc[row.process_status] = (acc[row.process_status] || 0) + 1;
+    return acc;
+  }, [statusRows]);
 
   const visibleContracts = useMemo(() => {
     const today = format(new Date(), 'yyyy-MM-dd');
@@ -652,63 +661,19 @@ export default function ContractsPage() {
         </BrandButton>
       </PageHeader>
 
-      <div className="grid gap-3 md:grid-cols-4 mb-6">
-        <Card className="shadow-card animate-fade-in">
-          <CardContent className="p-4">
-            <FileSignature className="w-5 h-5 text-primary mb-2" />
-            <p className="text-2xl font-bold text-foreground">{summary.generated}</p>
-            <p className="text-xs text-muted-foreground">Gerados</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card animate-fade-in">
-          <CardContent className="p-4">
-            <Upload className="w-5 h-5 text-warning mb-2" />
-            <p className="text-2xl font-bold text-foreground">{summary.signedReceived}</p>
-            <p className="text-xs text-muted-foreground">Assinados recebidos</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card animate-fade-in">
-          <CardContent className="p-4">
-            <CheckCircle2 className="w-5 h-5 text-success mb-2" />
-            <p className="text-2xl font-bold text-foreground">{summary.active}</p>
-            <p className="text-xs text-muted-foreground">Ativos</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card animate-fade-in">
-          <CardContent className="p-4">
-            <AlertTriangle className="w-5 h-5 text-destructive mb-2" />
-            <p className="text-2xl font-bold text-foreground">{summary.needsReview}</p>
-            <p className="text-xs text-muted-foreground">Precisam de revisão</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+      {/* Filtros: busca + tratamento + período + "meus de hoje" */}
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative min-w-[240px] flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por contrato, paciente ou CPF..."
-            className="pl-10"
+            placeholder="Buscar por contrato, paciente ou CPF"
+            className="h-10 pl-10"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[220px]">
-            <Filter className="w-4 h-4 mr-2" />
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="pending_upload">Gerados</SelectItem>
-            <SelectItem value="pending_confirmation">Assinado recebido</SelectItem>
-            <SelectItem value="confirmed">Ativos</SelectItem>
-            <SelectItem value="overdue">Revisar documento</SelectItem>
-            <SelectItem value="cancelled">Cancelados</SelectItem>
-          </SelectContent>
-        </Select>
         <Select value={treatmentFilter} onValueChange={setTreatmentFilter}>
-          <SelectTrigger className="w-[220px]">
+          <SelectTrigger className="h-10 w-full sm:w-52">
             <SelectValue placeholder="Tratamento" />
           </SelectTrigger>
           <SelectContent>
@@ -718,23 +683,78 @@ export default function ContractsPage() {
             ))}
           </SelectContent>
         </Select>
-        <Input type="date" value={dateStart} onChange={(event) => setDateStart(event.target.value)} className="w-[170px]" />
-        <Input type="date" value={dateEnd} onChange={(event) => setDateEnd(event.target.value)} className="w-[170px]" />
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={`flex h-10 w-full items-center gap-2 rounded-md border px-3 text-sm sm:w-auto ${dateStart || dateEnd ? 'border-primary/50 bg-primary/5 text-foreground' : 'border-input bg-background text-muted-foreground'}`}
+            >
+              <CalendarRange className="h-4 w-4" />
+              {dateStart || dateEnd
+                ? `${dateStart ? dateStart.split('-').reverse().join('/') : '…'} – ${dateEnd ? dateEnd.split('-').reverse().join('/') : '…'}`
+                : 'Período'}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-72 space-y-3">
+            <p className="text-sm font-medium">Contratos gerados entre</p>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="space-y-1 text-xs text-muted-foreground">De
+                <Input type="date" value={dateStart} onChange={(event) => setDateStart(event.target.value)} />
+              </label>
+              <label className="space-y-1 text-xs text-muted-foreground">Até
+                <Input type="date" value={dateEnd} onChange={(event) => setDateEnd(event.target.value)} />
+              </label>
+            </div>
+            {(dateStart || dateEnd) && (
+              <button type="button" className="text-xs font-medium text-primary hover:underline" onClick={() => { setDateStart(''); setDateEnd(''); }}>
+                Limpar período
+              </button>
+            )}
+          </PopoverContent>
+        </Popover>
+        <button
+          type="button"
+          aria-pressed={quickFilter === 'mine_today'}
+          onClick={() => setQuickFilter(quickFilter === 'mine_today' ? 'all' : 'mine_today')}
+          className={`flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-medium ${quickFilter === 'mine_today' ? 'border-primary bg-primary/10 text-primary' : 'border-input bg-background text-muted-foreground hover:text-foreground'}`}
+        >
+          <UserCheck className="h-4 w-4" /> Meus de hoje
+        </button>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <BrandButton size="sm" variant={quickFilter === 'all' ? 'primary' : 'outline'} onClick={() => setQuickFilter('all')}>
-          Todos
-        </BrandButton>
-        <BrandButton size="sm" variant={quickFilter === 'mine_today' ? 'primary' : 'outline'} onClick={() => setQuickFilter('mine_today')}>
-          Meus hoje
-        </BrandButton>
-        <BrandButton size="sm" variant={quickFilter === 'pending_signature' ? 'primary' : 'outline'} onClick={() => setQuickFilter('pending_signature')}>
-          Assinatura pendente
-        </BrandButton>
-        <BrandButton size="sm" variant={quickFilter === 'overdue' ? 'primary' : 'outline'} onClick={() => setQuickFilter('overdue')}>
-          Vencidos
-        </BrandButton>
+      {/* Status: abas compactas com contagem (substituem os cartões grandes) */}
+      <div className="-mx-4 mb-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <div role="tablist" aria-label="Filtrar por status" className="inline-flex min-w-max gap-1.5">
+          {([
+            { value: 'all', label: 'Todos', dot: 'bg-muted-foreground/40', alert: '' },
+            { value: 'pending_upload', label: 'Gerados', dot: 'bg-sky-500', alert: '' },
+            { value: 'pending_confirmation', label: 'Assinatura recebida', dot: 'bg-amber-500', alert: 'bg-amber-100 text-amber-800' },
+            { value: 'confirmed', label: 'Ativos', dot: 'bg-emerald-500', alert: '' },
+            { value: 'overdue', label: 'Precisam de revisão', dot: 'bg-rose-500', alert: 'bg-rose-100 text-rose-700' },
+            { value: 'cancelled', label: 'Cancelados', dot: 'bg-slate-400', alert: '' },
+          ]).map((tab) => {
+            const active = filterStatus === tab.value && (quickFilter === 'all' || quickFilter === 'mine_today');
+            const count = statusCounts[tab.value] || 0;
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => { setFilterStatus(tab.value); if (quickFilter !== 'mine_today') setQuickFilter('all'); }}
+                className={`inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                  active ? 'border-primary bg-primary text-primary-foreground shadow-sm' : 'border-border bg-card text-foreground hover:border-primary/40'
+                }`}
+              >
+                {!active && <span className={`h-2 w-2 rounded-full ${tab.dot}`} />}
+                {tab.label}
+                <span className={`rounded-full px-1.5 text-xs tabular-nums ${active ? 'bg-white/20' : tab.alert && count > 0 ? tab.alert : 'bg-muted text-muted-foreground'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {selectedContractIds.length > 0 && (
