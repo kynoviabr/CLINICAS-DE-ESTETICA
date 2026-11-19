@@ -2,17 +2,15 @@ import { PageHeader } from '@/components/ui/page-header';
 import { BrandButton } from '@/components/ui/brand-button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, ChevronLeft, ChevronRight, CalendarCog, Lock, BellRing, CalendarDays, CalendarRange } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, CalendarCog, Lock, BellRing, CalendarDays, CalendarRange, Calendar, Search } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import QuickPatientModal from '@/components/patient/QuickPatientModal';
 import { format } from 'date-fns';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useClinicPlan } from '@/hooks/useClinicPlan';
 import { isLeanPlan } from '@/lib/plans';
-import { type ViewMode } from '@/lib/agenda/model';
 import { useAgendaPage } from './agenda/useAgendaPage';
 import { TodayQueue } from './agenda/TodayQueue';
 import { MonthView } from './agenda/MonthView';
@@ -24,6 +22,7 @@ import { ScheduleExceptionDialog } from './agenda/ScheduleExceptionDialog';
 import { AvailabilityDialog } from './agenda/AvailabilityDialog';
 import { BlocksDialog } from './agenda/BlocksDialog';
 import { WaitlistDialog } from './agenda/WaitlistDialog';
+import { PatientSearchDialog } from './agenda/PatientSearchDialog';
 
 export default function AppointmentsPage() {
   const ctx = useAgendaPage();
@@ -94,8 +93,16 @@ export default function AppointmentsPage() {
     setViewMode('week');
   };
 
+  const goThisMonth = () => {
+    setCurrentDate(new Date());
+    setViewMode('month');
+  };
+
+  const [patientSearchOpen, setPatientSearchOpen] = useState(false);
+
   return (
     <div>
+      <PatientSearchDialog ctx={ctx} open={patientSearchOpen} onOpenChange={setPatientSearchOpen} />
       <PageHeader title="Agenda" description="Gerencie os agendamentos da clínica">
         <div className="flex flex-wrap gap-2">
           <BrandButton variant="outline" onClick={goToday}>
@@ -103,6 +110,12 @@ export default function AppointmentsPage() {
           </BrandButton>
           <BrandButton variant="outline" onClick={goThisWeek}>
             <CalendarRange className="w-4 h-4" /> Semana
+          </BrandButton>
+          <BrandButton variant="outline" onClick={goThisMonth}>
+            <Calendar className="w-4 h-4" /> Mês
+          </BrandButton>
+          <BrandButton variant="outline" onClick={() => setPatientSearchOpen(true)}>
+            <Search className="w-4 h-4" /> Buscar Paciente
           </BrandButton>
           <BrandButton variant="outline" onClick={() => setAvailabilityDialogOpen(true)}>
             <CalendarCog className="w-4 h-4" /> Disponibilidade
@@ -250,13 +263,6 @@ export default function AppointmentsPage() {
               <SelectItem value="no_show">Não compareceu</SelectItem>
             </SelectContent>
           </Select>
-          <Tabs value={viewMode} onValueChange={v => setViewMode(v as ViewMode)}>
-            <TabsList>
-              <TabsTrigger value="month">Mês</TabsTrigger>
-              <TabsTrigger value="week">Semana</TabsTrigger>
-              <TabsTrigger value="day">Dia</TabsTrigger>
-            </TabsList>
-          </Tabs>
         </div>
       </div>
 
