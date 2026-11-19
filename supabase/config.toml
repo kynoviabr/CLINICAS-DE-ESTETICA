@@ -43,3 +43,6 @@ verify_jwt = false
 
 [functions.mfa-reset]
 verify_jwt = false
+
+[functions.push]
+verify_jwt = false

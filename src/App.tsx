@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BiometricLock } from "@/components/BiometricLock";
+import { PushRegistrar } from "@/components/PushRegistrar";
 import { BrandingProvider } from "@/contexts/BrandingContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import LoginPage from "./pages/LoginPage";
@@ -71,6 +72,7 @@ const App = () => (
         <AuthProvider>
           <BrandingProvider>
             <BiometricLock />
+            <PushRegistrar />
             <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<Navigate to="/login" replace />} />

@@ -35,6 +35,18 @@ jobs:
           distribution: temurin
           java-version: 21
       - run: npm ci
+      # Notificações: com o segredo GOOGLE_SERVICES_JSON (arquivo do Firebase) o .apk sai com push ligado.
+      - name: Firebase (se configurado)
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            echo "VITE_PUSH_ENABLED=1" >> "$GITHUB_ENV"
+            echo "Notificações ligadas neste .apk."
+          else
+            echo "Sem GOOGLE_SERVICES_JSON: .apk sem notificações."
+          fi
       - run: npm run build
       - run: npx cap sync android
       - name: Gera o .apk de teste

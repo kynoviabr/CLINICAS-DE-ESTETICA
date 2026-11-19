@@ -2,6 +2,7 @@ import { publicOrigin } from '@/lib/publicOrigin';
 import { createContext, useContext, useCallback, useEffect, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { unregisterPush } from '@/lib/push';
 
 interface AuthContextType {
   session: Session | null;
@@ -103,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    await unregisterPush().catch(() => {});
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   };
