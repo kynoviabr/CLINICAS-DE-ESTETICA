@@ -104,8 +104,10 @@ export default function AppointmentsPage() {
   return (
     <div>
       <PatientSearchDialog ctx={ctx} open={patientSearchOpen} onOpenChange={setPatientSearchOpen} />
-      <PageHeader title="Agenda" description="Gerencie os agendamentos da clínica">
-        <div className="flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <PageHeader title="Agenda" description="Gerencie os agendamentos da clínica" />
+        <div className="-mt-4 flex flex-wrap gap-2">
           <BrandButton variant="outline" onClick={goToday}>
             <CalendarDays className="w-4 h-4" /> Hoje
           </BrandButton>
@@ -166,46 +168,8 @@ export default function AppointmentsPage() {
             <Plus className="w-4 h-4" /> Novo Agendamento
           </BrandButton>
         </div>
-      </PageHeader>
-
-      {!lean && (
-        <div className="grid gap-3 md:grid-cols-5 mb-6">
-          <Card className="shadow-card">
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground">WA pendente</p>
-              <p className="text-xl font-semibold">{whatsappOpsSummary.pending}</p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-card">
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground">WA enviado</p>
-              <p className="text-xl font-semibold">{whatsappOpsSummary.sent}</p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-card">
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground">WA falhou</p>
-              <p className="text-xl font-semibold">{whatsappOpsSummary.failed}</p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-card">
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground">Inbound aplicado</p>
-              <p className="text-xl font-semibold">{whatsappOpsSummary.inboundApplied}</p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-card">
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground">Jobs concluídos</p>
-              <p className="text-xl font-semibold">{whatsappOpsSummary.jobSuccess}</p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
       {/* Controls */}
-      <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
         <div className="flex items-center gap-2">
           <button onClick={() => navigate_(-1)} className="p-2 rounded-lg hover:bg-secondary"><ChevronLeft className="w-5 h-5" /></button>
           <h2 className="text-lg font-semibold text-foreground capitalize min-w-[200px] text-center">{headerLabel}</h2>
@@ -291,6 +255,41 @@ export default function AppointmentsPage() {
         <MiniCalendar ctx={ctx} />
       </div>
       </div>
+
+      {!lean && (
+        <div className="grid gap-3 md:grid-cols-5 mb-6">
+          <Card className="shadow-card">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground">WA pendente</p>
+              <p className="text-xl font-semibold">{whatsappOpsSummary.pending}</p>
+            </CardContent>
+          </Card>
+          <Card className="shadow-card">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground">WA enviado</p>
+              <p className="text-xl font-semibold">{whatsappOpsSummary.sent}</p>
+            </CardContent>
+          </Card>
+          <Card className="shadow-card">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground">WA falhou</p>
+              <p className="text-xl font-semibold">{whatsappOpsSummary.failed}</p>
+            </CardContent>
+          </Card>
+          <Card className="shadow-card">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground">Inbound aplicado</p>
+              <p className="text-xl font-semibold">{whatsappOpsSummary.inboundApplied}</p>
+            </CardContent>
+          </Card>
+          <Card className="shadow-card">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground">Jobs concluídos</p>
+              <p className="text-xl font-semibold">{whatsappOpsSummary.jobSuccess}</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <TodayQueue ctx={ctx} />
 
