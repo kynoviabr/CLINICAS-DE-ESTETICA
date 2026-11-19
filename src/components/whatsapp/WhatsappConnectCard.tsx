@@ -1,3 +1,4 @@
+import { publicOrigin } from '@/lib/publicOrigin';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -44,7 +45,7 @@ export default function WhatsappConnectCard() {
   const start = async () => {
     setBusy(true);
     try {
-      const redirectUrl = `${window.location.origin}/clinic/settings?aba=whatsapp&wa=retorno`;
+      const redirectUrl = `${publicOrigin()}/clinic/settings?aba=whatsapp&wa=retorno`;
       const { authUrl } = await callWhatsapp<{ authUrl: string }>('connect_start', { clinicId, redirectUrl });
       window.location.href = authUrl;
     } catch (err) {

@@ -1,10 +1,11 @@
+import { publicOrigin } from '@/lib/publicOrigin';
 import { supabase } from '@/integrations/supabase/client';
 
 /** Endereço que o paciente abre para confirmar, remarcar ou cancelar. */
 export const appointmentLinkUrl = (origin: string, token: string) => `${origin.replace(/\/$/, '')}/agendamento/${token}`;
 
 /** Equipe: gera o link (vale até o horário do atendimento). */
-export async function createAppointmentLink(appointmentId: string, origin = window.location.origin) {
+export async function createAppointmentLink(appointmentId: string, origin = publicOrigin()) {
   const { data, error } = await supabase.rpc('create_appointment_link', { p_appointment_id: appointmentId });
   if (error) throw error;
   const r = data as { token: string; expires_at: string };

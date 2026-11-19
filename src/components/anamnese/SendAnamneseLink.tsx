@@ -1,3 +1,4 @@
+import { publicOrigin } from '@/lib/publicOrigin';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
@@ -33,7 +34,7 @@ export function SendAnamneseLink({ patientId, clinicName }: { patientId: string;
       return;
     }
     const r = data as { token: string; expires_at: string };
-    setResult({ url: anamneseLinkUrl(window.location.origin, r.token), expiresAt: r.expires_at });
+    setResult({ url: anamneseLinkUrl(publicOrigin(), r.token), expiresAt: r.expires_at });
   };
 
   const message = result && patient ? anamneseLinkMessage(patient.full_name, clinicName, result.url) : '';

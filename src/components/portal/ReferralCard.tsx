@@ -1,3 +1,4 @@
+import { publicOrigin } from '@/lib/publicOrigin';
 import { useQuery } from '@tanstack/react-query';
 import { Gift, Share2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,7 +14,7 @@ export default function ReferralCard() {
     queryFn: async () => (await supabase.rpc('my_referral')).data as { enabled: boolean; code?: string; reward?: string | null; referred?: number; closed?: number } | null,
   });
   if (!data?.enabled || !data.code) return null;
-  const url = referralUrl(window.location.origin, data.code);
+  const url = referralUrl(publicOrigin(), data.code);
   const text = referralShareText(clinicName || 'clínica', url);
   const share = async () => {
     if (navigator.share) { try { await navigator.share({ text }); return; } catch { /* cancelado */ } }

@@ -1,3 +1,4 @@
+import { publicOrigin } from '@/lib/publicOrigin';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { CheckCircle2, Loader2 } from 'lucide-react';
@@ -46,7 +47,7 @@ export default function PublicReferralPage() {
             <p className="text-lg font-semibold">Recebemos seu contato!</p>
             <p className="text-sm text-muted-foreground">A {page.clinic.name} vai te chamar no WhatsApp.</p>
             {page.online_booking && (
-              <a href={publicBookingUrl(window.location.origin, page.clinic.slug)} className="mt-4 flex h-12 items-center justify-center rounded-xl text-base font-semibold text-white" style={{ backgroundColor: color }}>
+              <a href={publicBookingUrl(publicOrigin(), page.clinic.slug)} className="mt-4 flex h-12 items-center justify-center rounded-xl text-base font-semibold text-white" style={{ backgroundColor: color }}>
                 Já quero marcar minha avaliação
               </a>
             )}

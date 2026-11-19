@@ -1,3 +1,4 @@
+import { publicOrigin } from '@/lib/publicOrigin';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
@@ -42,7 +43,7 @@ export default function ContractSignaturePanel({ contract }: {
       if (!p?.phone) throw new Error('O paciente não tem telefone cadastrado.');
       const { data: r, error } = await supabase.rpc('create_contract_link', { p_contract_id: contract.id });
       if (error) throw error;
-      const url = contractLinkUrl(window.location.origin, (r as { token: string }).token);
+      const url = contractLinkUrl(publicOrigin(), (r as { token: string }).token);
       const wa = whatsappLink(p.phone, contractLinkMessage(p.full_name.split(' ')[0], clinicName || 'nossa clínica', contract.contract_number, url));
       if (tab) tab.location.href = wa; else window.location.href = wa;
       qc.invalidateQueries({ queryKey: key });

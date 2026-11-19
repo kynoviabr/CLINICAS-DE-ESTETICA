@@ -1,0 +1,47 @@
+# Gera o app Android de teste (.apk) apontando para a homologação.
+# Baixe em: Actions > "App Android (teste)" > execução mais recente > Artifacts > klinova-android-homolog.
+name: App Android (teste)
+
+on:
+  push:
+    branches: [homolog]
+  pull_request:
+    paths: ["android/**", "capacitor.config.ts", "package.json", ".github/workflows/app-android.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: app-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Valores públicos (os mesmos que o site de homologação já entrega ao navegador).
+      VITE_SUPABASE_URL: https://majqksguuwmjhuuwjltj.supabase.co
+      VITE_SUPABASE_PROJECT_ID: majqksguuwmjhuuwjltj
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ycdXOUTZJEISaj6RcTQ4pw_OiLTwxkm
+      VITE_PUBLIC_APP_URL: https://klinova-homolog.vercel.app
+      VITE_APP_ENV: homolog
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Gera o .apk de teste
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: klinova-android-homolog
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14

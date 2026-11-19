@@ -1,3 +1,4 @@
+import { publicOrigin } from '@/lib/publicOrigin';
 import { useState, useEffect } from 'react';
 import { BrandButton } from '@/components/ui/brand-button';
 import { BrandBadge } from '@/components/ui/brand-badge';
@@ -131,7 +132,7 @@ export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController })
       if (error) throw error;
 
       const r = data as { token: string; expires_at: string };
-      const url = anamneseLinkUrl(window.location.origin, r.token);
+      const url = anamneseLinkUrl(publicOrigin(), r.token);
       const treatmentName = (viewAppt.treatments as { name?: string | null } | null)?.name;
       const clinicLabel = clinicName || 'nossa clínica';
       const first = recipientName.trim().split(/\s+/)[0] || recipientName;
