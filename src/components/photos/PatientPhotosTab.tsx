@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { usePatientPhotos, type PatientPhoto, type PhotoMeta } from '@/hooks/usePatientPhotos';
 import { formatBytes } from '@/lib/photos/compress';
 import { PHOTO_LABELS, PHOTO_LABEL_ORDER } from '@/lib/photos/storage';
+import { isNativeApp, nativePickPhotos } from '@/lib/nativeCamera';
 
 const LABEL_STYLE: Record<string, string> = {
   before: 'bg-sky-600 text-white',
@@ -61,11 +62,20 @@ export function PatientPhotosTab({ clinicId, patientId }: { clinicId: string; pa
     return c;
   }, [photos]);
 
-  const pick = (list: FileList | null) => {
+  const pick = (list: FileList | File[] | null) => {
     const files = Array.from(list ?? []);
     if (!files.length) return;
     setPending({ files, previews: files.map((f) => URL.createObjectURL(f)) });
     setMeta((m) => ({ ...m, date: today(), description: '' }));
+  };
+  // No app iOS/Android usa a câmera/galeria nativa; no navegador, o seletor de arquivos.
+  const openSource = async (source: 'camera' | 'gallery') => {
+    if (!isNativeApp()) { (source === 'camera' ? cameraRef : galleryRef).current?.click(); return; }
+    try { pick(await nativePickPhotos(source)); }
+    catch (err) {
+      toast({ title: 'Não foi possível abrir a câmera', description: 'Libere o acesso à câmera e às fotos nos Ajustes do celular.', variant: 'destructive' });
+      console.warn(err);
+    }
   };
   const closePending = () => {
     pending?.previews.forEach((u) => URL.revokeObjectURL(u));
@@ -110,8 +120,8 @@ export function PatientPhotosTab({ clinicId, patientId }: { clinicId: string; pa
       <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => pick(e.target.files)} />
 
       <div className="flex flex-wrap items-center gap-2">
-        <BrandButton onClick={() => cameraRef.current?.click()}><Camera className="h-4 w-4" /> Tirar foto</BrandButton>
-        <BrandButton variant="outline" onClick={() => galleryRef.current?.click()}><ImagePlus className="h-4 w-4" /> Da galeria</BrandButton>
+        <BrandButton onClick={() => openSource('camera')}><Camera className="h-4 w-4" /> Tirar foto</BrandButton>
+        <BrandButton variant="outline" onClick={() => openSource('gallery')}><ImagePlus className="h-4 w-4" /> Da galeria</BrandButton>
         {photos.length >= 2 && (
           <BrandButton variant={compareMode ? 'primary' : 'outline'} onClick={() => { setCompareMode(!compareMode); setCompare([]); }}>
             <Columns2 className="h-4 w-4" /> {compareMode ? 'Cancelar comparação' : 'Comparar antes × depois'}
