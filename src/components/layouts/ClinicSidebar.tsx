@@ -13,6 +13,7 @@ import { useClinicPlan } from '@/hooks/useClinicPlan';
 import { isLeanPlan } from '@/lib/plans';
 import { useClinicFeatures } from '@/hooks/useClinicFeatures';
 import type { MenuPermissionKey } from '@/lib/accessPermissions';
+import { BiometricToggle } from '@/components/BiometricLock';
 import { cn } from '@/lib/utils';
 import NotificationBell from '@/components/NotificationBell';
 
@@ -172,6 +173,7 @@ export default function ClinicSidebar() {
 
         {/* Footer */}
         <div className="p-2 border-t border-[hsl(var(--sidebar-border))] shrink-0">
+          <BiometricToggle className="flex items-center gap-3 px-3 py-2 mx-1 rounded-btn text-[13px] font-medium text-white/70 hover:bg-white/10 hover:text-white transition-all w-[calc(100%-0.5rem)] ease-stripe" />
           <button
             onClick={signOut}
             className="flex items-center gap-3 px-3 py-2 mx-1 rounded-btn text-[13px] font-medium text-white/70 hover:bg-[hsl(var(--destructive)/0.18)] hover:text-white transition-all w-[calc(100%-0.5rem)] ease-stripe"

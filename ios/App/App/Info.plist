@@ -45,5 +45,13 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>O Klinova usa a câmera para tirar as fotos clínicas (antes e depois) e guardá-las na ficha do paciente.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>O Klinova acessa suas fotos para você anexar imagens já tiradas à ficha do paciente.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>O Klinova pode salvar imagens no seu celular quando você pedir.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Use o Face ID para desbloquear o Klinova com segurança, sem digitar a senha.</string>
 </dict>
 </plist>
