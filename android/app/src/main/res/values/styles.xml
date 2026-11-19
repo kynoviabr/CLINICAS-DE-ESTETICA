@@ -13,6 +13,10 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Fundo das barras do sistema (status e navegação) na cor da marca -->
+        <item name="android:windowBackground">@color/klinovaNavy</item>
+        <item name="android:statusBarColor">@color/klinovaNavy</item>
+        <item name="android:navigationBarColor">@color/klinovaNavy</item>
     </style>
 
 

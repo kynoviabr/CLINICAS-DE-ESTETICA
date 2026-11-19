@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d3256"/>
+      <stop offset="1" stop-color="#0a2540"/>
+    </linearGradient>
+    <linearGradient id="k" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3fc9a8"/>
+      <stop offset="1" stop-color="#1a8f78"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <!-- K estilizado: haste + duas pétalas (estética) -->
+  <rect x="330" y="262" width="104" height="500" rx="52" fill="#ffffff"/>
+  <path d="M470 512 C 520 390, 610 300, 720 262 C 712 380, 640 470, 520 512 Z" fill="url(#k)"/>
+  <path d="M470 512 C 520 634, 610 724, 720 762 C 712 644, 640 554, 520 512 Z" fill="url(#k)" opacity="0.85"/>
+</svg>

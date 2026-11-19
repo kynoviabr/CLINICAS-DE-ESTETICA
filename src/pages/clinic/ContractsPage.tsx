@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useToast } from '@/hooks/use-toast';
 import { AlertTriangle, CalendarRange, CheckCircle2, Eye, ExternalLink, FileSignature, Filter, Plus, Search, Upload, UserCheck } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { MobileFilters } from '@/components/ui/mobile-filters';
 import { format } from 'date-fns';
 import { getSignedContractUrl } from '@/lib/storageHelper';
 import { generateContractPDF } from '@/lib/contractPDF';
@@ -662,8 +663,8 @@ export default function ContractsPage() {
       </PageHeader>
 
       {/* Filtros: busca + tratamento + período + "meus de hoje" */}
-      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="relative min-w-[240px] flex-1">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-0 flex-1 sm:min-w-[240px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Buscar por contrato, paciente ou CPF"
@@ -672,6 +673,7 @@ export default function ContractsPage() {
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
+        <MobileFilters activeCount={(treatmentFilter !== 'all' ? 1 : 0) + (dateStart || dateEnd ? 1 : 0) + (quickFilter === 'mine_today' ? 1 : 0)}>
         <Select value={treatmentFilter} onValueChange={setTreatmentFilter}>
           <SelectTrigger className="h-10 w-full sm:w-52">
             <SelectValue placeholder="Tratamento" />
@@ -720,6 +722,7 @@ export default function ContractsPage() {
         >
           <UserCheck className="h-4 w-4" /> Meus de hoje
         </button>
+        </MobileFilters>
       </div>
 
       {/* Status: abas compactas com contagem (substituem os cartões grandes) */}
