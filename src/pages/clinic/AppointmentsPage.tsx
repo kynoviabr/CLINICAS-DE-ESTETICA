@@ -23,6 +23,7 @@ import { AvailabilityDialog } from './agenda/AvailabilityDialog';
 import { BlocksDialog } from './agenda/BlocksDialog';
 import { WaitlistDialog } from './agenda/WaitlistDialog';
 import { PatientSearchDialog } from './agenda/PatientSearchDialog';
+import { MiniCalendar } from './agenda/MiniCalendar';
 
 export default function AppointmentsPage() {
   const ctx = useAgendaPage();
@@ -114,9 +115,6 @@ export default function AppointmentsPage() {
           <BrandButton variant="outline" onClick={goThisMonth}>
             <Calendar className="w-4 h-4" /> Mês
           </BrandButton>
-          <BrandButton variant="outline" onClick={() => setPatientSearchOpen(true)}>
-            <Search className="w-4 h-4" /> Buscar Paciente
-          </BrandButton>
           <BrandButton variant="outline" onClick={() => setAvailabilityDialogOpen(true)}>
             <CalendarCog className="w-4 h-4" /> Disponibilidade
           </BrandButton>
@@ -206,14 +204,18 @@ export default function AppointmentsPage() {
       )}
 
       {/* Controls */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-4">
+      <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
         <div className="flex items-center gap-2">
           <button onClick={() => navigate_(-1)} className="p-2 rounded-lg hover:bg-secondary"><ChevronLeft className="w-5 h-5" /></button>
           <h2 className="text-lg font-semibold text-foreground capitalize min-w-[200px] text-center">{headerLabel}</h2>
           <button onClick={() => navigate_(1)} className="p-2 rounded-lg hover:bg-secondary"><ChevronRight className="w-5 h-5" /></button>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <BrandButton variant="outline" onClick={() => setPatientSearchOpen(true)}>
+            <Search className="w-4 h-4" /> Buscar Paciente
+          </BrandButton>
           {/* Várias profissionais: na visão Dia, cada uma vira uma coluna. */}
           <Popover>
             <PopoverTrigger asChild>
@@ -264,11 +266,7 @@ export default function AppointmentsPage() {
             </SelectContent>
           </Select>
         </div>
-      </div>
 
-      <TodayQueue ctx={ctx} />
-
-      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
         <div className="flex flex-wrap gap-2">
           <span className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
             {agendaSignals.evaluations} avaliações
@@ -289,6 +287,12 @@ export default function AppointmentsPage() {
           )}
         </div>
       </div>
+      <div className="hidden md:block lg:shrink-0">
+        <MiniCalendar ctx={ctx} />
+      </div>
+      </div>
+
+      <TodayQueue ctx={ctx} />
 
       {/* Calendar */}
       <MonthView ctx={ctx} />
