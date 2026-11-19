@@ -2815,6 +2815,12 @@ export type Database = {
         }
         Relationships: []
       }
+      push_devices: {
+        Row: { created_at: string; id: string; last_seen_at: string; platform: string; token: string; user_id: string }
+        Insert: { created_at?: string; id?: string; last_seen_at?: string; platform: string; token: string; user_id: string }
+        Update: { created_at?: string; id?: string; last_seen_at?: string; platform?: string; token?: string; user_id?: string }
+        Relationships: []
+      }
       proposals: {
         Row: {
           clinic_id: string
@@ -4378,6 +4384,14 @@ export type Database = {
       submit_referral: {
         Args: { p_code: string; p_name: string; p_phone: string }
         Returns: Json
+      }
+      register_push_device: {
+        Args: { p_platform: string; p_token: string }
+        Returns: undefined
+      }
+      unregister_push_device: {
+        Args: { p_token: string }
+        Returns: undefined
       }
       referral_list: {
         Args: { p_clinic_id: string }
