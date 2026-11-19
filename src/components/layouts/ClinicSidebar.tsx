@@ -76,31 +76,62 @@ export default function ClinicSidebar() {
     return has(item.permissionKey);
   });
 
+  // Abas do celular: as 4 telas mais usadas que a pessoa pode ver; o resto fica em "Mais".
+  const TAB_ORDER = ['/clinic', '/clinic/appointments', '/clinic/patients', '/clinic/conversas', '/clinic/crm', '/clinic/proposals'];
+  const tabItems = TAB_ORDER.map((to) => filteredNav.find((i) => i.to === to)).filter((i): i is NavItem => !!i).slice(0, 4);
+
   return (
     <>
-      {/* Mobile header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 glass-navy border-b border-[hsl(var(--sidebar-border))] px-4 h-[60px] flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          {logoUrl ? (
-            <img src={logoUrl} alt={clinicName} className="w-8 h-8 rounded-btn object-cover" />
-          ) : (
-            <div className="w-8 h-8 rounded-btn bg-primary flex items-center justify-center">
-              <Stethoscope className="w-4 h-4 text-primary-foreground" />
+      {/* Celular: topo com a clínica e o sino (respeita a barra de status) */}
+      <div
+        className="lg:hidden fixed top-0 left-0 right-0 z-50 glass-navy border-b border-[hsl(var(--sidebar-border))]"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        <div className="flex h-14 items-center justify-between px-4">
+          <div className="flex min-w-0 items-center gap-3">
+            {logoUrl ? (
+              <img src={logoUrl} alt={clinicName} className="h-9 w-9 shrink-0 rounded-full object-cover ring-2 ring-white/20" />
+            ) : (
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary">
+                <Stethoscope className="h-4 w-4 text-primary-foreground" />
+              </div>
+            )}
+            <div className="min-w-0 leading-tight">
+              <p className="truncate font-heading text-[15px] font-semibold text-white">{clinicName}</p>
+              {planName && <p className="text-[10px] font-medium uppercase tracking-wider text-white/50">Plano {planName}</p>}
             </div>
-          )}
-          <span className="font-heading font-semibold text-white text-[15px]">{clinicName}</span>
-        </div>
-        <div className="flex items-center gap-1">
+          </div>
           <NotificationBell />
-          <button
-            onClick={() => setOpen(!open)}
-            className="p-2 rounded-btn text-white/90 hover:bg-white/10 transition-colors"
-            aria-label={open ? 'Fechar menu' : 'Abrir menu'}
-          >
-            {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
         </div>
       </div>
+
+      {/* Celular: barra de abas embaixo, ao alcance do polegar */}
+      <nav
+        aria-label="Navegação principal"
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <div className="grid h-16" style={{ gridTemplateColumns: `repeat(${tabItems.length + 1}, minmax(0, 1fr))` }}>
+          {tabItems.map(({ to, icon: Icon, label: rawLabel }) => {
+            const label = to === '/clinic' ? (lean ? 'Meu dia' : 'Início') : rawLabel;
+            const active = !open && (location.pathname === to || (to !== '/clinic' && location.pathname.startsWith(to)));
+            return (
+              <NavLink key={to} to={to} onClick={() => setOpen(false)} className="flex flex-col items-center justify-center gap-1">
+                <span className={cn('flex h-8 w-14 items-center justify-center rounded-full transition-colors', active ? 'bg-primary/12 text-primary' : 'text-muted-foreground')}>
+                  <Icon className="h-[22px] w-[22px]" strokeWidth={active ? 2.4 : 2} />
+                </span>
+                <span className={cn('text-[11px] leading-none', active ? 'font-semibold text-primary' : 'text-muted-foreground')}>{label}</span>
+              </NavLink>
+            );
+          })}
+          <button type="button" onClick={() => setOpen(!open)} className="flex flex-col items-center justify-center gap-1" aria-expanded={open}>
+            <span className={cn('flex h-8 w-14 items-center justify-center rounded-full transition-colors', open ? 'bg-primary/12 text-primary' : 'text-muted-foreground')}>
+              {open ? <X className="h-[22px] w-[22px]" /> : <Menu className="h-[22px] w-[22px]" />}
+            </span>
+            <span className={cn('text-[11px] leading-none', open ? 'font-semibold text-primary' : 'text-muted-foreground')}>Mais</span>
+          </button>
+        </div>
+      </nav>
 
       {/* Overlay */}
       {open && (
@@ -113,14 +144,15 @@ export default function ClinicSidebar() {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed top-0 left-0 z-40 h-full w-[220px] flex flex-col transition-transform duration-300 ease-stripe',
+          'fixed top-0 left-0 z-40 h-full w-[260px] lg:w-[220px] flex flex-col transition-transform duration-300 ease-stripe',
+          'pt-[calc(56px+env(safe-area-inset-top))] pb-[calc(64px+env(safe-area-inset-bottom))] lg:pt-0 lg:pb-0',
           'bg-sidebar text-sidebar-foreground border-r border-[hsl(var(--sidebar-border))]',
           'lg:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         {/* Logo */}
-        <div className="px-5 h-[60px] flex items-center border-b border-[hsl(var(--sidebar-border))] shrink-0">
+        <div className="hidden px-5 h-[60px] lg:flex items-center border-b border-[hsl(var(--sidebar-border))] shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             {logoUrl ? (
               <img src={logoUrl} alt={clinicName} className="w-9 h-9 rounded-btn object-cover shrink-0" />

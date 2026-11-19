@@ -25,6 +25,7 @@ import { WaitlistDialog } from './agenda/WaitlistDialog';
 import { PatientSearchDialog } from './agenda/PatientSearchDialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { type ViewMode } from '@/lib/agenda/model';
+import { MobileFilters } from '@/components/ui/mobile-filters';
 import { MiniCalendar } from './agenda/MiniCalendar';
 
 export default function AppointmentsPage() {
@@ -126,7 +127,7 @@ export default function AppointmentsPage() {
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-        <BrandButton onClick={openNew}>
+        <BrandButton onClick={openNew} className="hidden sm:inline-flex">
           <Plus className="w-4 h-4" /> Novo agendamento
         </BrandButton>
       </PageHeader>
@@ -151,15 +152,15 @@ export default function AppointmentsPage() {
         <div className="min-w-0">
           {/* Barra de navegação: hoje, setas, data | visão */}
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <BrandButton variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>Hoje</BrandButton>
               <div className="flex items-center">
                 <button aria-label="Anterior" onClick={() => navigate_(-1)} className="rounded-full p-1.5 hover:bg-secondary"><ChevronLeft className="h-5 w-5" /></button>
                 <button aria-label="Próximo" onClick={() => navigate_(1)} className="rounded-full p-1.5 hover:bg-secondary"><ChevronRight className="h-5 w-5" /></button>
               </div>
-              <h2 className="text-lg font-semibold capitalize text-foreground sm:text-xl">{headerLabel}</h2>
+              <h2 className="min-w-0 truncate text-base font-semibold capitalize text-foreground sm:text-xl">{headerLabel}</h2>
             </div>
-            <div role="tablist" aria-label="Visão da agenda" className="inline-flex rounded-lg border bg-muted/60 p-1">
+            <div role="tablist" aria-label="Visão da agenda" className="grid w-full grid-cols-3 rounded-lg border bg-muted/60 p-1 sm:inline-flex sm:w-auto">
               {(['day', 'week', 'month'] as ViewMode[]).map((mode) => (
                 <button
                   key={mode}
@@ -175,14 +176,15 @@ export default function AppointmentsPage() {
           </div>
 
           {/* Filtros */}
-          <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border bg-card p-2 shadow-sm">
+          <div className="mb-4 flex flex-wrap items-center gap-2 sm:rounded-xl sm:border sm:bg-card sm:p-2 sm:shadow-sm">
             <button
               type="button"
               onClick={() => setPatientSearchOpen(true)}
-              className="flex h-10 min-w-[220px] flex-1 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm text-muted-foreground hover:border-primary/40 sm:max-w-sm"
+              className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm text-muted-foreground hover:border-primary/40 sm:min-w-[220px] sm:max-w-sm"
             >
-              <Search className="h-4 w-4" /> Buscar paciente na agenda…
+              <Search className="h-4 w-4 shrink-0" /> <span className="truncate">Buscar paciente na agenda…</span>
             </button>
+          <MobileFilters activeCount={(filterProfessionals.length ? 1 : 0) + (filterStatus !== 'all' ? 1 : 0)}>
           {/* Várias profissionais: na visão Dia, cada uma vira uma coluna. */}
           <Popover>
             <PopoverTrigger asChild>
@@ -232,6 +234,7 @@ export default function AppointmentsPage() {
               <SelectItem value="no_show">Não compareceu</SelectItem>
             </SelectContent>
           </Select>
+          </MobileFilters>
           </div>
 
       {!lean && (
@@ -305,7 +308,7 @@ export default function AppointmentsPage() {
       />
       {/* Celular: botão fixo para marcar sem rolar até o topo. */}
       <button type="button" onClick={openNew} aria-label="Novo agendamento"
-        className="fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg sm:hidden">
+        className="fixed bottom-[calc(80px+env(safe-area-inset-bottom))] right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg sm:hidden">
         <Plus className="h-6 w-6" />
       </button>
     </div>

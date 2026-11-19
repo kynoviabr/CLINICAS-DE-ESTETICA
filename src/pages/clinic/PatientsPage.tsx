@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, MoreHorizontal, Phone, Mail, Edit, Eye, CalendarRange } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { MobileFilters } from '@/components/ui/mobile-filters';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
@@ -444,8 +445,8 @@ export default function PatientsPage() {
       </PageHeader>
 
       {/* Filtros: busca + seletores + período do contrato */}
-      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="relative min-w-[240px] flex-1">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-0 flex-1 sm:min-w-[240px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Buscar por nome, e-mail, telefone ou CPF"
@@ -454,6 +455,7 @@ export default function PatientsPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        <MobileFilters activeCount={(statusFilter !== 'all' ? 1 : 0) + (treatmentFilter !== 'all' ? 1 : 0) + (contractDateStart || contractDateEnd ? 1 : 0)}>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-full sm:w-36 h-10">
             <SelectValue placeholder="Status" />
@@ -506,6 +508,7 @@ export default function PatientsPage() {
             )}
           </PopoverContent>
         </Popover>
+        </MobileFilters>
       </div>
 
       {/* Anamnese: abas compactas com contagem (substituem os cartões grandes) */}

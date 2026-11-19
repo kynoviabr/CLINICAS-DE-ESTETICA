@@ -75,8 +75,8 @@ export default function ConversationsPage() {
     <div>
       <PageHeader title="Conversas" description={channel?.phone_number ? `WhatsApp ${displayPhone(String(channel.phone_number).replace(/\D/g, '')) || channel.phone_number}` : 'WhatsApp da clínica'} />
 
-      <div className="grid gap-3 lg:grid-cols-[340px_1fr]">
-        <Card className={`shadow-card ${selected ? 'hidden lg:block' : ''}`}><CardContent className="p-0">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[340px_1fr]">
+        <Card className={`min-w-0 shadow-card ${selected ? 'hidden lg:block' : ''}`}><CardContent className="p-0">
           <div className="space-y-2 border-b p-3">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -119,7 +119,7 @@ export default function ConversationsPage() {
         </CardContent></Card>
 
         {selected ? (
-          <Card className="overflow-hidden shadow-card"><CardContent className="p-0">
+          <Card className="min-w-0 overflow-hidden shadow-card"><CardContent className="p-0">
             <div className="flex items-center gap-2 border-b px-3 py-2">
               <button type="button" className="rounded p-1 hover:bg-muted lg:hidden" aria-label="Voltar" onClick={() => select(null)}><ArrowLeft className="h-5 w-5" /></button>
               <div className="min-w-0 flex-1">

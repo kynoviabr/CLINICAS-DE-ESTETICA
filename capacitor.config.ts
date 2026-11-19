@@ -7,9 +7,9 @@ const config: CapacitorConfig = {
   appName: 'Klinova',
   webDir: 'dist',
   ios: { contentInset: 'automatic' },
-  android: { allowMixedContent: false, adjustMarginsForEdgeToEdge: 'auto' },
+  android: { allowMixedContent: false, adjustMarginsForEdgeToEdge: 'force' },
   plugins: {
-    SplashScreen: { launchShowDuration: 800, backgroundColor: '#0f2a3d', showSpinner: false },
+    SplashScreen: { launchShowDuration: 800, backgroundColor: '#0a2540', showSpinner: false },
   },
 };
 
