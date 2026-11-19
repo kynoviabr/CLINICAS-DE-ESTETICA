@@ -13,7 +13,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, MoreHorizontal, Phone, Mail, Edit, Eye } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Phone, Mail, Edit, Eye, CalendarRange } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
@@ -240,9 +241,6 @@ export default function PatientsPage() {
     ? patientsBeforeAnamnese
     : patientsBeforeAnamnese.filter((p) => getPatientAnamneseStatus(p.id) === anamneseFilter);
 
-  const toggleAnamneseCard = (status: AnamneseStatus) => {
-    setAnamneseFilter(anamneseFilter === status ? 'all' : status);
-  };
 
   const treatmentOptions = patientContracts.reduce<Array<{ id: string; name: string }>>((acc, row: ContractTreatmentRow) => {
     if (!row?.treatment_id || !row?.treatments?.name) return acc;
@@ -445,19 +443,19 @@ export default function PatientsPage() {
         </BrandButton>
       </PageHeader>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+      {/* Filtros: busca + seletores + período do contrato */}
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative min-w-[240px] flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome, e-mail, telefone ou CPF..."
-            className="pl-10"
+            placeholder="Buscar por nome, e-mail, telefone ou CPF"
+            className="h-10 pl-10"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-40">
+          <SelectTrigger className="w-full sm:w-36 h-10">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -468,20 +466,8 @@ export default function PatientsPage() {
             <SelectItem value="pending">Pendentes</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={anamneseFilter} onValueChange={(v) => setAnamneseFilter(v as 'all' | AnamneseStatus)}>
-          <SelectTrigger className="w-full sm:w-48">
-            <SelectValue placeholder="Anamnese" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas anamneses</SelectItem>
-            <SelectItem value="none">Sem anamnese</SelectItem>
-            <SelectItem value="valid">Válida</SelectItem>
-            <SelectItem value="expiring">Próxima do vencimento</SelectItem>
-            <SelectItem value="expired">Vencida</SelectItem>
-          </SelectContent>
-        </Select>
         <Select value={treatmentFilter} onValueChange={setTreatmentFilter}>
-          <SelectTrigger className="w-full sm:w-52">
+          <SelectTrigger className="w-full sm:w-52 h-10">
             <SelectValue placeholder="Tratamento" />
           </SelectTrigger>
           <SelectContent>
@@ -491,69 +477,67 @@ export default function PatientsPage() {
             ))}
           </SelectContent>
         </Select>
-        <Input
-          type="date"
-          value={contractDateStart}
-          aria-label="Contrato a partir de"
-          title="Contrato a partir de"
-          onChange={(event) => setContractDateStart(event.target.value)}
-          className="w-full sm:w-44"
-        />
-        <Input
-          type="date"
-          value={contractDateEnd}
-          aria-label="Contrato até"
-          title="Contrato até"
-          onChange={(event) => setContractDateEnd(event.target.value)}
-          className="w-full sm:w-44"
-        />
-      </div>
-
-      {!isLoading && patients.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-2 xl:grid-cols-4">
-          {(['none', 'valid', 'expiring', 'expired'] as AnamneseStatus[]).map((status) => (
+        <Popover>
+          <PopoverTrigger asChild>
             <button
               type="button"
-              key={status}
-              onClick={() => toggleAnamneseCard(status)}
-              aria-pressed={anamneseFilter === status}
-              title={anamneseFilter === status ? 'Clique para mostrar todos' : `Mostrar só: ${anamneseStatusLabel[status]}`}
-              className={`text-left rounded-2xl border p-4 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-                status === 'expired'
-                  ? 'border-destructive/40 bg-destructive/5'
-                  : status === 'expiring' || status === 'none'
-                    ? 'border-warning/40 bg-warning/10'
-                    : 'bg-card'
-              } ${anamneseFilter === status ? 'ring-2 ring-primary' : anamneseFilter !== 'all' ? 'opacity-60' : ''}`}
+              className={`flex h-10 w-full items-center gap-2 rounded-md border px-3 text-sm sm:w-auto ${contractDateStart || contractDateEnd ? 'border-primary/50 bg-primary/5 text-foreground' : 'border-input bg-background text-muted-foreground'}`}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {anamneseStatusLabel[status]}
-                  </p>
-                  <p className="text-2xl font-semibold text-foreground">{anamneseCounts[status]}</p>
-                </div>
-                <AnamneseBadge status={status} />
-              </div>
-              <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                {anamneseStatusHint[status]}
-              </p>
-              <p className="mt-2 text-xs font-medium text-primary">
-                {anamneseFilter === status ? 'Filtrando · clique para limpar' : 'Ver clientes'}
-              </p>
+              <CalendarRange className="h-4 w-4" />
+              {contractDateStart || contractDateEnd
+                ? `Contrato: ${contractDateStart ? contractDateStart.split('-').reverse().join('/') : '…'} – ${contractDateEnd ? contractDateEnd.split('-').reverse().join('/') : '…'}`
+                : 'Período do contrato'}
             </button>
-          ))}
-        </div>
-      )}
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-72 space-y-3">
+            <p className="text-sm font-medium">Contrato assinado entre</p>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="space-y-1 text-xs text-muted-foreground">De
+                <Input type="date" value={contractDateStart} onChange={(e) => setContractDateStart(e.target.value)} />
+              </label>
+              <label className="space-y-1 text-xs text-muted-foreground">Até
+                <Input type="date" value={contractDateEnd} onChange={(e) => setContractDateEnd(e.target.value)} />
+              </label>
+            </div>
+            {(contractDateStart || contractDateEnd) && (
+              <button type="button" className="text-xs font-medium text-primary hover:underline" onClick={() => { setContractDateStart(''); setContractDateEnd(''); }}>
+                Limpar período
+              </button>
+            )}
+          </PopoverContent>
+        </Popover>
+      </div>
 
-      {!isLoading && anamneseFilter !== 'all' && (
-        <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
-          <span>
-            {filteredPatients.length} cliente{filteredPatients.length === 1 ? '' : 's'} com {anamneseStatusLabel[anamneseFilter].toLowerCase()}
-          </span>
-          <button type="button" className="text-primary underline-offset-2 hover:underline" onClick={() => setAnamneseFilter('all')}>
-            Limpar filtro
-          </button>
+      {/* Anamnese: abas compactas com contagem (substituem os cartões grandes) */}
+      {!isLoading && patients.length > 0 && (
+        <div className="-mx-4 mb-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <div role="tablist" aria-label="Filtrar por anamnese" className="inline-flex min-w-max gap-1.5">
+            {(['all', 'none', 'valid', 'expiring', 'expired'] as const).map((status) => {
+              const active = anamneseFilter === status;
+              const count = status === 'all' ? patientsBeforeAnamnese.length : anamneseCounts[status];
+              const dot = { all: 'bg-muted-foreground/40', none: 'bg-slate-400', valid: 'bg-emerald-500', expiring: 'bg-amber-500', expired: 'bg-rose-500' }[status];
+              const alert = (status === 'expired' || status === 'none' || status === 'expiring') && count > 0;
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  title={status === 'all' ? 'Todos os pacientes' : anamneseStatusHint[status]}
+                  onClick={() => setAnamneseFilter(status)}
+                  className={`inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                    active ? 'border-primary bg-primary text-primary-foreground shadow-sm' : 'border-border bg-card text-foreground hover:border-primary/40'
+                  }`}
+                >
+                  {!active && <span className={`h-2 w-2 rounded-full ${dot}`} />}
+                  {status === 'all' ? 'Todos' : anamneseStatusLabel[status]}
+                  <span className={`rounded-full px-1.5 text-xs tabular-nums ${active ? 'bg-white/20' : alert ? (status === 'expired' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800') : 'bg-muted text-muted-foreground'}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
