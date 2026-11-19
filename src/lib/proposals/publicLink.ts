@@ -1,7 +1,8 @@
+import { publicOrigin } from '@/lib/publicOrigin';
 import { supabase } from '@/integrations/supabase/client';
 
 /** Gera um link novo e seguro da proposta (código secreto, vale 15 dias). */
-export async function createProposalLink(proposalId: string, origin = window.location.origin) {
+export async function createProposalLink(proposalId: string, origin = publicOrigin()) {
   const { data, error } = await supabase.rpc('create_proposal_link', { p_proposal_id: proposalId });
   if (error) throw error;
   const res = data as { token: string; expires_at: string };

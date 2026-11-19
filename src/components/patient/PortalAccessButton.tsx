@@ -1,3 +1,4 @@
+import { publicOrigin } from '@/lib/publicOrigin';
 import { useState } from 'react';
 import { ExternalLink, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -19,7 +20,7 @@ export default function PortalAccessButton({ patient, active }: { patient: { id:
     try {
       const { data, error } = await supabase.rpc('create_portal_link', { p_patient_id: patient.id });
       if (error) throw error;
-      const url = portalLinkUrl(window.location.origin, (data as { token: string }).token);
+      const url = portalLinkUrl(publicOrigin(), (data as { token: string }).token);
       const wa = whatsappLink(patient.phone, portalLinkMessage(patient.full_name, clinicName || 'nossa clínica', url));
       if (tab) tab.location.href = wa; else window.location.href = wa;
       toast.success('WhatsApp aberto com o link de acesso ao portal.');

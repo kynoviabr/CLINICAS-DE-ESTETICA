@@ -1,3 +1,4 @@
+import { publicOrigin } from '@/lib/publicOrigin';
 import { createContext, useContext, useCallback, useEffect, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
@@ -82,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: metadata, emailRedirectTo: `${window.location.origin}/onboarding` },
+      options: { data: metadata, emailRedirectTo: `${publicOrigin()}/onboarding` },
     });
     if (error) throw error;
     // E-mail já cadastrado: o Supabase responde "ok" sem enviar nada e sem identidades.
@@ -95,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/login`,
+        redirectTo: `${publicOrigin()}/login`,
       },
     });
     if (error) throw error;

@@ -1,3 +1,4 @@
+import { publicOrigin } from '@/lib/publicOrigin';
 import { useQuery } from '@tanstack/react-query';
 import { Copy } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,7 +16,7 @@ export default function OnlineBookingCard({ clinicId, canEdit, enabled, onChange
     enabled: !!clinicId,
     queryFn: async () => (await supabase.from('clinics').select('slug').eq('id', clinicId!).maybeSingle()).data?.slug || null,
   });
-  const url = slug ? publicBookingUrl(window.location.origin, slug) : '';
+  const url = slug ? publicBookingUrl(publicOrigin(), slug) : '';
 
   return (
     <Card className="shadow-card">

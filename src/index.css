@@ -261,3 +261,9 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* App iOS/Android: respeita a barra de status e o recorte da tela. */
+.native-app body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
