@@ -2,7 +2,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { BrandButton } from '@/components/ui/brand-button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, ChevronLeft, ChevronRight, CalendarCog, Lock, BellRing, CalendarDays, CalendarRange, Calendar, Search } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, CalendarCog, Lock, BellRing, Search, MoreHorizontal } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import QuickPatientModal from '@/components/patient/QuickPatientModal';
@@ -23,6 +23,8 @@ import { AvailabilityDialog } from './agenda/AvailabilityDialog';
 import { BlocksDialog } from './agenda/BlocksDialog';
 import { WaitlistDialog } from './agenda/WaitlistDialog';
 import { PatientSearchDialog } from './agenda/PatientSearchDialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { type ViewMode } from '@/lib/agenda/model';
 import { MiniCalendar } from './agenda/MiniCalendar';
 
 export default function AppointmentsPage() {
@@ -84,106 +86,107 @@ export default function AppointmentsPage() {
     setDialogOpen(true);
   };
 
-  const goToday = () => {
-    setCurrentDate(new Date());
-    setViewMode('day');
-  };
-
-  const goThisWeek = () => {
-    setCurrentDate(new Date());
-    setViewMode('week');
-  };
-
-  const goThisMonth = () => {
-    setCurrentDate(new Date());
-    setViewMode('month');
-  };
-
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
+
+  const viewLabels: Record<ViewMode, string> = { day: 'Dia', week: 'Semana', month: 'Mês' };
+  const summary = [
+    { label: 'Avaliações', value: agendaSignals.evaluations, dot: 'bg-sky-500' },
+    { label: 'Sessões em lote', value: agendaSignals.batches, dot: 'bg-violet-500' },
+    { label: 'Bloqueios', value: agendaSignals.blocks, dot: 'bg-amber-500' },
+    { label: 'Dias com restrição', value: agendaSignals.blockedDays, dot: 'bg-rose-500' },
+    ...(!lean ? [{ label: 'Lista de espera', value: waitlistEntries.length, dot: 'bg-emerald-500' }] : []),
+  ];
 
   return (
     <div>
       <PatientSearchDialog ctx={ctx} open={patientSearchOpen} onOpenChange={setPatientSearchOpen} />
-      <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
-        <PageHeader title="Agenda" description="Gerencie os agendamentos da clínica" />
-        <div className="-mt-4 flex flex-wrap gap-2">
-          <BrandButton variant="outline" onClick={goToday}>
-            <CalendarDays className="w-4 h-4" /> Hoje
-          </BrandButton>
-          <BrandButton variant="outline" onClick={goThisWeek}>
-            <CalendarRange className="w-4 h-4" /> Semana
-          </BrandButton>
-          <BrandButton variant="outline" onClick={goThisMonth}>
-            <Calendar className="w-4 h-4" /> Mês
-          </BrandButton>
-          <BrandButton variant="outline" onClick={() => setAvailabilityDialogOpen(true)}>
-            <CalendarCog className="w-4 h-4" /> Disponibilidade
-          </BrandButton>
-          <BrandButton variant="outline" onClick={() => setBlocksDialogOpen(true)}>
-            <Lock className="w-4 h-4" /> Bloqueios
-          </BrandButton>
-          {!lean && (
-          <>
-            <BrandButton
-              variant="outline"
-              onClick={() => {
-                resetWaitlistForm();
-                setWaitlistDialogOpen(true);
-              }}
-            >
-              <BellRing className="w-4 h-4" /> Lista de Espera
-            </BrandButton>
-            <BrandButton
-              variant="outline"
-              onClick={() => sendReminderQueueMutation.mutate()}
-              disabled={sendReminderQueueMutation.isPending}
-            >
-              {sendReminderQueueMutation.isPending ? 'Processando...' : 'Fila Lembretes WA'}
-            </BrandButton>
-            <BrandButton
-              variant="outline"
-              onClick={() => dispatchReminderMutation.mutate()}
-              disabled={dispatchReminderMutation.isPending}
-            >
-              {dispatchReminderMutation.isPending ? 'Enviando...' : 'Disparar Lembretes WA'}
-            </BrandButton>
-            <BrandButton
-              variant="outline"
-              onClick={() => generateDailySummaryMutation.mutate()}
-              disabled={generateDailySummaryMutation.isPending}
-            >
-              {generateDailySummaryMutation.isPending ? 'Gerando...' : 'Resumo Diário WA'}
-            </BrandButton>
-            <BrandButton
-              variant="outline"
-              onClick={() => runAgendaJobsMutation.mutate('manual')}
-              disabled={runAgendaJobsMutation.isPending}
-            >
-              {runAgendaJobsMutation.isPending ? 'Executando...' : 'Rodar Jobs Agenda'}
-            </BrandButton>
-          </>
-          )}
-          <BrandButton onClick={openNew}>
-            <Plus className="w-4 h-4" /> Novo Agendamento
-          </BrandButton>
-        </div>
 
-      {/* Controls */}
-        <div className="flex items-center gap-2">
-          <button onClick={() => navigate_(-1)} className="p-2 rounded-lg hover:bg-secondary"><ChevronLeft className="w-5 h-5" /></button>
-          <h2 className="text-lg font-semibold text-foreground capitalize min-w-[200px] text-center">{headerLabel}</h2>
-          <button onClick={() => navigate_(1)} className="p-2 rounded-lg hover:bg-secondary"><ChevronRight className="w-5 h-5" /></button>
-        </div>
+      {/* Cabeçalho: título à esquerda, ações à direita */}
+      <PageHeader title="Agenda" description="Gerencie os agendamentos da clínica">
+        <BrandButton variant="ghost" onClick={() => setAvailabilityDialogOpen(true)}>
+          <CalendarCog className="w-4 h-4" /> Disponibilidade
+        </BrandButton>
+        <BrandButton variant="ghost" onClick={() => setBlocksDialogOpen(true)}>
+          <Lock className="w-4 h-4" /> Bloqueios
+        </BrandButton>
+        {!lean && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <BrandButton variant="outline" aria-label="Mais ações"><MoreHorizontal className="w-4 h-4" /> Mais</BrandButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={() => { resetWaitlistForm(); setWaitlistDialogOpen(true); }}>
+                <BellRing className="mr-2 h-4 w-4" /> Lista de espera
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled={sendReminderQueueMutation.isPending} onClick={() => sendReminderQueueMutation.mutate()}>Fila de lembretes WA</DropdownMenuItem>
+              <DropdownMenuItem disabled={dispatchReminderMutation.isPending} onClick={() => dispatchReminderMutation.mutate()}>Disparar lembretes WA</DropdownMenuItem>
+              <DropdownMenuItem disabled={generateDailySummaryMutation.isPending} onClick={() => generateDailySummaryMutation.mutate()}>Resumo diário WA</DropdownMenuItem>
+              <DropdownMenuItem disabled={runAgendaJobsMutation.isPending} onClick={() => runAgendaJobsMutation.mutate('manual')}>Rodar jobs da agenda</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        <BrandButton onClick={openNew}>
+          <Plus className="w-4 h-4" /> Novo agendamento
+        </BrandButton>
+      </PageHeader>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <BrandButton variant="outline" onClick={() => setPatientSearchOpen(true)}>
-            <Search className="w-4 h-4" /> Buscar Paciente
-          </BrandButton>
+      <div className="grid gap-6 lg:grid-cols-[264px_minmax(0,1fr)]">
+        {/* Lateral: mini calendário + resumo do período */}
+        <aside className="hidden lg:flex lg:flex-col lg:gap-4">
+          <MiniCalendar ctx={ctx} />
+          <div className="rounded-xl border bg-card p-4 shadow-sm">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Neste período</p>
+            <ul className="space-y-2.5">
+              {summary.map((item) => (
+                <li key={item.label} className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2 text-muted-foreground"><span className={`h-2 w-2 rounded-full ${item.dot}`} />{item.label}</span>
+                  <span className="font-semibold tabular-nums text-foreground">{item.value}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </aside>
+
+        <div className="min-w-0">
+          {/* Barra de navegação: hoje, setas, data | visão */}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <BrandButton variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>Hoje</BrandButton>
+              <div className="flex items-center">
+                <button aria-label="Anterior" onClick={() => navigate_(-1)} className="rounded-full p-1.5 hover:bg-secondary"><ChevronLeft className="h-5 w-5" /></button>
+                <button aria-label="Próximo" onClick={() => navigate_(1)} className="rounded-full p-1.5 hover:bg-secondary"><ChevronRight className="h-5 w-5" /></button>
+              </div>
+              <h2 className="text-lg font-semibold capitalize text-foreground sm:text-xl">{headerLabel}</h2>
+            </div>
+            <div role="tablist" aria-label="Visão da agenda" className="inline-flex rounded-lg border bg-muted/60 p-1">
+              {(['day', 'week', 'month'] as ViewMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  role="tab"
+                  aria-selected={viewMode === mode}
+                  onClick={() => setViewMode(mode)}
+                  className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors ${viewMode === mode ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  {viewLabels[mode]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Filtros */}
+          <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border bg-card p-2 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setPatientSearchOpen(true)}
+              className="flex h-10 min-w-[220px] flex-1 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm text-muted-foreground hover:border-primary/40 sm:max-w-sm"
+            >
+              <Search className="h-4 w-4" /> Buscar paciente na agenda…
+            </button>
           {/* Várias profissionais: na visão Dia, cada uma vira uma coluna. */}
           <Popover>
             <PopoverTrigger asChild>
-              <button type="button" className="flex h-10 w-[200px] items-center justify-between rounded-md border border-input bg-background px-3 text-sm">
+              <button type="button" className="flex h-10 w-[210px] items-center justify-between rounded-md border border-input bg-background px-3 text-sm">
                 <span className="truncate">
                   {filterProfessionals.length === 0
                     ? 'Todas as profissionais'
@@ -217,7 +220,7 @@ export default function AppointmentsPage() {
             </PopoverContent>
           </Popover>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-[190px]"><SelectValue placeholder="Todos status" /></SelectTrigger>
+            <SelectTrigger className="h-10 w-[170px]"><SelectValue placeholder="Todos status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos status</SelectItem>
               <SelectItem value="scheduled">Agendado</SelectItem>
@@ -229,32 +232,7 @@ export default function AppointmentsPage() {
               <SelectItem value="no_show">Não compareceu</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <span className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
-            {agendaSignals.evaluations} avaliações
-          </span>
-          <span className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
-            {agendaSignals.batches} sessões em lote
-          </span>
-          <span className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
-            {agendaSignals.blocks} bloqueios
-          </span>
-          <span className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
-            {agendaSignals.blockedDays} dias com restrição
-          </span>
-          {!lean && (
-            <span className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
-              {waitlistEntries.length} em lista de espera
-            </span>
-          )}
-        </div>
-      </div>
-      <div className="hidden md:block lg:shrink-0">
-        <MiniCalendar ctx={ctx} />
-      </div>
-      </div>
+          </div>
 
       {!lean && (
         <div className="grid gap-3 md:grid-cols-5 mb-6">
@@ -291,7 +269,7 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      <TodayQueue ctx={ctx} />
+          <TodayQueue ctx={ctx} />
 
       {/* Calendar */}
       <MonthView ctx={ctx} />
@@ -299,6 +277,8 @@ export default function AppointmentsPage() {
       <WeekView ctx={ctx} />
 
       <DayView ctx={ctx} />
+        </div>
+      </div>
 
       {/* Create dialog */}
       <CreateAppointmentDialog ctx={ctx} />

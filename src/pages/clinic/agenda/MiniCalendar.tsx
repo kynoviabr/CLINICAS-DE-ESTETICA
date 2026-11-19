@@ -15,7 +15,7 @@ export function MiniCalendar({ ctx }: { ctx: AgendaPageController }) {
   const days = eachDayOfInterval({ start: startOfWeek(startOfMonth(month)), end: endOfWeek(endOfMonth(month)) });
 
   return (
-    <div className="w-[248px] rounded-lg border bg-background p-2 shadow-sm">
+    <div className="w-full rounded-xl border bg-card p-3 shadow-sm">
       <div className="mb-1 flex items-center justify-between">
         <button type="button" aria-label="Mês anterior" onClick={() => setMonth(subMonths(month, 1))} className="rounded p-1 hover:bg-muted"><ChevronLeft className="h-4 w-4" /></button>
         <span className="text-sm font-semibold capitalize">{format(month, 'MMMM yyyy', { locale: ptBR })}</span>
@@ -32,7 +32,7 @@ export function MiniCalendar({ ctx }: { ctx: AgendaPageController }) {
               key={d.toISOString()}
               type="button"
               onClick={() => { setCurrentDate(d); setViewMode('day'); }}
-              className={`h-7 rounded ${selected ? 'bg-primary text-primary-foreground font-semibold' : isToday(d) ? 'border border-primary text-primary font-semibold' : 'hover:bg-muted'} ${isSameMonth(d, month) ? '' : 'text-muted-foreground/50'}`}
+              className={`h-8 rounded-md ${selected ? 'bg-primary text-primary-foreground font-semibold' : isToday(d) ? 'border border-primary text-primary font-semibold' : 'hover:bg-muted'} ${isSameMonth(d, month) ? '' : 'text-muted-foreground/50'}`}
             >
               {format(d, 'd')}
             </button>
