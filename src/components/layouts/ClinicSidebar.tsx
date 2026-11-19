@@ -1,21 +1,24 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, FileText, ClipboardList, CreditCard,
+  LayoutDashboard, Users, FileText, ClipboardList,
   CalendarDays, Activity, Camera, MessageSquare, Settings, LogOut,
-  Menu, X, Stethoscope, FileSignature, BarChart3, TrendingUp, Star, KanbanSquare, Landmark, Goal
-} from 'lucide-react';
+  Menu, X, Stethoscope, FileSignature, BarChart3, TrendingUp, Star, KanbanSquare, Landmark, Goal, Package, Receipt, MessageCircle, Bot, HeartHandshake } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
 import { useUserRole, type AppRole } from '@/hooks/useUserRole';
 import { useAccessControl } from '@/hooks/useAccessControl';
+import { useClinicPlan } from '@/hooks/useClinicPlan';
+import { isLeanPlan } from '@/lib/plans';
+import { useClinicFeatures } from '@/hooks/useClinicFeatures';
 import type { MenuPermissionKey } from '@/lib/accessPermissions';
 import { cn } from '@/lib/utils';
 import NotificationBell from '@/components/NotificationBell';
 
 interface NavItem {
   to: string;
-  icon: unknown;
+  icon: LucideIcon;
   label: string;
   roles: AppRole[];
   permissionKey: MenuPermissionKey;
@@ -23,21 +26,24 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { to: '/clinic', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'receptionist', 'professional', 'sales'], permissionKey: 'dashboard.view' },
+  { to: '/clinic/appointments', icon: CalendarDays, label: 'Agenda', roles: ['admin', 'receptionist', 'professional'], permissionKey: 'appointments.view' },
   { to: '/clinic/crm', icon: KanbanSquare, label: 'CRM', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'crm.view' },
-  { to: '/clinic/whatsapp-ai', icon: MessageSquare, label: 'WhatsApp IA', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'whatsapp_ai.view' },
+  { to: '/clinic/retorno', icon: HeartHandshake, label: 'Retorno', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'crm.view' },
+  { to: '/clinic/conversas', icon: MessageCircle, label: 'Conversas', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'crm.view' },
   { to: '/clinic/patients', icon: Users, label: 'Pacientes', roles: ['admin', 'receptionist', 'professional', 'sales'], permissionKey: 'patients.view' },
-  { to: '/clinic/treatments', icon: Stethoscope, label: 'Tratamentos', roles: ['admin', 'receptionist', 'professional', 'sales'], permissionKey: 'treatments.view' },
   { to: '/clinic/proposals', icon: FileText, label: 'Propostas', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'proposals.view' },
   { to: '/clinic/contracts', icon: FileSignature, label: 'Contratos', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'contracts.view' },
-  { to: '/clinic/payments', icon: CreditCard, label: 'Pagamentos', roles: ['admin', 'receptionist'], permissionKey: 'payments.view' },
-  { to: '/clinic/finance/contracts', icon: Landmark, label: 'Financeiro Contratos', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'finance_contracts.view' },
+  { to: '/clinic/financeiro', icon: Landmark, label: 'Financeiro', roles: ['admin', 'receptionist', 'sales'], permissionKey: 'finance_contracts.view' },
+  { to: '/clinic/despesas', icon: Receipt, label: 'Despesas', roles: ['admin', 'receptionist'], permissionKey: 'finance_contracts.view' },
+  { to: '/clinic/estoque', icon: Package, label: 'Estoque', roles: ['admin', 'receptionist', 'professional'], permissionKey: 'stock.view' },
   { to: '/clinic/metas/acompanhamento', icon: Goal, label: 'Metas', roles: ['admin', 'receptionist', 'sales', 'professional'], permissionKey: 'goals.view' },
-  { to: '/clinic/appointments', icon: CalendarDays, label: 'Agenda', roles: ['admin', 'receptionist', 'professional'], permissionKey: 'appointments.view' },
+  { to: '/clinic/treatments', icon: Stethoscope, label: 'Tratamentos', roles: ['admin', 'receptionist', 'professional', 'sales'], permissionKey: 'treatments.view' },
   { to: '/clinic/sessions', icon: ClipboardList, label: 'Sessões', roles: ['admin', 'professional'], permissionKey: 'sessions.view' },
   { to: '/clinic/evolution', icon: Activity, label: 'Evolução', roles: ['admin', 'professional'], permissionKey: 'evolution.view' },
   { to: '/clinic/photos', icon: Camera, label: 'Fotos', roles: ['admin', 'professional'], permissionKey: 'photos.view' },
   { to: '/clinic/feedback', icon: Star, label: 'Avaliações', roles: ['admin', 'receptionist', 'professional'], permissionKey: 'feedback.view' },
   { to: '/clinic/reports', icon: MessageSquare, label: 'Relatórios', roles: ['admin', 'sales'], permissionKey: 'reports.view' },
+  { to: '/clinic/automacoes', icon: Bot, label: 'Automações', roles: ['admin', 'receptionist'], permissionKey: 'settings.view' },
   { to: '/clinic/settings', icon: Settings, label: 'Configurações', roles: ['admin'], permissionKey: 'settings.view' },
 ];
 
@@ -53,10 +59,18 @@ export default function ClinicSidebar() {
   const { clinicName, logoUrl } = useBranding();
   const { role } = useUserRole();
   const { has, loading: accessLoading } = useAccessControl();
+  const { planName, modules } = useClinicPlan();
+  const lean = isLeanPlan(modules);
   const location = useLocation();
 
+  const { isEnabled } = useClinicFeatures();
   const filteredNav = navItems.filter((item) => {
     if (!role || !item.roles.includes(role as AppRole)) return false;
+    // Funcionalidades que a clínica pode desligar em Configurações.
+    if (item.to === '/clinic/financeiro' && !isEnabled('finance')) return false;
+    if (item.to === '/clinic/estoque' && !isEnabled('stock')) return false;
+    if (item.to === '/clinic/despesas' && !isEnabled('expenses')) return false;
+    if (item.to === '/clinic/automacoes' && !isEnabled('automations')) return false;
     if (accessLoading) return false;
     return has(item.permissionKey);
   });
@@ -119,7 +133,7 @@ export default function ClinicSidebar() {
                 {clinicName}
               </h1>
               <p className="text-[11px] uppercase tracking-wider text-white/50 font-medium mt-0.5">
-                Clinic OS
+                {planName ? `Plano ${planName}` : 'Clinic OS'}
               </p>
             </div>
           </div>
@@ -127,7 +141,8 @@ export default function ClinicSidebar() {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-          {filteredNav.map(({ to, icon: Icon, label }) => {
+          {filteredNav.map(({ to, icon: Icon, label: rawLabel }) => {
+            const label = to === '/clinic' && lean ? 'Meu dia' : rawLabel;
             const isActive = location.pathname === to || (to !== '/clinic' && location.pathname.startsWith(to));
             return (
               <NavLink

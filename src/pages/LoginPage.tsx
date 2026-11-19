@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Stethoscope, Eye, EyeOff, Mail, Sparkles, Shield, Activity } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { PASSWORD_HINT, PASSWORD_MIN_LENGTH, passwordProblem } from '@/lib/auth/password';
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Tente novamente em alguns instantes.';
@@ -31,29 +32,17 @@ export default function LoginPage() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
-  const { signIn, signInWithSocial, signUp, signOut, user } = useAuth();
+  const { signIn, signInWithSocial, signUp, user } = useAuth();
   const { role, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [socialLoading, setSocialLoading] = useState<'google' | 'facebook' | null>(null);
-  const [accessBlockedMessage, setAccessBlockedMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (user && !roleLoading) {
       if (role === 'patient') navigate('/portal', { replace: true });
       else if (role) navigate('/clinic', { replace: true });
-      else {
-        const provider = (user.app_metadata?.provider || '').toLowerCase();
-        if (provider === 'facebook') {
-          setAccessBlockedMessage(
-            'Login com Facebook está liberado para pacientes com acesso ativo. Contate a clínica para ativar seu vínculo.',
-          );
-        } else {
-          setAccessBlockedMessage(
-            'Seu acesso ainda não foi liberado. Apenas usuários convidados por um administrador da clínica podem entrar.',
-          );
-        }
-      }
+      else navigate('/sem-acesso', { replace: true });
     }
   }, [user, role, roleLoading, navigate]);
 
@@ -71,6 +60,11 @@ export default function LoginPage() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    const problem = passwordProblem(signupPassword);
+    if (problem) {
+      toast({ title: 'Senha fraca', description: problem, variant: 'destructive' });
+      return;
+    }
     setLoading(true);
     try {
       await signUp(signupEmail, signupPassword, { full_name: signupName });
@@ -110,17 +104,6 @@ export default function LoginPage() {
       const message = err instanceof Error ? err.message : 'Falha no login social.';
       toast({ title: 'Erro no login social', description: message, variant: 'destructive' });
       setSocialLoading(null);
-    }
-  };
-
-  const handleBlockedSignOut = async () => {
-    try {
-      await signOut();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Erro ao sair';
-      toast({ title: 'Erro ao sair', description: message, variant: 'destructive' });
-    } finally {
-      setAccessBlockedMessage(null);
     }
   };
 
@@ -315,11 +298,11 @@ export default function LoginPage() {
                   <Input
                     id="signup-password"
                     type="password"
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder={PASSWORD_HINT}
                     value={signupPassword}
                     onChange={(e) => setSignupPassword(e.target.value)}
                     required
-                    minLength={6}
+                    minLength={PASSWORD_MIN_LENGTH}
                   />
                 </div>
                 <Button type="submit" className="w-full" size="lg" disabled={loading}>
@@ -337,20 +320,6 @@ export default function LoginPage() {
           </p>
         </div>
       </main>
-
-      <Dialog open={!!accessBlockedMessage} onOpenChange={(open) => { if (!open) setAccessBlockedMessage(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Acesso não liberado</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-[hsl(var(--text-secondary))]">{accessBlockedMessage}</p>
-          <div className="mt-2 flex justify-end">
-            <Button type="button" onClick={handleBlockedSignOut}>
-              Sair
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Forgot Password Dialog */}
       <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>

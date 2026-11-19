@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useUrlState } from '@/hooks/useUrlState';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { addDays, endOfMonth, endOfWeek, endOfYear, format, startOfMonth, startOfWeek, startOfYear } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -15,6 +16,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
+import type { ContractInstallment } from '@/lib/finance/installments';
+import { InstallmentsTable } from '@/components/finance/InstallmentsTable';
+import { ReceivablesCard } from '@/components/finance/ReceivablesCard';
+import { RegisterPaymentDialog } from '@/components/finance/RegisterPaymentDialog';
+import { useInstallmentPayments } from '@/components/finance/useInstallmentPayments';
 
 type PeriodMode = 'day' | 'week' | 'month' | 'year' | 'custom';
 
@@ -71,15 +77,7 @@ type ForecastMethodDetail = {
   amount: number;
 };
 
-type ForecastInstallmentDetail = {
-  id: string;
-  installment_number: number;
-  installments_count: number;
-  payment_method: string;
-  due_date: string | null;
-  amount: number;
-  notes: string | null;
-};
+type ForecastInstallmentDetail = Omit<ContractInstallment, 'contract_id'> & { contract_id?: string };
 
 type ForecastDetailResponse = {
   contract?: ForecastContractDetail;
@@ -140,8 +138,9 @@ function getPeriodRange(mode: PeriodMode, anchorDate: string, customStart: strin
 export default function FinanceContractsPage() {
   const { clinicId } = useBranding();
   const { role } = useUserRole();
+  const payments = useInstallmentPayments();
   const { toast } = useToast();
-  const [tab, setTab] = useState<'matrix' | 'divergence'>('matrix');
+  const [tab, setTab] = useUrlState<'matrix' | 'divergence'>('aba', 'matrix', ['matrix', 'divergence']);
   const [periodMode, setPeriodMode] = useState<PeriodMode>('month');
   const [anchorDate, setAnchorDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [customStart, setCustomStart] = useState('');
@@ -383,7 +382,7 @@ export default function FinanceContractsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Financeiro — Contratos"
-        description="Previsão financeira contratual por forma de pagamento e mês"
+        description="Recebimentos e previsão por contrato, forma de pagamento e mês"
       >
         <BrandButton variant="outline" onClick={() => backfillMutation.mutate()} disabled={backfillMutation.isPending}>
           <RefreshCcw className="w-4 h-4" />
@@ -394,6 +393,8 @@ export default function FinanceContractsPage() {
           Exportar CSV
         </BrandButton>
       </PageHeader>
+
+      <ReceivablesCard clinicId={clinicId} onRegister={payments.setPaying} busy={payments.register.isPending} />
 
       <Card className="shadow-card">
         <CardContent className="p-4 grid gap-3 md:grid-cols-5 lg:grid-cols-7">
@@ -461,8 +462,11 @@ export default function FinanceContractsPage() {
                 <SelectItem value="all">Todas</SelectItem>
                 <SelectItem value="cash">Dinheiro</SelectItem>
                 <SelectItem value="pix">Pix</SelectItem>
-                <SelectItem value="card">Cartão</SelectItem>
+                <SelectItem value="credit">Cartão de crédito</SelectItem>
+                <SelectItem value="debit">Cartão de débito</SelectItem>
+                <SelectItem value="card">Cartão (antigo)</SelectItem>
                 <SelectItem value="boleto">Boleto</SelectItem>
+                <SelectItem value="transfer">Transferência</SelectItem>
                 <SelectItem value="other">Outros</SelectItem>
               </SelectContent>
             </Select>
@@ -632,44 +636,26 @@ export default function FinanceContractsPage() {
               </div>
 
               <div className="rounded-lg border p-3">
-                <p className="text-sm font-semibold mb-2">Parcelas previstas</p>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Parcela</TableHead>
-                        <TableHead>Forma</TableHead>
-                        <TableHead>Vencimento previsto</TableHead>
-                        <TableHead className="text-right">Valor previsto</TableHead>
-                        <TableHead>Observação</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(detailQuery.data.installments || []).length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center text-muted-foreground">Sem parcelas estruturadas.</TableCell>
-                        </TableRow>
-                      ) : (
-                        detailQuery.data.installments.map((installment: ForecastInstallmentDetail) => (
-                          <TableRow key={installment.id}>
-                            <TableCell>{installment.installment_number}/{installment.installments_count}</TableCell>
-                            <TableCell>{installment.payment_method}</TableCell>
-                            <TableCell>
-                              {installment.due_date ? format(new Date(`${installment.due_date}T12:00:00`), 'dd/MM/yyyy', { locale: ptBR }) : '—'}
-                            </TableCell>
-                            <TableCell className="text-right">{money(Number(installment.amount || 0))}</TableCell>
-                            <TableCell>{installment.notes || '—'}</TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                <p className="text-sm font-semibold mb-2">Parcelas</p>
+                <InstallmentsTable
+                  installments={(detailQuery.data.installments || []).map((installment: ForecastInstallmentDetail) => ({ ...installment, contract_id: detailContractId as string }))}
+                  onRegister={payments.setPaying}
+                  onUndo={(installment) => payments.undo.mutate(installment)}
+                  busy={payments.register.isPending || payments.undo.isPending}
+                  emptyText="Sem parcelas estruturadas."
+                />
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      <RegisterPaymentDialog
+        installment={payments.paying}
+        saving={payments.register.isPending}
+        onClose={() => payments.setPaying(null)}
+        onConfirm={(payment) => payments.register.mutate(payment)}
+      />
     </div>
   );
 }

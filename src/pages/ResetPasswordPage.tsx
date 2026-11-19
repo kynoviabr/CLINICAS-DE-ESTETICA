@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Stethoscope, Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { PASSWORD_HINT, PASSWORD_MIN_LENGTH, passwordProblem } from '@/lib/auth/password';
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Erro ao redefinir senha';
@@ -44,8 +45,9 @@ export default function ResetPasswordPage() {
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < 6) {
-      toast.error('A senha deve ter no mínimo 6 caracteres');
+    const problem = passwordProblem(password);
+    if (problem) {
+      toast.error(problem);
       return;
     }
     if (password !== confirmPassword) {
@@ -114,11 +116,11 @@ export default function ResetPasswordPage() {
                   <Input
                     id="new-password"
                     type={showPw ? 'text' : 'password'}
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder={PASSWORD_HINT}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    minLength={6}
+                    minLength={PASSWORD_MIN_LENGTH}
                   />
                   <button
                     type="button"
@@ -139,7 +141,7 @@ export default function ResetPasswordPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
-                  minLength={6}
+                  minLength={PASSWORD_MIN_LENGTH}
                 />
               </div>
 
@@ -158,13 +160,13 @@ export default function ResetPasswordPage() {
               <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
               <h2 className="text-lg font-semibold text-foreground mb-2">Senha definida!</h2>
               <p className="text-sm text-muted-foreground mb-4">
-                Agora você pode acessar o portal do paciente com seu e-mail e a senha que acabou de criar.
+                Da próxima vez, entre com seu e-mail e essa senha.
               </p>
               <Button
                 onClick={() => navigate('/login')}
                 className="gradient-primary hover:opacity-90 text-primary-foreground"
               >
-                Ir para o login
+                Continuar
               </Button>
             </div>
           )}

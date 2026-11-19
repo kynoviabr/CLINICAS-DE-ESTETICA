@@ -106,7 +106,7 @@ export default function DashboardAlertsTab() {
       qc.invalidateQueries({ queryKey: ['clinic-settings-dashboard-alerts'] });
       toast({ title: 'Alertas do dashboard salvos!' });
     },
-    onError: (error: unknown) => {
+    onError: (error: Error) => {
       const message = error instanceof Error ? error.message : 'Erro ao salvar configurações';
       toast({ title: 'Erro', description: message, variant: 'destructive' });
     },

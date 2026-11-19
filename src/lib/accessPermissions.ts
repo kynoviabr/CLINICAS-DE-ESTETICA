@@ -3,15 +3,14 @@ import type { AppRole } from '@/hooks/useUserRole';
 export const MENU_PERMISSION_KEYS = [
   'dashboard.view',
   'crm.view',
-  'whatsapp_ai.view',
   'patients.view',
   'treatments.view',
   'proposals.view',
   'contracts.view',
-  'payments.view',
   'finance_contracts.view',
   'goals.view',
   'appointments.view',
+  'stock.view',
   'sessions.view',
   'evolution.view',
   'photos.view',
@@ -22,18 +21,25 @@ export const MENU_PERMISSION_KEYS = [
 
 export type MenuPermissionKey = (typeof MENU_PERMISSION_KEYS)[number];
 
+export function isMenuPermissionKey(key: string): key is MenuPermissionKey {
+  return (MENU_PERMISSION_KEYS as readonly string[]).includes(key);
+}
+
 export const PATH_PERMISSION_MAP: Array<{ prefix: string; key: MenuPermissionKey }> = [
   { prefix: '/clinic/settings', key: 'settings.view' },
-  { prefix: '/clinic/whatsapp-ai', key: 'whatsapp_ai.view' },
   { prefix: '/clinic/crm', key: 'crm.view' },
+  { prefix: '/clinic/retorno', key: 'crm.view' },
   { prefix: '/clinic/patients', key: 'patients.view' },
   { prefix: '/clinic/treatments', key: 'treatments.view' },
+  { prefix: '/clinic/vendas', key: 'proposals.view' },
   { prefix: '/clinic/proposals', key: 'proposals.view' },
   { prefix: '/clinic/contracts', key: 'contracts.view' },
-  { prefix: '/clinic/payments', key: 'payments.view' },
   { prefix: '/clinic/finance/contracts', key: 'finance_contracts.view' },
+  { prefix: '/clinic/financeiro', key: 'finance_contracts.view' },
+  { prefix: '/clinic/despesas', key: 'finance_contracts.view' },
   { prefix: '/clinic/metas', key: 'goals.view' },
   { prefix: '/clinic/appointments', key: 'appointments.view' },
+  { prefix: '/clinic/estoque', key: 'stock.view' },
   { prefix: '/clinic/sessions', key: 'sessions.view' },
   { prefix: '/clinic/evolution', key: 'evolution.view' },
   { prefix: '/clinic/photos', key: 'photos.view' },
@@ -47,13 +53,13 @@ export const LEGACY_ROLE_PERMISSIONS: Record<AppRole, MenuPermissionKey[]> = {
   receptionist: [
     'dashboard.view',
     'crm.view',
-    'whatsapp_ai.view',
-    'patients.view',
+      'patients.view',
     'treatments.view',
     'proposals.view',
     'contracts.view',
-    'payments.view',
+    'finance_contracts.view',
     'appointments.view',
+    'stock.view',
     'feedback.view',
   ],
   professional: [
@@ -61,6 +67,7 @@ export const LEGACY_ROLE_PERMISSIONS: Record<AppRole, MenuPermissionKey[]> = {
     'patients.view',
     'treatments.view',
     'appointments.view',
+    'stock.view',
     'sessions.view',
     'evolution.view',
     'photos.view',
@@ -70,8 +77,7 @@ export const LEGACY_ROLE_PERMISSIONS: Record<AppRole, MenuPermissionKey[]> = {
   sales: [
     'dashboard.view',
     'crm.view',
-    'whatsapp_ai.view',
-    'patients.view',
+      'patients.view',
     'treatments.view',
     'proposals.view',
     'contracts.view',

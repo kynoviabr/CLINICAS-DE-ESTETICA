@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useUrlState } from '@/hooks/useUrlState';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -18,6 +19,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, Edit, Stethoscope, Trash2, DollarSign, Copy } from 'lucide-react';
 import CombosTab from '@/components/treatments/CombosTab';
+import type { Tables } from '@/integrations/supabase/types';
 
 interface TreatmentForm {
   name: string;
@@ -27,9 +29,14 @@ interface TreatmentForm {
   default_price: string;
   min_price: string;
   duration_minutes: string;
+  maintenance_days: string;
   num_sessions: string;
   renewal_enabled: boolean;
   renewal_trigger_days: string;
+  price_display: string; // 'default' = padrão da clínica
+  requires_evaluation: boolean;
+  ai_bookable: boolean;
+  professional_ids: string[];
 }
 
 interface CostLineItem {
@@ -40,9 +47,17 @@ interface CostLineItem {
 
 const emptyForm: TreatmentForm = {
   name: '', category_id: '', description: '', price: '',
-  default_price: '', min_price: '', duration_minutes: '60', num_sessions: '1',
+  default_price: '', min_price: '', duration_minutes: '60', maintenance_days: '', num_sessions: '1',
   renewal_enabled: true, renewal_trigger_days: '7',
+  price_display: 'default', requires_evaluation: false, ai_bookable: true, professional_ids: [],
 };
+
+const PRICE_DISPLAY_OPTIONS = [
+  { value: 'default', label: 'Padrão da clínica' },
+  { value: 'exact', label: 'Informar o preço' },
+  { value: 'from', label: 'Dizer "a partir de"' },
+  { value: 'hidden', label: 'Só após avaliação' },
+];
 
 interface TreatmentsPageProps {
   embedded?: boolean;
@@ -81,6 +96,28 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
     enabled: !!clinicId,
   });
 
+  // Profissionais ativos e quem faz cada tratamento (a agenda e a IA só oferecem horários de quem faz).
+  const { data: professionals = [] } = useQuery({
+    queryKey: ['professionals-active', clinicId],
+    queryFn: async () => {
+      if (!clinicId) return [];
+      const { data } = await supabase.from('professionals').select('id, full_name').eq('clinic_id', clinicId).eq('status', 'active').order('full_name');
+      return data || [];
+    },
+    enabled: !!clinicId,
+  });
+  const { data: links = [] } = useQuery({
+    queryKey: ['professional-treatments', clinicId],
+    queryFn: async () => {
+      if (!clinicId) return [];
+      const { data } = await supabase.from('professional_treatments').select('professional_id, treatment_id, professionals!inner(clinic_id)')
+        .eq('professionals.clinic_id', clinicId).eq('status', 'active');
+      return (data || []) as { professional_id: string; treatment_id: string }[];
+    },
+    enabled: !!clinicId,
+  });
+  const prosOf = (treatmentId: string) => links.filter((l) => l.treatment_id === treatmentId).map((l) => l.professional_id);
+
   const { data: categories = [] } = useQuery({
     queryKey: ['treatment-categories-active', clinicId],
     queryFn: async () => {
@@ -111,9 +148,13 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
         default_price: data.default_price ? parseFloat(data.default_price) : null,
         min_price: data.min_price ? parseFloat(data.min_price) : null,
         duration_minutes: parseInt(data.duration_minutes) || 60,
+        maintenance_days: data.maintenance_days ? Math.min(730, Math.max(7, parseInt(data.maintenance_days) || 0)) : null,
         num_sessions: parseInt(data.num_sessions) || 1,
         renewal_enabled: data.renewal_enabled,
         renewal_trigger_days: Math.max(1, parseInt(data.renewal_trigger_days) || 7),
+        price_display: data.price_display === 'default' ? null : data.price_display,
+        requires_evaluation: data.requires_evaluation,
+        ai_bookable: data.ai_bookable,
         clinic_id: clinicId!,
       };
 
@@ -126,6 +167,22 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
         const { data: inserted, error } = await supabase.from('treatments').insert(payload).select('id').single();
         if (error) throw error;
         treatmentId = inserted.id;
+      }
+
+      // Quem faz este tratamento
+      if (canManage && treatmentId) {
+        const current = prosOf(treatmentId);
+        const remove = current.filter((id) => !data.professional_ids.includes(id));
+        const add = data.professional_ids.filter((id) => !current.includes(id));
+        if (remove.length) {
+          const { error } = await supabase.from('professional_treatments').delete().eq('treatment_id', treatmentId).in('professional_id', remove);
+          if (error) throw error;
+        }
+        if (add.length) {
+          const { error } = await supabase.from('professional_treatments')
+            .upsert(add.map((professional_id) => ({ professional_id, treatment_id: treatmentId!, status: 'active' })), { onConflict: 'professional_id,treatment_id' });
+          if (error) throw error;
+        }
       }
 
       // Save cost composition (admin only)
@@ -148,16 +205,17 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['treatments'] });
+      qc.invalidateQueries({ queryKey: ['professional-treatments'] });
       setDialogOpen(false);
       setEditingId(null);
       setForm(emptyForm);
       setCostLines([]);
       toast({ title: editingId ? 'Tratamento atualizado!' : 'Tratamento criado!' });
     },
-    onError: (err: unknown) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
-  const openEdit = async (t: unknown) => {
+  const openEdit = async (t: Tables<'treatments'>) => {
     setEditingId(t.id);
     setForm({
       name: t.name,
@@ -167,9 +225,14 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
       default_price: t.default_price ? String(t.default_price) : '',
       min_price: t.min_price ? String(t.min_price) : '',
       duration_minutes: String(t.duration_minutes),
+      maintenance_days: t.maintenance_days ? String(t.maintenance_days) : '',
       num_sessions: String(t.num_sessions),
       renewal_enabled: t.renewal_enabled ?? true,
       renewal_trigger_days: String(t.renewal_trigger_days ?? 7),
+      price_display: t.price_display || 'default',
+      requires_evaluation: !!t.requires_evaluation,
+      ai_bookable: t.ai_bookable !== false,
+      professional_ids: prosOf(t.id),
     });
 
     if (canManage) {
@@ -184,7 +247,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
     setDialogOpen(true);
   };
 
-  const openDuplicate = async (t: unknown) => {
+  const openDuplicate = async (t: Tables<'treatments'>) => {
     await openEdit(t);
     setEditingId(null);
     setForm((current) => ({
@@ -210,7 +273,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
     setCostLines(updated);
   };
 
-  const getCostItemById = (id: string) => costItems.find((c: unknown) => c.id === id);
+  const getCostItemById = (id: string) => costItems.find((c) => c.id === id);
   const totalCost = costLines.reduce((sum, l) => {
     const item = getCostItemById(l.cost_item_id);
     return sum + (item ? Number(item.unit_cost) * (parseFloat(l.quantity) || 0) : 0);
@@ -226,7 +289,12 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
           ? 'text-amber-700'
           : 'text-destructive';
 
-  const [activeTab, setActiveTab] = useState('treatments');
+  // Dentro de Configurações, 'aba' já é a aba de Configurações; usamos 'subaba' para não conflitar.
+  const [activeTab, setActiveTab] = useUrlState<'treatments' | 'combos'>(
+    embedded ? 'subaba' : 'aba',
+    'treatments',
+    ['treatments', 'combos'],
+  );
 
   return (
     <div>
@@ -280,7 +348,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os tipos</SelectItem>
-            {categories.map((category: unknown) => (
+            {categories.map((category) => (
               <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
             ))}
             <SelectItem value="uncategorized">Sem categoria</SelectItem>
@@ -309,7 +377,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
 
       {!isLoading && treatments.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {treatments.map((t: unknown) => (
+          {treatments.map((t) => (
             <div key={t.id} className="bg-card rounded-xl shadow-card p-5 animate-fade-in hover:shadow-card-hover transition-shadow">
               <div className="flex items-start justify-between mb-3">
                 <div>
@@ -343,6 +411,14 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
                     <span className="text-foreground">R$ {Number(t.min_price).toFixed(2)}</span>
                   </div>
                 )}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground">Profissionais</span>
+                  {t.requires_evaluation
+                    ? <span className="text-foreground">Começa com avaliação</span>
+                    : prosOf(t.id).length
+                      ? <span className="truncate text-right text-foreground">{prosOf(t.id).map((id) => professionals.find((p) => p.id === id)?.full_name).filter(Boolean).join(', ')}</span>
+                      : <span className="text-amber-700">Nenhum: a agenda não oferece horários</span>}
+                </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Duração / Sessões</span>
                   <span className="text-foreground">{t.duration_minutes}min · {t.num_sessions} sessões</span>
@@ -386,7 +462,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
                 <Select value={form.category_id} onValueChange={v => setForm({ ...form, category_id: v })}>
                   <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent>
-                    {categories.map((c: unknown) => (
+                    {categories.map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -422,6 +498,55 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
                 <Label>Nº Sessões</Label>
                 <Input type="number" value={form.num_sessions} onChange={e => setForm({ ...form, num_sessions: e.target.value })} />
               </div>
+              <div className="col-span-2 space-y-2">
+                <Label>Manutenção recomendada (dias)</Label>
+                <Input type="number" min={7} max={730} placeholder="Ex.: 120 para toxina. Vazio = sem manutenção" value={form.maintenance_days} onChange={e => setForm({ ...form, maintenance_days: e.target.value })} />
+                <p className="text-xs text-muted-foreground">Quando vencer, o paciente aparece em Retorno de pacientes para a equipe chamar.</p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-3">
+              <p className="text-sm font-medium">Agenda e atendimento pelo WhatsApp</p>
+              <div className="space-y-2">
+                <Label>Profissionais que fazem este tratamento</Label>
+                {professionals.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Cadastre profissionais em Configurações &gt; Profissionais.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {professionals.map((p) => {
+                      const on = form.professional_ids.includes(p.id);
+                      return (
+                        <button key={p.id} type="button" disabled={!canManage}
+                          onClick={() => setForm({ ...form, professional_ids: on ? form.professional_ids.filter((x) => x !== p.id) : [...form.professional_ids, p.id] })}
+                          className={`rounded-full border px-3 py-1 text-xs ${on ? 'border-primary bg-primary text-primary-foreground' : 'bg-background text-foreground'}`}>
+                          {p.full_name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">A agenda e a IA só oferecem horários de quem faz o tratamento, dentro do horário de cada um.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Como a IA fala do preço</Label>
+                  <Select value={form.price_display} onValueChange={(v) => setForm({ ...form, price_display: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{PRICE_DISPLAY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center gap-2">
+                    <Checkbox id="requires_evaluation" checked={form.requires_evaluation} onCheckedChange={(v) => setForm({ ...form, requires_evaluation: !!v })} />
+                    <Label htmlFor="requires_evaluation">Começa com avaliação</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox id="ai_bookable" checked={form.ai_bookable} onCheckedChange={(v) => setForm({ ...form, ai_bookable: !!v })} />
+                    <Label htmlFor="ai_bookable">A IA pode agendar</Label>
+                  </div>
+                </div>
+              </div>
+              {form.requires_evaluation && <p className="text-xs text-muted-foreground">A IA oferece primeiro a avaliação e anota este tratamento como interesse.</p>}
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-3">
@@ -484,7 +609,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
                         <Select value={line.cost_item_id} onValueChange={v => updateCostLine(idx, 'cost_item_id', v)}>
                           <SelectTrigger className="flex-1"><SelectValue placeholder="Selecione item..." /></SelectTrigger>
                           <SelectContent>
-                            {costItems.map((c: unknown) => (
+                            {costItems.map((c) => (
                               <SelectItem key={c.id} value={c.id}>{c.name} (R$ {Number(c.unit_cost).toFixed(2)}/{c.unit || 'un'})</SelectItem>
                             ))}
                           </SelectContent>

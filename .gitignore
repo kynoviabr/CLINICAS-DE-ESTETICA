@@ -32,3 +32,4 @@ tmp-settings.png
 # Local env (use .env.example as template)
 .env
 .env.e2e.local
+.env*.local

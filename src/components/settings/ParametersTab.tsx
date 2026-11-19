@@ -27,7 +27,7 @@ export default function ParametersTab() {
 
   useEffect(() => {
     if (settings) {
-      const found = settings.find((s: unknown) => s.key === 'anamnese_validity_days');
+      const found = settings.find((s) => s.key === 'anamnese_validity_days');
       if (found) setAnamneseDays(found.value);
     }
   }, [settings]);
@@ -35,7 +35,7 @@ export default function ParametersTab() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!clinicId) throw new Error('Clínica não encontrada');
-      const existing = settings?.find((s: unknown) => s.key === 'anamnese_validity_days');
+      const existing = settings?.find((s) => s.key === 'anamnese_validity_days');
       if (existing) {
         const { error } = await supabase.from('clinic_settings').update({ value: anamneseDays }).eq('id', existing.id);
         if (error) throw error;
@@ -52,7 +52,7 @@ export default function ParametersTab() {
       qc.invalidateQueries({ queryKey: ['clinic-settings'] });
       toast({ title: 'Parâmetros salvos!' });
     },
-    onError: (err: unknown) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   return (

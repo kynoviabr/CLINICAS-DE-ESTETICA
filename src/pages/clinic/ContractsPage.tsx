@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { buildLetterhead, documentFooter } from '@/lib/documents/letterhead';
+import { loadClinicLetterhead } from '@/hooks/useClinicLetterhead';
+import { describeDueDates, describePaymentMethods } from '@/lib/documents/contractPayment';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -21,6 +24,7 @@ import { ContractViewDialog } from '@/components/contracts/ContractViewDialog';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { parseProposalNotesPayload } from '@/lib/proposals/paymentPreset';
 import type { Database, Json } from '@/integrations/supabase/types';
 import PayerSection, { type PayerData } from '@/components/patient/PayerSection';
 import {
@@ -28,9 +32,9 @@ import {
   paymentConditionLabels,
   type PaymentCondition,
   type PaymentConfig,
-  type PaymentMethod,
-} from '@/components/contracts/ContractPaymentConfigurator';
+  type PaymentMethod, isInstallmentMethod } from '@/components/contracts/ContractPaymentConfigurator';
 import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
+import { formatCpf, formatPatientAddress } from '@/lib/patients/validation';
 
 type ContractRow = Database['public']['Tables']['contracts']['Row'];
 type ContractStatus = Database['public']['Enums']['contract_status'];
@@ -54,6 +58,12 @@ type ApprovedProposal = {
     date_of_birth?: string | null;
     payer_id?: string | null;
     is_self_payer?: boolean | null;
+    address?: string | null;
+    address_number?: string | null;
+    address_complement?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip_code?: string | null;
   } | null;
 };
 type ProposalItemLite = { quantity: number; treatments?: { name?: string | null; num_sessions?: number | null } | null };
@@ -124,6 +134,9 @@ export default function ContractsPage() {
   const returnTo = searchParams.get('returnTo');
   const returnLeadId = searchParams.get('returnLeadId');
   const crmReturnUrl = returnTo === 'crm' && returnLeadId ? `/clinic/crm?leadId=${returnLeadId}` : null;
+  // Vindo de Propostas: ?emitir=<id da proposta> abre a emissão já com ela escolhida.
+  const emitirProposalId = searchParams.get('emitir');
+  const proposalsReturnUrl = returnTo === 'proposals' ? '/clinic/proposals' : null;
 
   const { data: contracts = [], isLoading } = useQuery({
     queryKey: ['contracts', clinicId, filterStatus, search],
@@ -155,7 +168,7 @@ export default function ContractsPage() {
     enabled: !!clinicId,
   });
 
-  const { data: approvedProposals = [] } = useQuery({
+  const { data: approvedProposals = [], isFetched: approvedProposalsFetched } = useQuery({
     queryKey: ['approved-proposals-no-contract', clinicId],
     queryFn: async () => {
       const { data: allContracts, error: contractsError } = await supabase
@@ -168,7 +181,7 @@ export default function ContractsPage() {
       const linkedIds = (allContracts || []).map((contract) => contract.proposal_id).filter(Boolean);
       let query = supabase
         .from('proposals')
-        .select('id, proposal_number, patient_id, final_amount, patients(full_name, cpf, date_of_birth, payer_id, is_self_payer)')
+        .select('id, proposal_number, patient_id, final_amount, patients(full_name, cpf, date_of_birth, payer_id, is_self_payer, address, address_number, address_complement, city, state, zip_code)')
         .eq('clinic_id', clinicId!)
         .eq('status', 'accepted' as ProposalStatus);
 
@@ -275,7 +288,7 @@ export default function ContractsPage() {
       const hasInvalidAmount = amounts.some((value) => !Number.isFinite(value) || value <= 0);
       if (hasInvalidAmount) throw new Error('Informe um valor válido para cada forma selecionada.');
 
-      const requiresInstallments = selectedPaymentMethods.filter((method) => method === 'card' || method === 'boleto');
+      const requiresInstallments = selectedPaymentMethods.filter((method) => isInstallmentMethod(method));
       const hasInvalidInstallments = requiresInstallments.some((method) => Number(paymentConfig[method]?.installments || 0) <= 0);
       if (hasInvalidInstallments) throw new Error('Cartão e boleto exigem quantidade de parcelas maior que zero.');
       const totalInformed = amounts.reduce((sum, value) => sum + value, 0);
@@ -341,9 +354,9 @@ export default function ContractsPage() {
         },
         patient: {
           name: patient?.full_name || '',
-          cpf: patient.cpf || '',
+          cpf: patient.cpf ? formatCpf(patient.cpf) : '',
           birth_date: patient?.date_of_birth || '',
-          address: ''
+          address: formatPatientAddress(patient ?? {})
         },
         payer: !payerData.is_self_payer && payerRaw ? {
           name: payerRaw.name || '',
@@ -363,9 +376,9 @@ export default function ContractsPage() {
         payment: {
           total_value: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(proposal.final_amount)),
           condition: paymentConditionLabels[paymentCondition],
-          methods: selectedPaymentMethods.join(', '),
+          methods: describePaymentMethods(selectedPaymentMethods, paymentConfig),
           installments: selectedPaymentMethods.reduce((acc: number, m: PaymentMethod) => acc + (Number(paymentConfig[m]?.installments) || 1), 0),
-          due_dates: ''
+          due_dates: describeDueDates(selectedPaymentMethods, paymentConfig, formattedDate)
         },
         proposal: {
           number: proposal.proposal_number
@@ -384,9 +397,14 @@ export default function ContractsPage() {
       const pdfPath = `${clinicId}/${proposal.patient_id}/${contractNumber}.pdf`;
       const issuanceKey = `proposal:${proposal.id}`;
 
+      // Papel timbrado da clínica (logo, CNPJ, endereço) no topo; o texto vem do modelo.
+      const letterhead = await loadClinicLetterhead(clinicId!);
+      const documentHtml = buildLetterhead(letterhead) + rendered.html
+        + documentFooter(`${letterhead.name} · Contrato ${contractNumber} · Modelo v${templateDataRaw.version}`);
+
       // Open the preview modal
       setPreviewContract({
-        html: rendered.html,
+        html: documentHtml,
         pdfPath,
         renderData,
         templateId: templateDataRaw.id,
@@ -532,14 +550,6 @@ export default function ContractsPage() {
   const togglePaymentMethod = (method: PaymentMethod, checked: boolean) => {
     if (checked) {
       if (selectedPaymentMethods.includes(method)) return;
-      if (selectedPaymentMethods.length >= 2) {
-        toast({
-          title: 'Limite de formas de pagamento',
-          description: 'Você pode selecionar no máximo 2 formas de pagamento.',
-          variant: 'destructive',
-        });
-        return;
-      }
       setSelectedPaymentMethods((current) => [...current, method]);
       return;
     }
@@ -568,7 +578,7 @@ export default function ContractsPage() {
     selectedPaymentMethods.length > 0 &&
     selectedPaymentMethods.every((method) => Number(paymentConfig[method]?.amount || 0) > 0) &&
     selectedPaymentMethods
-      .filter((method) => method === 'card' || method === 'boleto')
+      .filter((method) => isInstallmentMethod(method))
       .every((method) => Number(paymentConfig[method]?.installments || 0) > 0) &&
     selectedAmountSum + 0.0001 >= selectedProposalAmount;
 
@@ -586,9 +596,51 @@ export default function ContractsPage() {
     });
   }, [selectedProposalData]);
 
+  useEffect(() => {
+    if (emitirProposalId) setCreateDialog(true);
+  }, [emitirProposalId]);
+
+  useEffect(() => {
+    if (!emitirProposalId || !createDialog || !approvedProposalsFetched) return;
+    const clearParam = () => {
+      const next = new URLSearchParams(searchParams);
+      next.delete('emitir');
+      setSearchParams(next, { replace: true });
+    };
+    const target = approvedProposals.find((proposal) => proposal.id === emitirProposalId);
+    if (!target) {
+      clearParam();
+      setCreateDialog(false);
+      const existing = contracts.find((contract) => contract.proposal_id === emitirProposalId);
+      if (existing) {
+        setViewContract(existing);
+        toast({ title: 'Esta proposta já tem contrato', description: existing.contract_number || undefined });
+      } else {
+        toast({ title: 'Proposta indisponível', description: 'Para emitir, a proposta precisa estar aprovada e sem contrato.', variant: 'destructive' });
+      }
+      return;
+    }
+    setSelectedProposal(target.id);
+    clearParam();
+    // Traz a forma de pagamento combinada na proposta.
+    supabase.from('proposals').select('notes').eq('id', target.id).maybeSingle().then(({ data }) => {
+      const preset = parseProposalNotesPayload(data?.notes).paymentPreset;
+      if (!preset) return;
+      setPaymentCondition(preset.condition);
+      setSelectedPaymentMethods(preset.methods);
+      setPaymentDetails(preset.details);
+      setPaymentConfig(preset.config);
+    });
+  }, [emitirProposalId, createDialog, approvedProposalsFetched, approvedProposals, contracts, searchParams, setSearchParams, toast]);
+
   return (
     <div>
       <PageHeader title="Contratos" description="Formalize a venda e acompanhe o ciclo do contrato">
+        {proposalsReturnUrl && (
+          <BrandButton variant="outline" onClick={() => navigate(proposalsReturnUrl)}>
+            Voltar para Propostas
+          </BrandButton>
+        )}
         {crmReturnUrl && (
           <BrandButton variant="outline" onClick={() => navigate(crmReturnUrl)}>
             Voltar ao CRM

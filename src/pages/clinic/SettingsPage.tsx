@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useUrlState } from '@/hooks/useUrlState';
 import { supabase } from '@/integrations/supabase/client';
+import { compressImage } from '@/lib/photos/compress';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useBranding } from '@/contexts/BrandingContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,10 +11,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import WhatsappConnectCard from '@/components/whatsapp/WhatsappConnectCard';
+import AuraInfoCard from '@/components/whatsapp/AuraInfoCard';
+import ServiceSettingsTab from '@/components/settings/ServiceSettingsTab';
+import { Switch } from '@/components/ui/switch';
+import { FeaturesCard } from '@/components/settings/FeaturesCard';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, MessageSquare, ClipboardList } from 'lucide-react';
+import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, ClipboardList, FileText, MessageCircle, Bot } from 'lucide-react';
+import { AutomationsSettingsTab } from '@/components/settings/AutomationsSettingsTab';
+import TeamMfaCard from '@/components/settings/TeamMfaCard';
+import AccessLogList from '@/components/security/AccessLogList';
 import CategoriesTab from '@/components/settings/CategoriesTab';
 import CostItemsTab from '@/components/settings/CostItemsTab';
 import ParametersTab from '@/components/settings/ParametersTab';
@@ -24,15 +34,28 @@ import DashboardAlertsTab from '@/components/settings/DashboardAlertsTab';
 import KanbanStagesTab from '@/components/settings/KanbanStagesTab';
 import PatientAppAccessTab from '@/components/settings/PatientAppAccessTab';
 import AccessGroupsTab from '@/components/settings/AccessGroupsTab';
-import WhatsAppAiSettingsTab from '@/components/settings/WhatsAppAiSettingsTab';
 import AnamneseTemplatesTab from '@/components/settings/AnamneseTemplatesTab';
 import ContractTemplatesTab from '@/components/settings/ContractTemplatesTab';
 import TreatmentsPage from '@/pages/clinic/TreatmentsPage';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import type { Tables } from '@/integrations/supabase/types';
+import { errorMessage, functionError } from '@/lib/errors';
+import { useClinicPlan } from '@/hooks/useClinicPlan';
+import { settingsTabVisible } from '@/lib/plans';
+
+type StaffMember = Pick<Tables<'user_roles'>, 'id' | 'user_id' | 'role' | 'is_active' | 'created_at' | 'can_manage_stock'>;
+type Invitation = Tables<'team_invitations'>;
 
 export default function SettingsPage() {
+  const [settingsTab, setSettingsTab] = useUrlState<string>('aba', 'general');
+  const [teamTab, setTeamTab] = useUrlState<string>('subaba', 'internal-team');
+  const plan = useClinicPlan();
+  // Abas fora do plano somem; um link antigo para elas cai na aba padrão.
+  const show = (tab: string) => settingsTabVisible(plan.modules, tab);
+  const activeSettingsTab = show(settingsTab) ? settingsTab : 'general';
+  const activeTeamTab = show(teamTab) ? teamTab : 'internal-team';
   const { clinicId, role } = useUserRole();
   const { user } = useAuth();
   const branding = useBranding();
@@ -57,10 +80,14 @@ export default function SettingsPage() {
   const [uploading, setUploading] = useState(false);
 
   // Staff
-  const [staff, setStaff] = useState<unknown[]>([]);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
 
   // Invitations
-  const [invitations, setInvitations] = useState<unknown[]>([]);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  // Vagas: equipe ativa (sem pacientes) + convites pendentes ainda válidos. Mesma conta do banco.
+  const seatsUsed =
+    new Set(staff.filter((member) => member.is_active && member.role !== 'patient').map((member) => member.user_id)).size +
+    invitations.filter((inv) => inv.status === 'pending' && (!inv.expires_at || new Date(inv.expires_at) > new Date())).length;
 
   // Invite form
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -95,7 +122,7 @@ export default function SettingsPage() {
   const loadTeam = useCallback(async () => {
     if (!clinicId) return;
     const [staffRes, invRes] = await Promise.all([
-      supabase.from('user_roles').select('id, user_id, role, is_active, created_at').eq('clinic_id', clinicId),
+      supabase.from('user_roles').select('id, user_id, role, is_active, created_at, can_manage_stock').eq('clinic_id', clinicId),
       supabase.from('team_invitations').select('*').eq('clinic_id', clinicId).order('created_at', { ascending: false }),
     ]);
     if (staffRes.data) setStaff(staffRes.data);
@@ -129,14 +156,15 @@ export default function SettingsPage() {
       toast({ title: 'Arquivo inválido', description: 'Selecione uma imagem (JPG, PNG, WebP)', variant: 'destructive' });
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
+    setUploading(true);
+    const img = await compressImage(file, 800, { quality: 0.9, keepAlpha: true });
+    if (img.blob.size > 2 * 1024 * 1024) {
       toast({ title: 'Arquivo muito grande', description: 'O logo deve ter no máximo 2MB', variant: 'destructive' });
+      setUploading(false);
       return;
     }
-    setUploading(true);
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
-    const filePath = `${clinicId}/logo.${ext}`;
-    const { error: uploadError } = await supabase.storage.from('clinic-logos').upload(filePath, file, { upsert: true, contentType: file.type });
+    const filePath = `${clinicId}/logo.${img.ext}`;
+    const { error: uploadError } = await supabase.storage.from('clinic-logos').upload(filePath, img.blob, { upsert: true, contentType: img.type });
     if (uploadError) { toast({ title: 'Erro no upload', description: uploadError.message, variant: 'destructive' }); setUploading(false); return; }
     const { data: { publicUrl } } = supabase.storage.from('clinic-logos').getPublicUrl(filePath);
     const urlWithCacheBust = `${publicUrl}?t=${Date.now()}`;
@@ -181,7 +209,7 @@ export default function SettingsPage() {
       const { data, error } = await supabase.functions.invoke('invite-team-member', {
         body: { email: inviteEmail.trim(), role: derivedRole, clinicId, cargoName: inviteCargo },
       });
-      if (error) throw error;
+      if (error) throw await functionError(error);
       if (data?.error) throw new Error(data.error);
 
       toast({ title: data.status === 'added' ? 'Membro adicionado!' : 'Convite enviado!', description: data.message });
@@ -190,7 +218,7 @@ export default function SettingsPage() {
       setInviteOpen(false);
       loadTeam();
     } catch (err: unknown) {
-      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+      toast({ title: 'Erro', description: errorMessage(err, 'Não foi possível enviar o convite.'), variant: 'destructive' });
     } finally {
       setInviting(false);
     }
@@ -201,6 +229,13 @@ export default function SettingsPage() {
     if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); return; }
     toast({ title: currentActive ? 'Membro desativado' : 'Membro reativado' });
     loadTeam();
+  };
+
+  const handleResetMfa = async (userId: string) => {
+    if (!window.confirm('Zerar a verificação em duas etapas desta pessoa? Ela vai cadastrar o autenticador de novo no próximo acesso.')) return;
+    const { data, error } = await supabase.functions.invoke('mfa-reset', { body: { clinicId, userId } });
+    if (error || !(data as { ok?: boolean } | null)?.ok) { toast({ title: 'Não foi possível zerar', description: (data as { error?: string } | null)?.error || error?.message, variant: 'destructive' }); return; }
+    toast({ title: 'Duas etapas zerada', description: 'No próximo acesso a pessoa cadastra o autenticador de novo.' });
   };
 
   const handleCancelInvitation = async (invId: string) => {
@@ -217,27 +252,47 @@ export default function SettingsPage() {
     <div>
       <PageHeader title="Configurações" description="Gerencie sua clínica" />
 
-      <Tabs defaultValue="general" className="space-y-4">
+      <Tabs value={activeSettingsTab} onValueChange={setSettingsTab} className="space-y-4">
         <TabsList className="!h-auto min-h-10 w-full flex-wrap justify-start gap-1">
           <TabsTrigger value="general"><Settings className="w-4 h-4 mr-1" />Geral</TabsTrigger>
-          <TabsTrigger value="whatsapp-ai"><MessageSquare className="w-4 h-4 mr-1" />WhatsApp IA</TabsTrigger>
           <TabsTrigger value="branding"><Palette className="w-4 h-4 mr-1" />Branding</TabsTrigger>
-          <TabsTrigger value="roles"><Briefcase className="w-4 h-4 mr-1" />Cargos</TabsTrigger>
-          <TabsTrigger value="entities"><Building2 className="w-4 h-4 mr-1" />Conselhos</TabsTrigger>
+          {show('roles') && <TabsTrigger value="roles"><Briefcase className="w-4 h-4 mr-1" />Cargos</TabsTrigger>}
+          {show('entities') && <TabsTrigger value="entities"><Building2 className="w-4 h-4 mr-1" />Conselhos</TabsTrigger>}
           <TabsTrigger value="categories"><Tags className="w-4 h-4 mr-1" />Categorias</TabsTrigger>
-          <TabsTrigger value="costs"><DollarSign className="w-4 h-4 mr-1" />Custos</TabsTrigger>
+          {show('costs') && <TabsTrigger value="costs"><DollarSign className="w-4 h-4 mr-1" />Custos</TabsTrigger>}
           <TabsTrigger value="team"><Lock className="w-4 h-4 mr-1" />Segurança e Acesso</TabsTrigger>
           <TabsTrigger value="professionals"><UserCog className="w-4 h-4 mr-1" />Profissionais</TabsTrigger>
           <TabsTrigger value="treatments"><Stethoscope className="w-4 h-4 mr-1" />Tratamentos</TabsTrigger>
+          <TabsTrigger value="atendimento"><Clock className="w-4 h-4 mr-1" />Atendimento</TabsTrigger>
           {role === 'admin' && <TabsTrigger value="contract-template"><FileText className="w-4 h-4 mr-1" />Contrato Padrão</TabsTrigger>}
           <TabsTrigger value="anamnese"><ClipboardList className="w-4 h-4 mr-1" />Anamnese</TabsTrigger>
-          <TabsTrigger value="crm-kanban"><Settings className="w-4 h-4 mr-1" />CRM Kanban</TabsTrigger>
-          <TabsTrigger value="goals"><Target className="w-4 h-4 mr-1" />Metas</TabsTrigger>
+          {show('crm-kanban') && <TabsTrigger value="crm-kanban"><Settings className="w-4 h-4 mr-1" />CRM Kanban</TabsTrigger>}
+          {show('goals') && <TabsTrigger value="goals"><Target className="w-4 h-4 mr-1" />Metas</TabsTrigger>}
           <TabsTrigger value="parameters"><SlidersHorizontal className="w-4 h-4 mr-1" />Parâmetros</TabsTrigger>
+          {role === 'admin' && <TabsTrigger value="whatsapp"><MessageCircle className="w-4 h-4 mr-1" />WhatsApp</TabsTrigger>}
+          {role === 'admin' && <TabsTrigger value="automations"><Bot className="w-4 h-4 mr-1" />Automações</TabsTrigger>}
         </TabsList>
+
+        {role === 'admin' && (
+          <TabsContent value="automations">
+            <AutomationsSettingsTab />
+          </TabsContent>
+        )}
+
+        {role === 'admin' && (
+          <TabsContent value="whatsapp">
+            <WhatsappConnectCard />
+            <AuraInfoCard />
+          </TabsContent>
+        )}
+
+        <TabsContent value="atendimento">
+          <ServiceSettingsTab />
+        </TabsContent>
 
         {/* ===== GENERAL ===== */}
         <TabsContent value="general">
+          <div className="mb-4"><FeaturesCard /></div>
           <Card className="shadow-card">
             <CardHeader><CardTitle>Dados da Clínica</CardTitle></CardHeader>
             <CardContent className="space-y-4">
@@ -253,6 +308,15 @@ export default function SettingsPage() {
               </Button>
             </CardContent>
           </Card>
+          {plan.planName && (
+            <Card className="shadow-card mt-4">
+              <CardHeader><CardTitle>Seu plano</CardTitle></CardHeader>
+              <CardContent className="space-y-1 text-sm">
+                <p><span className="font-semibold">{plan.planName}</span>{plan.maxUsers ? ` · até ${plan.maxUsers} usuários` : ' · usuários ilimitados'}</p>
+                <p className="text-muted-foreground">Para mudar de plano ou contratar extras (como a integração com o Aura, atendimento com IA), fale com a Kynovia.</p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* ===== BRANDING ===== */}
@@ -330,16 +394,23 @@ export default function SettingsPage() {
 
         {/* ===== TEAM ===== */}
         <TabsContent value="team">
-          <Tabs defaultValue="internal-team" className="space-y-4">
+          <Tabs value={activeTeamTab} onValueChange={setTeamTab} className="space-y-4">
             <TabsList>
               <TabsTrigger value="internal-team">Equipe (acessos internos)</TabsTrigger>
-              <TabsTrigger value="groups-permissions">Grupos e permissões</TabsTrigger>
-              <TabsTrigger value="patient-app-access">Pacientes APP</TabsTrigger>
+              {show('groups-permissions') && <TabsTrigger value="groups-permissions">Grupos e permissões</TabsTrigger>}
+              {show('patient-app-access') && <TabsTrigger value="patient-app-access">Pacientes APP</TabsTrigger>}
             </TabsList>
 
             <TabsContent value="internal-team" className="space-y-4">
+            <TeamMfaCard clinicId={clinicId} isAdmin={role === 'admin'} />
             {/* Invite button */}
-            <div className="flex justify-end">
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {plan.maxUsers && (
+                <span className={`text-sm ${seatsUsed >= plan.maxUsers ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                  {seatsUsed} de {plan.maxUsers} usuários do plano {plan.planName}
+                  {seatsUsed >= plan.maxUsers ? ' · limite atingido' : ''}
+                </span>
+              )}
               <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
                 <DialogTrigger asChild>
                   <Button className="gradient-primary text-primary-foreground" disabled={role !== 'admin'}>
@@ -411,7 +482,21 @@ export default function SettingsPage() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                          {s.role !== 'admin' && s.role !== 'patient' && (
+                            <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="Pode dar entrada, ajustar e cadastrar material no Estoque">
+                              <Switch
+                                checked={!!s.can_manage_stock}
+                                disabled={role !== 'admin'}
+                                onCheckedChange={async (checked) => {
+                                  const { error } = await supabase.rpc('set_stock_manager', { p_clinic_id: clinicId!, p_user_id: s.user_id, p_enabled: checked });
+                                  if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); return; }
+                                  setStaff((cur) => cur.map((m) => (m.id === s.id ? { ...m, can_manage_stock: checked } : m)));
+                                }}
+                              />
+                              Gerencia estoque
+                            </label>
+                          )}
                           <Badge variant={roleBadgeVariant(s.role)}>{roleLabel[s.role] || s.role}</Badge>
                           <Badge variant={s.is_active ? 'default' : 'secondary'} className={s.is_active ? 'bg-green-100 text-green-700' : ''}>
                             {s.is_active ? 'Ativo' : 'Inativo'}
@@ -424,6 +509,11 @@ export default function SettingsPage() {
                               className="text-xs"
                             >
                               {s.is_active ? 'Desativar' : 'Reativar'}
+                            </Button>
+                          )}
+                          {role === 'admin' && s.user_id !== user?.id && (
+                            <Button variant="ghost" size="sm" className="text-xs" onClick={() => handleResetMfa(s.user_id)}>
+                              Zerar duas etapas
                             </Button>
                           )}
                         </div>
@@ -440,7 +530,7 @@ export default function SettingsPage() {
                 <CardHeader><CardTitle className="flex items-center gap-2"><Mail className="w-5 h-5" />Convites</CardTitle></CardHeader>
                 <CardContent>
                   <div className="divide-y divide-border">
-                    {invitations.map((inv: unknown) => {
+                    {invitations.map((inv) => {
                       const isPending = inv.status === 'pending';
                       const isAccepted = inv.status === 'accepted';
                       return (
@@ -482,6 +572,12 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
             )}
+                        {role === 'admin' && (
+              <details className="rounded-lg border p-4">
+                <summary className="cursor-pointer text-sm font-medium">Registro de acessos a prontuário (últimos 300)</summary>
+                <div className="mt-3"><AccessLogList clinicId={clinicId} showPatient /></div>
+              </details>
+            )}
             </TabsContent>
 
             <TabsContent value="patient-app-access">
@@ -508,10 +604,6 @@ export default function SettingsPage() {
             <ContractTemplatesTab />
           </TabsContent>
         )}
-
-        <TabsContent value="whatsapp-ai">
-          <WhatsAppAiSettingsTab />
-        </TabsContent>
 
         {/* ===== CATEGORIES ===== */}
         <TabsContent value="categories">

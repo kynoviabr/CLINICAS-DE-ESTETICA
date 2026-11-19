@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -14,8 +14,10 @@ import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   User, HeartPulse, Pill, AlertTriangle, Sparkles, Target, Coffee, FileCheck,
-  ChevronLeft, ChevronRight, Check,
+  ChevronLeft, ChevronRight, Check, ClipboardList,
 } from 'lucide-react';
+import { ANAMNESE_TEMPLATES_KEY, buildAreaSection, type AnamneseTemplate } from '@/lib/anamnese/templates';
+import { readClinicSetting } from '@/lib/setup/clinicSetup';
 import type { Json } from '@/integrations/supabase/types';
 
 
@@ -26,6 +28,12 @@ interface AnamnesisFormProps {
   clinicId: string;
   validityDays: number;
   patientName?: string;
+  /** 'page': a própria paciente preenche pelo link (sem janela, sem login). */
+  variant?: 'dialog' | 'page';
+  /** Modelos de anamnese já carregados (página da paciente). */
+  templatesOverride?: AnamneseTemplate[];
+  /** Envio pela página da paciente (no lugar de gravar direto no banco). */
+  onSubmitForm?: (formData: Json) => Promise<void>;
 }
 
 interface FormData {
@@ -88,6 +96,8 @@ interface FormData {
     agrees_terms: boolean;
     agrees_photos: boolean;
     agrees_data_usage: boolean;
+    agrees_photos_marketing?: boolean;
+    signature_name?: string;
     signature_date: string;
   };
 }
@@ -113,7 +123,7 @@ const emptyForm: FormData = {
   consent: { agrees_terms: false, agrees_photos: false, agrees_data_usage: false, signature_date: '' },
 };
 
-const sections = [
+const baseSections = [
   { key: 'identification', label: 'Identificação', icon: User },
   { key: 'health_history', label: 'Histórico de Saúde', icon: HeartPulse },
   { key: 'medications', label: 'Medicamentos', icon: Pill },
@@ -124,14 +134,45 @@ const sections = [
   { key: 'consent', label: 'Consentimento', icon: FileCheck },
 ] as const;
 
-export default function AnamnesisFormModal({ open, onOpenChange, patientId, clinicId, validityDays, patientName }: AnamnesisFormProps) {
+export default function AnamnesisFormModal({ open, onOpenChange, patientId, clinicId, validityDays, patientName, variant = 'dialog', templatesOverride, onSubmitForm }: AnamnesisFormProps) {
+  const isPage = variant === 'page';
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormData>(emptyForm);
 
-  const currentSection = sections[step];
+  // Perguntas da área do tratamento (modelos de Configurações > Anamnese, criados na implantação).
+  const { data: loadedTemplates = [] } = useQuery({
+    queryKey: ['anamnese-templates-active', clinicId],
+    queryFn: async () => {
+      const raw = await readClinicSetting(clinicId, ANAMNESE_TEMPLATES_KEY);
+      try {
+        const parsed = raw ? JSON.parse(raw) : [];
+        return (Array.isArray(parsed) ? parsed : []).filter((t: AnamneseTemplate) => t.active && t.specific_questions?.length) as AnamneseTemplate[];
+      } catch {
+        return [] as AnamneseTemplate[];
+      }
+    },
+    enabled: open && !!clinicId && !templatesOverride,
+  });
+  const templates = useMemo(
+    () => (templatesOverride ? templatesOverride.filter((t) => t.active && t.specific_questions?.length) : loadedTemplates),
+    [templatesOverride, loadedTemplates],
+  );
+  const [templateId, setTemplateId] = useState('');
+  const [areaAnswers, setAreaAnswers] = useState<Record<string, string>>({});
+  const selectedTemplate = templates.find((t) => t.id === templateId) || null;
+  const sections = useMemo(() => {
+    if (templates.length === 0) return baseSections as unknown as Array<(typeof baseSections)[number] | { key: 'area'; label: string; icon: typeof ClipboardList }>;
+    const consentIndex = baseSections.findIndex((x) => x.key === 'consent');
+    return [
+      ...baseSections.slice(0, consentIndex),
+      { key: 'area' as const, label: 'Perguntas da área', icon: ClipboardList },
+      ...baseSections.slice(consentIndex),
+    ];
+  }, [templates.length]);
+  const currentSection = sections[Math.min(step, sections.length - 1)];
 
   const updateSection = <S extends keyof FormData, F extends keyof FormData[S]>(section: S, field: F, value: FormData[S][F]) => {
     setForm(prev => ({
@@ -142,13 +183,23 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!form.consent.agrees_terms) throw new Error('É necessário aceitar os termos de consentimento');
-      
+ if (!form.consent.agrees_terms) throw new Error('É necessário aceitar os termos de consentimento');
+      if (isPage && (form.consent.signature_name || '').trim().length < 3) throw new Error('Digite seu nome completo para assinar.');
+
       const now = new Date().toISOString();
-      const formData: Json = JSON.parse(JSON.stringify(form));
+      const areaSection = buildAreaSection(selectedTemplate, areaAnswers);
+      const formData: Json = JSON.parse(JSON.stringify({
+        ...form,
+        consent: { ...form.consent, signature_date: form.consent.signature_date || new Date().toISOString().split('T')[0] },
+        ...areaSection,
+      }));
+      if (onSubmitForm) {
+        await onSubmitForm(formData);
+        return;
+      }
 
       const { error } = await supabase.from('patient_anamneses').insert({
-        anamnese_number: `AN-${Date.now()}`,
+        anamnese_number: '', // o banco gera o número (trigger)
         clinic_id: clinicId,
         patient_id: patientId,
         form_data: formData,
@@ -165,6 +216,8 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
       qc.invalidateQueries({ queryKey: ['patient', patientId] });
       toast({ title: 'Anamnese salva com sucesso!' });
       setForm(emptyForm);
+      setTemplateId('');
+      setAreaAnswers({});
       setStep(0);
       onOpenChange(false);
     },
@@ -510,6 +563,29 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
           </div>
         );
 
+      case 'area':
+        return (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Área do tratamento</Label>
+              <Select value={templateId || 'none'} onValueChange={(v) => setTemplateId(v === 'none' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="Escolha a área" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma (só perguntas gerais)</SelectItem>
+                  {templates.map((t) => <SelectItem key={t.id} value={t.id}>{t.category_name || t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">As perguntas vêm do modelo da área em Configurações &gt; Anamnese.</p>
+            </div>
+            {selectedTemplate?.specific_questions.map((q, i) => (
+              <div key={q} className="space-y-2 rounded-xl border border-border/60 bg-card/60 p-4">
+                <Label htmlFor={`area-q-${i}`}>{q}</Label>
+                <Textarea id={`area-q-${i}`} rows={2} value={areaAnswers[q] || ''} onChange={(e) => setAreaAnswers((cur) => ({ ...cur, [q]: e.target.value }))} />
+              </div>
+            ))}
+          </div>
+        );
+
       case 'consent':
         return (
           <div className="space-y-5">
@@ -532,10 +608,26 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
               onChange={v => updateSection('consent', 'agrees_photos', v)}
             />
             <CheckboxField
+              label="Autorizo uso das minhas fotos, sem identificação, em divulgação da clínica (redes sociais, site)"
+              checked={!!form.consent.agrees_photos_marketing}
+              onChange={v => updateSection('consent', 'agrees_photos_marketing', v)}
+            />
+            <CheckboxField
               label="Autorizo uso dos dados para análise e melhoria dos serviços"
               checked={form.consent.agrees_data_usage}
               onChange={v => updateSection('consent', 'agrees_data_usage', v)}
             />
+            {isPage && (
+              <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
+                <Label>Assinatura: digite seu nome completo *</Label>
+                <Input
+                  value={form.consent.signature_name || ''}
+                  onChange={e => updateSection('consent', 'signature_name', e.target.value)}
+                  placeholder="Seu nome completo"
+                  autoComplete="name"
+                />
+              </div>
+            )}
             <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
               <Label>Data de assinatura</Label>
               <Input
@@ -552,81 +644,91 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
   const isLastStep = step === sections.length - 1;
   const Icon = currentSection.icon;
 
+  const body = (
+    <>
+    {!isPage && (
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2">
+          <Icon className="w-5 h-5 text-primary" />
+          Anamnese Digital {patientName ? `— ${patientName}` : ''}
+        </DialogTitle>
+      </DialogHeader>
+    )}
+
+    {/* Step indicator */}
+    <div className="flex items-center gap-1 py-2">
+      {sections.map((s, i) => {
+        const SIcon = s.icon;
+        return (
+          <button
+            key={s.key}
+            type="button"
+            onClick={() => setStep(i)}
+            className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 px-1 rounded-lg transition-colors text-xs ${
+              i === step
+                ? 'bg-primary/10 text-primary font-semibold'
+                : i < step
+                ? 'text-primary/60'
+                : 'text-muted-foreground'
+            }`}
+          >
+            <SIcon className="w-3.5 h-3.5" />
+            <span className="hidden sm:block truncate">{s.label}</span>
+            {i < step && <Check className="w-3 h-3 text-green-500" />}
+          </button>
+        );
+      })}
+    </div>
+
+    {/* Section content */}
+    <ScrollArea className={isPage ? 'pr-1' : 'flex-1 pr-4 max-h-[50vh]'}>
+      <div className="py-2">
+        <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+          <span className="w-6 h-6 rounded-full gradient-primary text-primary-foreground text-xs flex items-center justify-center font-bold">
+            {step + 1}
+          </span>
+          {currentSection.label}
+        </h3>
+        <p className="text-xs text-muted-foreground mb-4">
+          Responda apenas o necessário. Campos complementares aparecem conforme as respostas.
+        </p>
+        {renderSection()}
+      </div>
+    </ScrollArea>
+
+    {/* Navigation */}
+    <div className="flex items-center justify-between pt-4 border-t">
+      <BrandButton
+        variant="outline"
+        onClick={() => step > 0 ? setStep(step - 1) : onOpenChange(false)}
+      >
+        <ChevronLeft className="w-4 h-4" />
+        {step === 0 && !isPage ? 'Cancelar' : 'Anterior'}
+      </BrandButton>
+
+      <span className="text-xs text-muted-foreground">{step + 1} de {sections.length}</span>
+
+      {isLastStep ? (
+        <BrandButton onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || !form.consent.agrees_terms}>
+          {saveMutation.isPending ? 'Salvando...' : isPage ? 'Enviar anamnese' : 'Salvar Anamnese'}
+          <Check className="w-4 h-4" />
+        </BrandButton>
+      ) : (
+        <BrandButton onClick={() => setStep(step + 1)}>
+          Próximo
+          <ChevronRight className="w-4 h-4" />
+        </BrandButton>
+      )}
+    </div>
+    </>
+  );
+
+  if (isPage) return <div className="flex flex-col gap-2">{body}</div>;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Icon className="w-5 h-5 text-primary" />
-            Anamnese Digital {patientName ? `— ${patientName}` : ''}
-          </DialogTitle>
-        </DialogHeader>
-
-        {/* Step indicator */}
-        <div className="flex items-center gap-1 py-2">
-          {sections.map((s, i) => {
-            const SIcon = s.icon;
-            return (
-              <button
-                key={s.key}
-                type="button"
-                onClick={() => setStep(i)}
-                className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 px-1 rounded-lg transition-colors text-xs ${
-                  i === step
-                    ? 'bg-primary/10 text-primary font-semibold'
-                    : i < step
-                    ? 'text-primary/60'
-                    : 'text-muted-foreground'
-                }`}
-              >
-                <SIcon className="w-3.5 h-3.5" />
-                <span className="hidden sm:block truncate">{s.label}</span>
-                {i < step && <Check className="w-3 h-3 text-green-500" />}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Section content */}
-        <ScrollArea className="flex-1 pr-4 max-h-[50vh]">
-          <div className="py-2">
-            <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full gradient-primary text-primary-foreground text-xs flex items-center justify-center font-bold">
-                {step + 1}
-              </span>
-              {currentSection.label}
-            </h3>
-            <p className="text-xs text-muted-foreground mb-4">
-              Responda apenas o necessário. Campos complementares aparecem conforme as respostas.
-            </p>
-            {renderSection()}
-          </div>
-        </ScrollArea>
-
-        {/* Navigation */}
-        <div className="flex items-center justify-between pt-4 border-t">
-          <BrandButton
-            variant="outline"
-            onClick={() => step > 0 ? setStep(step - 1) : onOpenChange(false)}
-          >
-            <ChevronLeft className="w-4 h-4" />
-            {step === 0 ? 'Cancelar' : 'Anterior'}
-          </BrandButton>
-
-          <span className="text-xs text-muted-foreground">{step + 1} de {sections.length}</span>
-
-          {isLastStep ? (
-            <BrandButton onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || !form.consent.agrees_terms}>
-              {saveMutation.isPending ? 'Salvando...' : 'Salvar Anamnese'}
-              <Check className="w-4 h-4" />
-            </BrandButton>
-          ) : (
-            <BrandButton onClick={() => setStep(step + 1)}>
-              Próximo
-              <ChevronRight className="w-4 h-4" />
-            </BrandButton>
-          )}
-        </div>
+        {body}
       </DialogContent>
     </Dialog>
   );

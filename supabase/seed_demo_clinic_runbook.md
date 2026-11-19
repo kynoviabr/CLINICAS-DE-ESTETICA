@@ -2,7 +2,7 @@
 
 Se o SQL Editor reclamar de `unterminated dollar-quoted string`, normalmente significa que o conteúdo foi colado incompleto.
 
-O arquivo [seed_demo_clinic.sql](/Users/dempas/Documents/remix-of-clinic-journey/supabase/seed_demo_clinic.sql) está fechado corretamente com:
+O arquivo [seed_demo_clinic.sql](seed_demo_clinic.sql) está fechado corretamente com:
 
 ```sql
 DO $$
