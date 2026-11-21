@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '@/components/ui/drawer';
 import { AnamneseStatusBadge } from './AnamneseStatusBadge';
 import { Badge } from '@/components/ui/badge';
@@ -6,7 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { BrandButton } from '@/components/ui/brand-button';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Eye, Hash, Calendar, Clock, User as UserIcon, FileText, Paperclip } from 'lucide-react';
+import { Eye, Hash, Calendar, Clock, User as UserIcon, FileText, Paperclip, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import type { Database } from '@/integrations/supabase/types';
 import { openStoredFile } from '@/lib/storedFile';
@@ -23,6 +24,7 @@ interface Props {
 const sourceLabels: Record<string, string> = {
   digital: 'Digital',
   portal: 'Portal do paciente',
+  patient_link: 'Link enviado à paciente',
   manual_upload: 'Upload manual',
   internal_manual: 'Preenchimento interno',
 };
@@ -131,10 +133,33 @@ function formatValue(value: unknown): string {
   return String(value);
 }
 
+type FormSection = { key: string; entries: Array<[string, unknown]> };
+
+/** Seções do formulário com pelo menos uma resposta para mostrar. */
+function visibleSections(formData: Record<string, Record<string, unknown>> | null): FormSection[] {
+  if (!formData) return [];
+  return Object.entries(formData).flatMap(([key, sectionData]) => {
+    if (!sectionData || typeof sectionData !== 'object') return [];
+    const entries = Object.entries(sectionData).filter(([field, value]) => {
+      if (value === '' || value === null || value === undefined) return false;
+      const dependency = detailDependencies[field];
+      if (dependency && sectionData[dependency] !== true) return false;
+      return true;
+    });
+    return entries.length > 0 ? [{ key, entries }] : [];
+  });
+}
+
 export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: Props) {
+  const [expanded, setExpanded] = useState<string[]>([]);
+  // Cada anamnese aberta começa com as seções fechadas.
+  useEffect(() => { setExpanded([]); }, [anamnese?.id]);
+
   if (!anamnese) return null;
   const a = anamnese;
   const formData = a.form_data as Record<string, Record<string, unknown>> | null;
+  const sections = visibleSections(formData);
+  const allExpanded = sections.length > 0 && expanded.length === sections.length;
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -221,19 +246,22 @@ export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: P
           <Separator className="my-4" />
 
           {/* Form data sections */}
-          {formData && Object.keys(formData).length > 0 ? (
+          {sections.length > 0 ? (
             <div>
-              <h4 className="text-sm font-semibold text-foreground mb-3">Dados do Formulário</h4>
-              <Accordion type="multiple" className="space-y-1">
-                {Object.entries(formData).map(([sectionKey, sectionData]) => {
-                  if (!sectionData || typeof sectionData !== 'object') return null;
-                  const entries = Object.entries(sectionData).filter(([field, value]) => {
-                    if (value === '' || value === null || value === undefined) return false;
-                    const dependency = detailDependencies[field];
-                    if (dependency && sectionData[dependency] !== true) return false;
-                    return true;
-                  });
-                  if (entries.length === 0) return null;
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h4 className="text-sm font-semibold text-foreground">Dados do Formulário</h4>
+                <BrandButton
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setExpanded(allExpanded ? [] : sections.map((s) => s.key))}
+                >
+                  {allExpanded
+                    ? <><ChevronsDownUp className="w-3.5 h-3.5" /> Recolher todos</>
+                    : <><ChevronsUpDown className="w-3.5 h-3.5" /> Expandir todos</>}
+                </BrandButton>
+              </div>
+              <Accordion type="multiple" value={expanded} onValueChange={setExpanded} className="space-y-1">
+                {sections.map(({ key: sectionKey, entries }) => {
                   return (
                     <AccordionItem key={sectionKey} value={sectionKey} className="border rounded-lg px-3">
                       <AccordionTrigger className="text-sm font-medium py-2">

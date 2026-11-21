@@ -14,6 +14,7 @@ type AnamneseRow = Database['public']['Tables']['patient_anamneses']['Row'];
 const sourceLabels: Record<string, string> = {
   digital: 'Digital',
   portal: 'Portal',
+  patient_link: 'Link da paciente',
   manual_upload: 'Upload manual',
   internal_manual: 'Interno',
 };
