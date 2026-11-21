@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, Edit, Stethoscope, Trash2, DollarSign, Copy } from 'lucide-react';
 import CombosTab from '@/components/treatments/CombosTab';
@@ -71,6 +72,8 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  // Inativos ficam escondidos: a clínica desativa o que não faz para não poluir a lista.
+  const [showInactive, setShowInactive] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<TreatmentForm>(emptyForm);
@@ -136,6 +139,28 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
       return data || [];
     },
     enabled: !!clinicId && canManage,
+  });
+
+  const visibleTreatments = showInactive ? treatments : treatments.filter((t) => t.is_active);
+  const hiddenInactive = treatments.length - treatments.filter((t) => t.is_active).length;
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+      const { error } = await supabase.from('treatments').update({ is_active: active }).eq('id', id).eq('clinic_id', clinicId!);
+      if (error) throw error;
+    },
+    onSuccess: (_data, { active }) => {
+      qc.invalidateQueries({ queryKey: ['treatments'] });
+      toast({
+        title: active ? 'Tratamento ativado' : 'Tratamento desativado',
+        description: active
+          ? 'Ele volta a aparecer na lista, na agenda, nas propostas e nos combos.'
+          : 'Ele sai da lista e deixa de ser oferecido na agenda, nas propostas e nos combos. Use "Mostrar inativos" para reativar.',
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Não foi possível alterar o tratamento', description: err.message, variant: 'destructive' });
+    },
   });
 
   const saveMutation = useMutation({
@@ -356,6 +381,15 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
         </Select>
       </div>
 
+      {(hiddenInactive > 0 || showInactive) && (
+        <div className="-mt-3 mb-5 flex items-center gap-2">
+          <Switch id="show-inactive" checked={showInactive} onCheckedChange={setShowInactive} />
+          <Label htmlFor="show-inactive" className="cursor-pointer text-sm font-normal text-muted-foreground">
+            Mostrar inativos{hiddenInactive > 0 ? ` (${hiddenInactive})` : ''}
+          </Label>
+        </div>
+      )}
+
       {isLoading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[...Array(6)].map((_, i) => <div key={i} className="h-40 bg-muted rounded-xl animate-pulse" />)}
@@ -375,10 +409,19 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
         </div>
       )}
 
-      {!isLoading && treatments.length > 0 && (
+      {!isLoading && treatments.length > 0 && visibleTreatments.length === 0 && (
+        <div className="text-center py-12 text-sm text-muted-foreground">
+          Todos os tratamentos desta busca estão inativos.{' '}
+          <button type="button" className="font-medium text-primary hover:underline" onClick={() => setShowInactive(true)}>
+            Mostrar inativos
+          </button>
+        </div>
+      )}
+
+      {!isLoading && visibleTreatments.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {treatments.map((t) => (
-            <div key={t.id} className="bg-card rounded-xl shadow-card p-5 animate-fade-in hover:shadow-card-hover transition-shadow">
+          {visibleTreatments.map((t) => (
+            <div key={t.id} className={`bg-card rounded-xl shadow-card p-5 animate-fade-in hover:shadow-card-hover transition-shadow ${t.is_active ? '' : 'opacity-70'}`}>
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h3 className="font-semibold text-foreground">{t.name}</h3>
@@ -389,9 +432,21 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
                     <span className="text-xs text-muted-foreground">{t.category}</span>
                   )}
                 </div>
-                <BrandBadge status={t.is_active ? 'active' : 'cancelled'}>
-                  {t.is_active ? 'Ativo' : 'Inativo'}
-                </BrandBadge>
+                {canManage ? (
+                  <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground">
+                    {t.is_active ? 'Ativo' : 'Inativo'}
+                    <Switch
+                      checked={!!t.is_active}
+                      disabled={toggleActiveMutation.isPending && toggleActiveMutation.variables?.id === t.id}
+                      onCheckedChange={(active) => toggleActiveMutation.mutate({ id: t.id, active })}
+                      aria-label={t.is_active ? `Desativar ${t.name}` : `Ativar ${t.name}`}
+                    />
+                  </label>
+                ) : (
+                  <BrandBadge status={t.is_active ? 'active' : 'cancelled'}>
+                    {t.is_active ? 'Ativo' : 'Inativo'}
+                  </BrandBadge>
+                )}
               </div>
               {t.description && <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{t.description}</p>}
               <div className="text-sm border-t pt-3 space-y-1">
