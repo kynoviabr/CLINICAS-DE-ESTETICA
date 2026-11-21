@@ -6,6 +6,12 @@ export type TreatmentCategory = {
   description?: string | null;
 };
 
+/** Pergunta da anamnese do tratamento: Sim/Não (com detalhe quando "Sim") ou resposta livre. */
+export type TemplateQuestion = {
+  text: string;
+  type: 'yes_no' | 'text';
+};
+
 export type AnamneseTemplate = {
   id: string;
   name: string;
@@ -13,9 +19,17 @@ export type AnamneseTemplate = {
   category_name: string;
   active: boolean;
   basic_questions: string[];
+  /** Texto das perguntas (formato antigo; mantido em sincronia com `questions`). */
   specific_questions: string[];
+  /** Perguntas com tipo. Modelos antigos não têm: use `templateQuestions()`. */
+  questions?: TemplateQuestion[];
+  /** Texto de ciência dos riscos que a paciente confirma ao responder. */
+  risk_terms?: string;
   notes: string;
 };
+
+/** Resposta de uma pergunta do tratamento. */
+export type TreatmentAnswer = { value: boolean | null; detail: string } | string;
 
 
 export const ANAMNESE_TEMPLATES_KEY = 'anamnese_templates';
@@ -133,7 +147,34 @@ export function questionsForCategory(categoryName: string) {
   ];
 }
 
+// Perguntas que começam assim são de Sim/Não ("Possui...?", "Usa...?"); as demais pedem resposta livre.
+const YES_NO_START = /^(possui|tem|usa|teve|há|ha|já|ja|está|esta|foi|consegue|existe|fuma|pratica|faz)\b/i;
+
+/** Tipo sugerido para uma pergunta escrita em texto. */
+export function guessQuestionType(text: string): TemplateQuestion['type'] {
+  return YES_NO_START.test(text.trim()) ? 'yes_no' : 'text';
+}
+
+/** Perguntas do modelo com tipo (converte modelos antigos, que só tinham o texto). */
+export function templateQuestions(template: Pick<AnamneseTemplate, 'questions' | 'specific_questions'>): TemplateQuestion[] {
+  if (Array.isArray(template.questions) && template.questions.length > 0) {
+    return template.questions.filter((q) => q && typeof q.text === 'string' && q.text.trim());
+  }
+  return (template.specific_questions || []).filter(Boolean).map((text) => ({ text, type: guessQuestionType(text) }));
+}
+
+/** Texto padrão de ciência de riscos de uma categoria. */
+export function defaultRiskTerms(categoryName: string) {
+  return `Declaro que fui informada sobre como funciona o tratamento de ${categoryName}, seus riscos, possíveis efeitos colaterais, contraindicações e cuidados antes e depois, e que pude tirar minhas dúvidas com a profissional.`;
+}
+
+/** Texto de riscos do modelo (ou o padrão da categoria). */
+export function templateRiskTerms(template: Pick<AnamneseTemplate, 'risk_terms' | 'category_name'>) {
+  return template.risk_terms?.trim() || defaultRiskTerms(template.category_name);
+}
+
 export function buildAnamneseTemplate(category: TreatmentCategory): AnamneseTemplate {
+  const specific = questionsForCategory(category.name);
   return {
     id: `template-${category.id}`,
     name: `Anamnese ${category.name}`,
@@ -141,9 +182,17 @@ export function buildAnamneseTemplate(category: TreatmentCategory): AnamneseTemp
     category_name: category.name,
     active: true,
     basic_questions: BASIC_HEALTH_QUESTIONS,
-    specific_questions: questionsForCategory(category.name),
+    specific_questions: specific,
+    questions: specific.map((text) => ({ text, type: guessQuestionType(text) })),
+    risk_terms: defaultRiskTerms(category.name),
     notes: 'Dados básicos de saúde são comuns; perguntas específicas devem ser revisadas conforme o protocolo e profissional responsável.',
   };
+}
+
+/** A resposta está preenchida? (Sim/Não precisa de escolha; texto precisa de conteúdo.) */
+export function isAnswered(question: TemplateQuestion, answer: TreatmentAnswer | undefined) {
+  if (question.type === 'yes_no') return typeof answer === 'object' && answer !== null && answer.value !== null;
+  return typeof answer === 'string' && answer.trim().length > 0;
 }
 
 /** Parte da área no form_data da anamnese: modelo usado e respostas por pergunta. */
@@ -154,4 +203,23 @@ export function buildAreaSection(template: AnamneseTemplate | null, answers: Rec
     template: { name: template.name, category: template.category_name },
     area_questions: Object.fromEntries(template.specific_questions.map((q) => [q, (answers[q] || '').trim()])),
   };
+}
+
+/** form_data de uma anamnese de tratamento (mesmo formato que o banco grava no envio por link). */
+export function buildTreatmentFormData(
+  template: AnamneseTemplate,
+  answers: Record<string, TreatmentAnswer>,
+  consent: { signature_name?: string; signature_date?: string },
+) {
+  return {
+    template: { name: template.name, category: template.category_name },
+    treatment_answers: answers,
+    risk: { terms: templateRiskTerms(template), acknowledged: true },
+    consent: { signature_name: consent.signature_name || null, signature_date: consent.signature_date || null },
+  };
+}
+
+/** Perguntas Sim/Não do modelo ainda sem resposta. */
+export function unansweredQuestions(template: AnamneseTemplate, answers: Record<string, TreatmentAnswer> | undefined) {
+  return templateQuestions(template).filter((q) => q.type === 'yes_no' && !isAnswered(q, answers?.[q.text]));
 }
