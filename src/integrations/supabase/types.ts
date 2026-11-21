@@ -11,6 +11,8 @@ export type Database = {
     Tables: {
       anamnese_links: {
         Row: {
+          include_general: boolean
+          template_ids: string[]
           anamnese_id: string | null
           clinic_id: string
           created_at: string
@@ -23,6 +25,8 @@ export type Database = {
           used_at: string | null
         }
         Insert: {
+          include_general?: boolean
+          template_ids?: string[]
           anamnese_id?: string | null
           clinic_id: string
           created_at?: string
@@ -35,6 +39,8 @@ export type Database = {
           used_at?: string | null
         }
         Update: {
+          include_general?: boolean
+          template_ids?: string[]
           anamnese_id?: string | null
           clinic_id?: string
           created_at?: string
@@ -2001,6 +2007,10 @@ export type Database = {
       }
       patient_anamneses: {
         Row: {
+          category_id: string | null
+          kind: string
+          template_id: string | null
+          template_name: string | null
           anamnese_number: string
           archived_at: string | null
           cancelled_at: string | null
@@ -2033,6 +2043,10 @@ export type Database = {
           validity_days: number
         }
         Insert: {
+          category_id?: string | null
+          kind?: string
+          template_id?: string | null
+          template_name?: string | null
           anamnese_number: string
           archived_at?: string | null
           cancelled_at?: string | null
@@ -2065,6 +2079,10 @@ export type Database = {
           validity_days?: number
         }
         Update: {
+          category_id?: string | null
+          kind?: string
+          template_id?: string | null
+          template_name?: string | null
           anamnese_number?: string
           archived_at?: string | null
           cancelled_at?: string | null
@@ -4298,7 +4316,11 @@ export type Database = {
         Returns: undefined
       }
       create_anamnese_link: {
-        Args: { p_patient_id: string }
+        Args: {
+          p_include_general?: boolean
+          p_patient_id: string
+          p_template_ids?: string[]
+        }
         Returns: Json
       }
       anamnese_link_status: {
