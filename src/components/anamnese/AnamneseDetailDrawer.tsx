@@ -39,7 +39,10 @@ const sectionLabels: Record<string, string> = {
   habits: 'Hábitos de Vida',
   template: 'Modelo da área',
   area_questions: 'Perguntas da área',
+  treatment_answers: 'Perguntas do tratamento',
+  risk: 'Ciência dos riscos',
   consent: 'Consentimento',
+  submission: 'Envio',
 };
 
 const fieldLabels: Record<string, string> = {
@@ -90,6 +93,15 @@ const fieldLabels: Record<string, string> = {
   agrees_photos: 'Fotos autorizadas',
   agrees_data_usage: 'Uso de dados autorizado',
   signature_date: 'Data de assinatura',
+  signature_name: 'Assinatura',
+  agrees_photos_marketing: 'Fotos em divulgação',
+  terms: 'Texto',
+  acknowledged: 'Li e concordo',
+  filled_by: 'Preenchida por',
+  via: 'Canal',
+  at: 'Enviada em',
+  ip: 'IP',
+  user_agent: 'Aparelho',
 };
 
 const detailDependencies: Record<string, string> = {
@@ -130,8 +142,19 @@ function formatValue(value: unknown): string {
   if (value === true) return 'Sim';
   if (value === false) return 'Não';
   if (value === null || value === undefined || value === '') return '—';
+  // Resposta Sim/Não da anamnese de tratamento: { value, detail }.
+  if (typeof value === 'object' && 'value' in (value as Record<string, unknown>)) {
+    const { value: v, detail } = value as { value: boolean | null; detail?: string };
+    const base = v === true ? 'Sim' : v === false ? 'Não' : '—';
+    return v === true && detail?.trim() ? `${base}: ${detail.trim()}` : base;
+  }
+  if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
 }
+
+/** Resposta "Sim" de uma pergunta de tratamento (para destacar, como os riscos da inicial). */
+const isYesAnswer = (value: unknown) =>
+  typeof value === 'object' && value !== null && (value as { value?: unknown }).value === true;
 
 type FormSection = { key: string; entries: Array<[string, unknown]> };
 
@@ -274,7 +297,7 @@ export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: P
                             <div
                               key={field}
                               className={
-                                highlightedBooleanFields.has(field) && value === true
+                                (highlightedBooleanFields.has(field) && value === true) || (sectionKey === 'treatment_answers' && isYesAnswer(value))
                                   ? 'rounded-lg border border-warning/30 bg-warning/10 px-3 py-2'
                                   : ''
                               }

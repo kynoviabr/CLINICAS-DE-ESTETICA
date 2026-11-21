@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertTriangle, UserPlus } from 'lucide-react';
 import { AnamneseAlertBanner } from '@/components/anamnese/AnamneseAlertBanner';
+import { TreatmentAnamneseAlert } from '@/components/anamnese/TreatmentAnamneseAlert';
 import type { AgendaPageController } from './useAgendaPage';
 
 export function CreateAppointmentDialog({ ctx }: { ctx: AgendaPageController }) {
@@ -155,6 +156,9 @@ export function CreateAppointmentDialog({ ctx }: { ctx: AgendaPageController }) 
                   </div>
                 </div>
               </div>
+            )}
+            {selectedPatient && selectedTreatment && (
+              <TreatmentAnamneseAlert patientId={selectedPatient} treatmentId={selectedTreatment} />
             )}
             {appointmentType === 'session' && selectedTreatment && selectedSessionTreatmentSummary?.balance === 0 && (
               <p className="text-xs text-destructive mt-1">

@@ -16,7 +16,7 @@ describe('AnamnesisFormModal', () => {
           patientId=""
           clinicId=""
           validityDays={180}
-          templatesOverride={[]}
+          chosen={{ general: true, templates: [] }}
           onSubmitForm={async () => undefined}
         />
       </QueryClientProvider>,

@@ -28,7 +28,7 @@ export default function PublicAnamnesePage() {
   const [birthDate, setBirthDate] = useState('');
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState('');
-  const [opened, setOpened] = useState<{ firstName: string; templates: AnamneseTemplate[] } | null>(null);
+  const [opened, setOpened] = useState<{ firstName: string; general: boolean; templates: AnamneseTemplate[] } | null>(null);
   const [done, setDone] = useState(false);
 
   useEffect(() => {
@@ -44,11 +44,16 @@ export default function PublicAnamnesePage() {
     const { data, error: err } = await supabase.rpc('anamnese_link_open', { p_token: token, p_birth_date: birthDate });
     setChecking(false);
     if (err) { setError(err.message); return; }
-    const result = data as { ok: boolean; message?: string; first_name?: string; templates?: string };
+    const result = data as { ok: boolean; message?: string; first_name?: string; templates?: string; include_general?: boolean; selected?: boolean };
     if (!result.ok) { setError(result.message || 'Não foi possível confirmar.'); return; }
     let templates: AnamneseTemplate[] = [];
     try { templates = JSON.parse(result.templates || '[]'); } catch { templates = []; }
-    setOpened({ firstName: result.first_name || '', templates: Array.isArray(templates) ? templates : [] });
+    // Links antigos (sem escolha da Dra) seguem só com a anamnese inicial.
+    setOpened({
+      firstName: result.first_name || '',
+      general: result.include_general !== false,
+      templates: result.selected && Array.isArray(templates) ? templates : [],
+    });
   };
 
   const submit = async (formData: Json) => {
@@ -107,7 +112,7 @@ export default function PublicAnamnesePage() {
                 patientId=""
                 clinicId=""
                 validityDays={180}
-                templatesOverride={opened.templates}
+                chosen={{ general: opened.general, templates: opened.templates }}
                 onSubmitForm={submit}
               />
             </>

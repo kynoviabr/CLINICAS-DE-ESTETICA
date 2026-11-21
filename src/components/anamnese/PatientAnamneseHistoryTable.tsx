@@ -53,7 +53,10 @@ export default function PatientAnamneseHistoryTable({ anamneses, patientId, onVa
         <TableBody>
           {anamneses.map((a) => (
             <TableRow key={a.id} className={a.is_current ? 'bg-primary/[0.03]' : ''}>
-              <TableCell className="text-xs font-mono font-medium">{a.anamnese_number}</TableCell>
+              <TableCell className="text-xs font-medium">
+                <span className="font-mono">{a.anamnese_number}</span>
+                <span className="block text-[11px] font-normal text-muted-foreground">{a.kind === 'treatment' ? (a.template_name || 'Tratamento') : 'Inicial'}</span>
+              </TableCell>
               <TableCell className="text-xs">{fmtShort(a.created_at)}</TableCell>
               <TableCell className="text-xs">{fmtShort(a.filled_at)}</TableCell>
               <TableCell className="text-xs">{fmtShort(a.expires_at)}</TableCell>

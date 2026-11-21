@@ -61,8 +61,11 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
     enabled: !!clinicId,
   });
 
-  const current = anamneses.find((a) => a.is_current);
+  // Vigentes: a inicial e uma por tratamento (categoria).
+  const current = anamneses.find((a) => a.is_current && a.kind !== 'treatment');
+  const treatmentCurrents = anamneses.filter((a) => a.is_current && a.kind === 'treatment');
   const history = anamneses.filter((a) => !a.is_current);
+  const toReview = [current, ...treatmentCurrents].filter((a): a is AnamneseRow => !!a && a.status === 'filled' && a.source_type === 'patient_link');
 
   const validateMut = useMutation({
     mutationFn: async (id: string) => {
@@ -151,12 +154,13 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
         </div>
       </div>
 
-      {current && current.status === 'filled' && current.source_type === 'patient_link' && (
+      {toReview.length > 0 && (
         <div className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
           <Smartphone className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
-            <strong>Preenchida pela paciente pelo link</strong>
-            {current.filled_at ? ` em ${new Date(current.filled_at).toLocaleDateString('pt-BR')}` : ''}. Revise as respostas e valide.
+            <strong>Preenchida{toReview.length > 1 ? 's' : ''} pela paciente pelo link</strong>
+            {toReview[0].filled_at ? ` em ${new Date(toReview[0].filled_at).toLocaleDateString('pt-BR')}` : ''}
+            {': '}{toReview.map((a) => (a.kind === 'treatment' ? a.template_name || 'tratamento' : 'inicial')).join(', ')}. Revise as respostas e valide.
           </p>
         </div>
       )}
@@ -165,6 +169,7 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
       {current && (
         <CurrentAnamneseCard
           anamnese={current}
+          title="Anamnese inicial"
           patientId={patientId}
           onValidate={id => validateMut.mutate(id)}
           onArchive={id => archiveMut.mutate(id)}
@@ -173,6 +178,26 @@ export default function PatientAnamneseTab({ patientId, clinicId, patientAnamnes
           validating={validateMut.isPending}
           archiving={archiveMut.isPending}
         />
+      )}
+
+      {treatmentCurrents.length > 0 && (
+        <div className="space-y-3">
+          <h4 className="text-sm font-semibold text-muted-foreground">Anamneses de tratamento</h4>
+          {treatmentCurrents.map((a) => (
+            <CurrentAnamneseCard
+              key={a.id}
+              anamnese={a}
+              title={a.template_name || 'Anamnese de tratamento'}
+              patientId={patientId}
+              onValidate={id => validateMut.mutate(id)}
+              onArchive={id => archiveMut.mutate(id)}
+              onEdit={x => setEditAnamnese(x)}
+              onView={x => setDetailAnamnese(x)}
+              validating={validateMut.isPending}
+              archiving={archiveMut.isPending}
+            />
+          ))}
+        </div>
       )}
 
       {/* History */}

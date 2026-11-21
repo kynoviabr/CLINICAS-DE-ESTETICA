@@ -1,4 +1,3 @@
-import { publicOrigin } from '@/lib/publicOrigin';
 import { useState, useEffect } from 'react';
 import { BrandButton } from '@/components/ui/brand-button';
 import { BrandBadge } from '@/components/ui/brand-badge';
@@ -14,8 +13,8 @@ import { statusConfig, formatDurationMinutes } from '@/lib/agenda/model';
 import { useBranding } from '@/contexts/BrandingContext';
 import { useToast } from '@/hooks/use-toast';
 import { whatsappLink } from '@/lib/proposals/sale';
-import { supabase } from '@/integrations/supabase/client';
-import { anamneseLinkMessage, anamneseLinkUrl } from '@/lib/anamnese/link';
+import { SendAnamneseLink } from '@/components/anamnese/SendAnamneseLink';
+import { TreatmentAnamneseAlert } from '@/components/anamnese/TreatmentAnamneseAlert';
 import { createAppointmentLink, reminderMessage } from '@/lib/appointments/patientLink';
 import type { AgendaPageController } from './useAgendaPage';
 
@@ -24,7 +23,6 @@ export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController })
   const { toast } = useToast();
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
-  const [anamneseLoading, setAnamneseLoading] = useState(false);
 
   const {
     navigate,
@@ -99,61 +97,6 @@ export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController })
     }
   };
 
-  const handleSendAnamnese = async () => {
-    if (!viewAppt) return;
-    if (!viewAppt.patient_id) {
-      toast({
-        title: 'Paciente não vinculado',
-        description: 'Para enviar a ficha de anamnese por link, o agendamento precisa estar vinculado a um paciente cadastrado.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const patientData = getSelectedPatientData(viewAppt.patient_id);
-    const recipientName = getAppointmentDisplayName(viewAppt);
-    const phone =
-      (viewAppt.leads as { phone?: string | null } | null)?.phone ||
-      (patientData as { phone?: string | null } | undefined)?.phone ||
-      (viewAppt.patients as { phone?: string | null } | null)?.phone;
-
-    if (!phone) {
-      toast({
-        title: 'Telefone não encontrado',
-        description: 'Este paciente não possui telefone cadastrado para envio da anamnese via WhatsApp.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setAnamneseLoading(true);
-    try {
-      const { data, error } = await supabase.rpc('create_anamnese_link', { p_patient_id: viewAppt.patient_id });
-      if (error) throw error;
-
-      const r = data as { token: string; expires_at: string };
-      const url = anamneseLinkUrl(publicOrigin(), r.token);
-      const treatmentName = (viewAppt.treatments as { name?: string | null } | null)?.name;
-      const clinicLabel = clinicName || 'nossa clínica';
-      const first = recipientName.trim().split(/\s+/)[0] || recipientName;
-
-      const message = treatmentName
-        ? `Olá${first ? `, ${first}` : ''}! Aqui é da ${clinicLabel}. Para agilizar seu atendimento de *${treatmentName}*, preencha sua ficha de anamnese pelo link seguro abaixo (leva cerca de 5 minutos):\n\n${url}\n\nO link é pessoal, pede sua data de nascimento para confirmar e vale por 7 dias.`
-        : anamneseLinkMessage(recipientName, clinicLabel, url);
-
-      window.open(whatsappLink(phone, message), '_blank', 'noopener,noreferrer');
-      toast({
-        title: 'WhatsApp aberto com Anamnese!',
-        description: `Link seguro de anamnese gerado e preparado para ${first}.`,
-      });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro ao gerar link de anamnese.';
-      toast({ title: 'Erro ao gerar anamnese', description: msg, variant: 'destructive' });
-    } finally {
-      setAnamneseLoading(false);
-    }
-  };
-
   return (
     <Dialog open={!!viewAppt} onOpenChange={() => setViewAppt(null)}>
       <DialogContent className="max-w-md">
@@ -167,6 +110,9 @@ export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController })
                 const p = getSelectedPatientData(viewAppt.patient_id);
                 return p ? <AnamneseAlertBanner status={p?.current_anamnese_status} expiresAt={p?.current_anamnese_expires_at} patientId={viewAppt.patient_id} patientName={(viewAppt.patients as { full_name?: string | null; dissatisfaction_flag?: boolean | null; dissatisfaction_level?: string | null; dissatisfaction_reason?: string | null } | null)?.full_name} showActions={false} /> : null;
               })()}
+              {viewAppt.patient_id && viewAppt.treatment_id && (
+                <TreatmentAnamneseAlert patientId={viewAppt.patient_id} treatmentId={viewAppt.treatment_id} />
+              )}
               {(viewAppt.patients as { full_name?: string | null; dissatisfaction_flag?: boolean | null; dissatisfaction_level?: string | null; dissatisfaction_reason?: string | null } | null)?.dissatisfaction_flag && (
                 <div className="flex items-center gap-2 p-3 rounded-lg border border-destructive bg-destructive/5">
                   <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
@@ -355,18 +301,19 @@ export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController })
                       {reminderLoading ? 'Gerando link...' : 'Enviar Lembrete'}
                     </BrandButton>
 
-                    <BrandButton
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="border-primary/50 text-primary hover:bg-primary/5 font-medium"
-                      onClick={handleSendAnamnese}
-                      disabled={anamneseLoading || !viewAppt.patient_id}
-                      title={!viewAppt.patient_id ? 'Vincule a um paciente para enviar a anamnese' : undefined}
-                    >
-                      <FileText className="w-4 h-4 mr-1 text-primary" />
-                      {anamneseLoading ? 'Gerando link...' : 'Enviar Anamnese'}
-                    </BrandButton>
+                    {viewAppt.patient_id ? (
+                      <SendAnamneseLink
+                        patientId={viewAppt.patient_id}
+                        clinicName={clinicName || undefined}
+                        treatmentId={viewAppt.treatment_id}
+                        label="Enviar Anamnese"
+                        size="sm"
+                      />
+                    ) : (
+                      <BrandButton type="button" size="sm" variant="outline" disabled title="Vincule a um paciente para enviar a anamnese">
+                        <FileText className="w-4 h-4 mr-1" /> Enviar Anamnese
+                      </BrandButton>
+                    )}
                   </>
                 )}
                 {viewAppt.status === 'scheduled' && (

@@ -26,6 +26,8 @@ interface Props {
   onArchive: (id: string) => void;
   onEdit?: (anamnese: AnamneseRow) => void;
   onView?: (anamnese: AnamneseRow) => void;
+  /** Título do cartão (padrão: "Anamnese Vigente"). */
+  title?: string;
   validating?: boolean;
   archiving?: boolean;
 }
@@ -40,7 +42,7 @@ function fmtDateShort(d: string | null) {
   return format(new Date(d), 'dd/MM/yyyy', { locale: ptBR });
 }
 
-export default function CurrentAnamneseCard({ anamnese, patientId, onValidate, onArchive, onEdit, onView, validating, archiving }: Props) {
+export default function CurrentAnamneseCard({ anamnese, patientId, onValidate, onArchive, onEdit, onView, validating, archiving, title = 'Anamnese Vigente' }: Props) {
   const a = anamnese;
 
   return (
@@ -49,7 +51,7 @@ export default function CurrentAnamneseCard({ anamnese, patientId, onValidate, o
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <FileText className="w-4 h-4 text-primary" />
-            Anamnese Vigente
+            {title}
           </CardTitle>
           <AnamneseStatusBadge status={a.status} />
         </div>
