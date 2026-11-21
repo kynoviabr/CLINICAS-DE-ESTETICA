@@ -41,6 +41,7 @@ import { ContractsTab } from './patient/tabs/ContractsTab';
 import { ProposalsTab } from './patient/tabs/ProposalsTab';
 import { AppointmentsTab } from './patient/tabs/AppointmentsTab';
 import { DataTab } from './patient/tabs/DataTab';
+import { formatDateOnly } from '@/lib/dateOnly';
 
 
 
@@ -205,7 +206,7 @@ export default function PatientDetailPage() {
                     {patient.phone}
                   </a>
                 )}
-                {patient.date_of_birth && <span className="flex items-center gap-1"><Calendar className="w-4 h-4" />{new Date(patient.date_of_birth).toLocaleDateString('pt-BR')}</span>}
+                {patient.date_of_birth && <span className="flex items-center gap-1"><Calendar className="w-4 h-4" />{formatDateOnly(patient.date_of_birth)}</span>}
               </div>
               {patient.cpf && <p className="text-sm text-muted-foreground">CPF: {patient.cpf}</p>}
             </div>

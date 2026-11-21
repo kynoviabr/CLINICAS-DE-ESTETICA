@@ -11,6 +11,7 @@ import { formatCpf } from '@/lib/patients/validation';
 
 
 import type { PatientView } from '../patientView';
+import { formatDateOnly } from '@/lib/dateOnly';
 
 /** Ficha do paciente > aba "data". */
 export function DataTab({ v }: { v: PatientView }) {
@@ -34,7 +35,7 @@ export function DataTab({ v }: { v: PatientView }) {
               ['E-mail', patient.email],
               ['Telefone', patient.phone],
               ['CPF', patient.cpf ? formatCpf(patient.cpf) : null],
-              ['Nascimento', patient.date_of_birth ? new Date(patient.date_of_birth).toLocaleDateString('pt-BR') : null],
+              ['Nascimento', formatDateOnly(patient.date_of_birth)],
               ['Gênero', patient.gender === 'female' ? 'Feminino' : patient.gender === 'male' ? 'Masculino' : patient.gender],
               ['CEP', patient.zip_code],
               ['Endereço', [patient.address, patient.address_number, patient.address_complement].filter(Boolean).join(', ') || null],
