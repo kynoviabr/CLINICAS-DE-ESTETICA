@@ -45,11 +45,11 @@ export function AnamneseAlertBanner({ status, expiresAt, patientId, patientName,
       <div className="flex-1">
         <p>{c.message}</p>
         {showActions && patientId && (
-          <div className="flex gap-2 mt-2">
+          <div className="flex flex-wrap gap-2 mt-2">
             <BrandButton
               size="sm"
               variant="outline"
-              className="h-7 text-xs"
+              className="h-7 text-xs whitespace-nowrap"
               onClick={() => navigate(`/clinic/patients/${patientId}?tab=anamnese`)}
             >
               <FileText className="w-3 h-3" /> Ir para Anamnese
@@ -57,7 +57,7 @@ export function AnamneseAlertBanner({ status, expiresAt, patientId, patientName,
             <BrandButton
               size="sm"
               variant="outline"
-              className="h-7 text-xs"
+              className="h-7 text-xs whitespace-nowrap"
               onClick={() => navigate(`/clinic/patients/${patientId}?tab=anamnese&action=new`)}
             >
               <Plus className="w-3 h-3" /> Criar nova anamnese

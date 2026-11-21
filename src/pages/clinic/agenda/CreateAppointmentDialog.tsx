@@ -176,16 +176,16 @@ export function CreateAppointmentDialog({ ctx }: { ctx: AgendaPageController }) 
             )}
           </div>
     
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="space-y-2 min-w-0">
               <Label>Data *</Label>
               <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} required />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <Label>Horário *</Label>
               <Input type="time" value={selectedTime} onChange={e => setSelectedTime(e.target.value)} required />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0 col-span-2 sm:col-span-1">
               <Label>Duração (min)</Label>
               <Input type="number" value={duration} onChange={e => setDuration(e.target.value)} />
             </div>

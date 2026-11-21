@@ -43,7 +43,9 @@ const DialogContent = React.forwardRef<
         // Celular: janela em tela cheia, com rolagem, para formulários longos caberem.
         "max-h-[90dvh] overflow-y-auto",
         "max-sm:inset-0 max-sm:left-0 max-sm:top-0 max-sm:translate-x-0 max-sm:translate-y-0",
-        "max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:max-w-none max-sm:rounded-none max-sm:border-0 max-sm:p-5 max-sm:pt-12",
+        "max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:max-w-none max-sm:rounded-none max-sm:border-0 max-sm:p-5",
+        // Respeita a barra de status e a barra inicial do iPhone (app nativo).
+        "max-sm:pt-[calc(3rem+env(safe-area-inset-top))] max-sm:pb-[calc(1.25rem+env(safe-area-inset-bottom))]",
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
         "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
@@ -52,7 +54,7 @@ const DialogContent = React.forwardRef<
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-5 top-5 rounded-btn p-1 text-[hsl(var(--text-muted))] opacity-70 transition-opacity hover:opacity-100 hover:bg-bg-subtle focus:outline-none focus-visible:shadow-focus-ring disabled:pointer-events-none">
+      <DialogPrimitive.Close className="absolute right-5 top-5 max-sm:top-[calc(1.25rem+env(safe-area-inset-top))] rounded-btn p-1 text-[hsl(var(--text-muted))] opacity-70 transition-opacity hover:opacity-100 hover:bg-bg-subtle focus:outline-none focus-visible:shadow-focus-ring disabled:pointer-events-none">
         <X className="h-4 w-4" />
         <span className="sr-only">Fechar</span>
       </DialogPrimitive.Close>
