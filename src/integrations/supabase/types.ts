@@ -1799,8 +1799,48 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_signup_links: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          created_via: string
+          expires_at: string
+          id: string
+          lead_id: string
+          token_hash: string
+          used_at: string | null
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          created_by?: string | null
+          created_via?: string
+          expires_at: string
+          id?: string
+          lead_id: string
+          token_hash: string
+          used_at?: string | null
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          created_via?: string
+          expires_at?: string
+          id?: string
+          lead_id?: string
+          token_hash?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
+          signup_completed_at: string | null
+          signup_consent: Json | null
+          signup_flags: string[]
+          signup_phone: string | null
           address: string | null
           appointment_id: string | null
           assigned_to: string | null
@@ -1840,6 +1880,10 @@ export type Database = {
           zip_code: string | null
         }
         Insert: {
+          signup_completed_at?: string | null
+          signup_consent?: Json | null
+          signup_flags?: string[]
+          signup_phone?: string | null
           address?: string | null
           appointment_id?: string | null
           assigned_to?: string | null
@@ -1879,6 +1923,10 @@ export type Database = {
           zip_code?: string | null
         }
         Update: {
+          signup_completed_at?: string | null
+          signup_consent?: Json | null
+          signup_flags?: string[]
+          signup_phone?: string | null
           address?: string | null
           appointment_id?: string | null
           assigned_to?: string | null
@@ -4314,6 +4362,29 @@ export type Database = {
       whatsapp_mark_read: {
         Args: { p_conversation_id: string }
         Returns: undefined
+      }
+      aura_create_lead_signup_link: {
+        Args: { p_clinic_id: string; p_lead_id: string }
+        Returns: Json
+      }
+      create_lead_signup_link: {
+        Args: { p_lead_id: string }
+        Returns: Json
+      }
+      lead_signup_status: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      lead_signup_submit: {
+        Args: {
+          p_birth_date: string
+          p_consent: boolean
+          p_cpf: string
+          p_full_name: string
+          p_phone: string
+          p_token: string
+        }
+        Returns: Json
       }
       create_anamnese_link: {
         Args: {
