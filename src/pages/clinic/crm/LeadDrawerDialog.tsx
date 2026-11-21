@@ -12,6 +12,7 @@ import { BrandBadge } from '@/components/ui/brand-badge';
 import { interactionTypes, relativeDate, normalizePhone, buildEvaluationScheduleLink, getRiskLabel, getFollowUpStatus, getPriorityBadge, normalizeLeadSource, getLeadSourceMeta, type StageCode } from '@/lib/crm/model';
 import type { CrmPageController } from './useCrmPage';
 import ContactWhatsappPanel from '@/components/whatsapp/ContactWhatsappPanel';
+import { LeadSignupButton, LeadSignupStatus } from '@/components/crm/LeadSignupLink';
 
 export function LeadDrawerDialog({ ctx }: { ctx: CrmPageController }) {
   const {
@@ -102,6 +103,8 @@ export function LeadDrawerDialog({ ctx }: { ctx: CrmPageController }) {
                   </button>
                 )}
               </div>
+
+              <LeadSignupStatus lead={leadDrawer} />
     
               <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
                 <div className="flex flex-col gap-3 md:flex-row md:items-end">
@@ -156,6 +159,7 @@ export function LeadDrawerDialog({ ctx }: { ctx: CrmPageController }) {
                         Ver paciente
                       </BrandButton>
                     )}
+                    <LeadSignupButton lead={leadDrawer} className="h-8 px-3 text-xs" />
                     {canOpenWhatsApp(leadDrawer) && (
                       <BrandButton
                         size="sm"

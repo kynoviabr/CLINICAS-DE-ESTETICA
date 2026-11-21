@@ -46,6 +46,10 @@ export interface LeadRow {
   converted_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Cadastro feito pelo próprio lead pelo link (nome, nascimento, CPF, WhatsApp). */
+  signup_completed_at?: string | null;
+  signup_flags?: string[] | null;
+  signup_phone?: string | null;
 }
 
 export interface RenewalTaskRow {

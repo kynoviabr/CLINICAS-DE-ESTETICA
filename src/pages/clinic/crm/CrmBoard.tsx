@@ -96,6 +96,14 @@ export function CrmBoard({ ctx }: { ctx: CrmPageController }) {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1 pr-2">
                         <p className="truncate text-[13px] font-semibold tracking-tight text-slate-900">{lead.full_name}</p>
+                        {lead.signup_completed_at && (
+                          <span
+                            className={`mt-0.5 mr-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${(lead.signup_flags || []).length ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700'}`}
+                            title={(lead.signup_flags || []).length ? 'Cadastro feito pelo lead: há avisos para conferir' : 'Cadastro feito pelo lead'}
+                          >
+                            {(lead.signup_flags || []).length ? 'Cadastro: conferir' : 'Cadastro completo'}
+                          </span>
+                        )}
                         {stage.isFinal && (
                           <span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${lead.kanban_stage === 'closed_won' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                             {stageLabel(lead.kanban_stage)}

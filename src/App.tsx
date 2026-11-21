@@ -17,6 +17,7 @@ import { PageLoader } from "./components/PageLoader";
 
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const PublicAnamnesePage = lazy(() => import("./pages/PublicAnamnesePage"));
+const PublicLeadSignupPage = lazy(() => import("./pages/PublicLeadSignupPage"));
 const PublicAppointmentPage = lazy(() => import("./pages/PublicAppointmentPage"));
 const PublicContractPage = lazy(() => import("./pages/PublicContractPage"));
 const PortalEntryPage = lazy(() => import("./pages/PortalEntryPage"));
@@ -79,6 +80,7 @@ const App = () => (
               <Route path="/login" element={<LoginPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/anamnese/:token" element={<PublicAnamnesePage />} />
+              <Route path="/cadastro/:token" element={<PublicLeadSignupPage />} />
               <Route path="/agendamento/:token" element={<PublicAppointmentPage />} />
               <Route path="/contrato/:token" element={<PublicContractPage />} />
               <Route path="/portal/entrar/:token" element={<PortalEntryPage />} />

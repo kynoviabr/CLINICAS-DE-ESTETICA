@@ -5,6 +5,8 @@
 //   GET  /aura/availability     -> horários livres (clínica ∩ profissional − agendamentos − bloqueios − dias fechados)
 //   POST /aura/bookings         -> marca (revalida o horário; chave de repetição)
 //   POST /aura/bookings/search, POST /aura/bookings/:id/cancel -> próximos horários do cliente e cancelamento
+//   POST /aura/leads/signup-link    -> link para o lead fazer o próprio cadastro (nome, nascimento, CPF, WhatsApp)
+//   POST /aura/leads/signup-status  -> se o lead já completou o cadastro
 // Publicada sem login do Supabase: a proteção é a assinatura da Aura (HMAC com AURA_WEBHOOK_SECRET),
 // com horário (no máximo 5 minutos de diferença). A clínica vem no cabeçalho X-Aura-Workspace (= clinic_id).
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -276,6 +278,33 @@ async function cancelBooking(db: SupabaseClient, clinicId: string, id: string, c
   return json({ booking: bookingJson(data, (await settings(db, clinicId)).offsetMin) });
 }
 
+// ---------- Cadastro feito pelo próprio lead ----------
+// A IA manda o link na conversa (melhor que pedir CPF no chat: o dado não fica no histórico do WhatsApp
+// e o aceite da LGPD fica registrado no Clinova). Mesma função do botão do CRM, marcada como "aura".
+
+type SignupState = { status: "already_patient" } | { status: "completed"; completedAt: string } | { status: "pending" };
+
+async function signupState(db: SupabaseClient, clinicId: string, c: Contact): Promise<{ leadId: string | null; state: SignupState }> {
+  const who = await resolveContact(db, clinicId, c);
+  if (who.patientId) return { leadId: null, state: { status: "already_patient" } };
+  const { data } = await db.from("leads").select("signup_completed_at").eq("clinic_id", clinicId).eq("id", who.leadId!).maybeSingle();
+  return {
+    leadId: who.leadId,
+    state: data?.signup_completed_at ? { status: "completed", completedAt: data.signup_completed_at } : { status: "pending" },
+  };
+}
+
+async function signupLink(db: SupabaseClient, clinicId: string, body: { contact?: Contact; resend?: boolean }) {
+  const { leadId, state } = await signupState(db, clinicId, body.contact || {});
+  // Já é paciente ou já fez o cadastro: não manda outro link (a não ser que a IA peça de novo).
+  if (state.status === "already_patient" || (state.status === "completed" && !body.resend)) return json(state);
+  const { data, error } = await db.rpc("aura_create_lead_signup_link", { p_clinic_id: clinicId, p_lead_id: leadId });
+  if (error) throw error;
+  const r = data as { token: string; expires_at: string };
+  const origin = (Deno.env.get("APP_URL") || "https://klinova-homolog.vercel.app").replace(/\/$/, "");
+  return json({ status: "link_created", url: `${origin}/cadastro/${r.token}`, expiresAt: r.expires_at, validDays: 7 });
+}
+
 Deno.serve(async (req) => {
   const secret = (Deno.env.get("AURA_WEBHOOK_SECRET") || "").trim();
   if (!secret) return json({ error: "secret_not_configured" }, 500);
@@ -309,6 +338,8 @@ Deno.serve(async (req) => {
     const body = raw ? JSON.parse(raw) : {};
     if (req.method === "POST" && route === "/aura/bookings") return await createBooking(db, clinicId, body);
     if (req.method === "POST" && route === "/aura/bookings/search") return json({ bookings: (await contactBookings(db, clinicId, body.contact || {})).bookings });
+    if (req.method === "POST" && route === "/aura/leads/signup-link") return await signupLink(db, clinicId, body);
+    if (req.method === "POST" && route === "/aura/leads/signup-status") return json((await signupState(db, clinicId, body.contact || {})).state);
     const cancel = route.match(/^\/aura\/bookings\/([0-9a-f-]{36})\/cancel$/i);
     if (req.method === "POST" && cancel) return await cancelBooking(db, clinicId, cancel[1], body.contact || {}, String(body.reason || "Pedido do cliente"));
     return json({ error: "not_supported" }, 501);
