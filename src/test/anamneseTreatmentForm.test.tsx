@@ -4,6 +4,9 @@ import { describe, expect, it, vi } from 'vitest';
 import AnamnesisFormModal from '@/components/patient/AnamnesisFormModal';
 import type { AnamneseTemplate } from '@/lib/anamnese/templates';
 
+// O CI não tem .env: sem isto, carregar o cliente do Supabase quebra o teste.
+vi.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
+
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: null }) }));
 vi.mock('@/contexts/BrandingContext', () => ({ useBranding: () => ({ clinicId: null }) }));
 

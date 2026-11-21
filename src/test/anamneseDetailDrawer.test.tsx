@@ -1,6 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import AnamneseDetailDrawer from '@/components/anamnese/AnamneseDetailDrawer';
+
+// O CI não tem .env: sem isto, carregar o cliente do Supabase quebra o teste.
+vi.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
 
 const anamnese = {
   id: 'a1',
