@@ -134,6 +134,65 @@ const baseSections = [
   { key: 'consent', label: 'Consentimento', icon: FileCheck },
 ] as const;
 
+// Fora do componente de propósito: se fossem criados dentro dele, cada letra
+// digitada recriaria o campo e a caixa de texto perderia o foco (o teclado fecha).
+function CheckboxField({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Checkbox checked={checked} onCheckedChange={onChange} />
+      <Label className="text-sm font-normal cursor-pointer">{label}</Label>
+    </div>
+  );
+}
+
+function BooleanQuestion({
+  label,
+  value,
+  onChange,
+  detailValue,
+  onDetailChange,
+  detailPlaceholder,
+  detailRows = 2,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+  detailValue?: string;
+  onDetailChange?: (value: string) => void;
+  detailPlaceholder?: string;
+  detailRows?: number;
+}) {
+  return (
+    <div className="space-y-3 rounded-xl border border-border/60 bg-card/60 p-4">
+      <div className="space-y-2">
+        <Label className="text-sm font-medium leading-relaxed">{label}</Label>
+        <RadioGroup
+          value={value ? 'yes' : 'no'}
+          onValueChange={(next) => onChange(next === 'yes')}
+          className="flex items-center gap-6"
+        >
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="yes" id={`${label}-yes`} />
+            <Label htmlFor={`${label}-yes`} className="font-normal cursor-pointer">Sim</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="no" id={`${label}-no`} />
+            <Label htmlFor={`${label}-no`} className="font-normal cursor-pointer">Não</Label>
+          </div>
+        </RadioGroup>
+      </div>
+      {value && detailValue !== undefined && detailPlaceholder && (
+        <Textarea
+          value={detailValue}
+          onChange={(e) => onDetailChange?.(e.target.value)}
+          placeholder={detailPlaceholder}
+          rows={detailRows}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function AnamnesisFormModal({ open, onOpenChange, patientId, clinicId, validityDays, patientName, variant = 'dialog', templatesOverride, onSubmitForm }: AnamnesisFormProps) {
   const isPage = variant === 'page';
   const { user } = useAuth();
@@ -225,59 +284,6 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     },
   });
-
-  const CheckboxField = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
-    <div className="flex items-center gap-2">
-      <Checkbox checked={checked} onCheckedChange={onChange} />
-      <Label className="text-sm font-normal cursor-pointer">{label}</Label>
-    </div>
-  );
-
-  const BooleanQuestion = ({
-    label,
-    value,
-    onChange,
-    detailValue,
-    onDetailChange,
-    detailPlaceholder,
-    detailRows = 2,
-  }: {
-    label: string;
-    value: boolean;
-    onChange: (value: boolean) => void;
-    detailValue?: string;
-    onDetailChange?: (value: string) => void;
-    detailPlaceholder?: string;
-    detailRows?: number;
-  }) => (
-    <div className="space-y-3 rounded-xl border border-border/60 bg-card/60 p-4">
-      <div className="space-y-2">
-        <Label className="text-sm font-medium leading-relaxed">{label}</Label>
-        <RadioGroup
-          value={value ? 'yes' : 'no'}
-          onValueChange={(next) => onChange(next === 'yes')}
-          className="flex items-center gap-6"
-        >
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="yes" id={`${label}-yes`} />
-            <Label htmlFor={`${label}-yes`} className="font-normal cursor-pointer">Sim</Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="no" id={`${label}-no`} />
-            <Label htmlFor={`${label}-no`} className="font-normal cursor-pointer">Não</Label>
-          </div>
-        </RadioGroup>
-      </div>
-      {value && detailValue !== undefined && detailPlaceholder && (
-        <Textarea
-          value={detailValue}
-          onChange={(e) => onDetailChange?.(e.target.value)}
-          placeholder={detailPlaceholder}
-          rows={detailRows}
-        />
-      )}
-    </div>
-  );
 
   const renderSection = () => {
     const s = currentSection.key;
