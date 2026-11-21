@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, addDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { isMissingRelationError, type ViewMode, type WaitlistWindowType, type WaitlistPriority, type WaitlistContactPreference, type WaitlistTargetType, type AppointmentRow, type WaitlistRow, type WaitlistNotificationRow, type ReminderRow, type WhatsAppCommandLogRow, type AgendaJobExecutionRow, type ContractLite, type ProposalItemLite, type SessionRecordLite } from '@/lib/agenda/model';
+import { isMissingRelationError, type ViewMode, type WaitlistWindowType, type WaitlistPriority, type WaitlistContactPreference, type WaitlistTargetType, type AppointmentRow, type WaitlistRow, type WaitlistNotificationRow, type ReminderRow, type WhatsAppCommandLogRow, type AgendaJobExecutionRow, type ContractLite, type ProposalItemLite, type SessionRecordLite, type AppointmentKind } from '@/lib/agenda/model';
 import type { Tables } from '@/integrations/supabase/types';
 
 
@@ -29,7 +29,7 @@ export function useAgendaStatePart1() {
   const [viewAppt, setViewAppt] = useState<AppointmentRow | null>(null);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('09:00');
-  const [appointmentType, setAppointmentType] = useState<'session' | 'evaluation'>('session');
+  const [appointmentType, setAppointmentType] = useState<AppointmentKind>('session');
   const [selectedPatient, setSelectedPatient] = useState('');
   const [selectedLead, setSelectedLead] = useState('');
   const [selectedTreatment, setSelectedTreatment] = useState('');
@@ -451,7 +451,7 @@ export function useAgendaStatePart1() {
       setSelectedLead(prefillLeadId);
       setSelectedPatient('');
     } else if (prefillPatientId) {
-      setAppointmentType('session');
+      setAppointmentType(prefillAppointmentType === 'single' ? 'single' : 'session');
       setSelectedPatient(prefillPatientId);
       setSelectedLead('');
     } else {

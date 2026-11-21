@@ -157,6 +157,7 @@ export function DayColumnsView({ ctx, professionalIds }: { ctx: AgendaPageContro
                               {format(getAppointmentStartDate(a), 'HH:mm')}–{format(getAppointmentEndDate(a), 'HH:mm')}
                               {durLabel && <span className="ml-1 opacity-80 font-normal">({durLabel})</span>}
                               {a.appointment_type === 'evaluation' && <span className="ml-1 rounded bg-white/20 px-1 text-[9px]">Avaliação</span>}
+                            {a.appointment_type === 'single_session' && <span className="ml-1 rounded bg-white/20 px-1 text-[9px]">Avulsa</span>}
                             </span>
                             {canDrag && <GripVertical className="h-3 w-3 opacity-70 shrink-0" />}
                           </div>

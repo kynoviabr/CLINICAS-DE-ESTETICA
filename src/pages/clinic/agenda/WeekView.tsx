@@ -167,6 +167,7 @@ export function WeekView({ ctx }: { ctx: AgendaPageController }) {
                           <span>
                             {format(getAppointmentStartDate(a), 'HH:mm')}
                             {a.appointment_type === 'evaluation' && <span className="ml-1 rounded bg-white/20 px-1 text-[9px]">Avaliação</span>}
+                            {a.appointment_type === 'single_session' && <span className="ml-1 rounded bg-white/20 px-1 text-[9px]">Avulsa</span>}
                           </span>
                           {canDrag && <GripVertical className="h-3 w-3 opacity-70 shrink-0" />}
                         </div>

@@ -2,7 +2,7 @@ import { useMemo, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { isSameDay, startOfDay, endOfDay } from 'date-fns';
-import { professionalColors, getWindowByType } from '@/lib/agenda/model';
+import { professionalColors, getWindowByType, appointmentTypeValue } from '@/lib/agenda/model';
 import type { Enums, TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
 
 import type { AgendaStatePart1 } from './agendaStatePart1';
@@ -242,6 +242,10 @@ export function useAgendaStatePart2(p: AgendaStatePart1) {
       if (appointmentType === 'evaluation' && !selectedPatient && !selectedLead) {
         throw new Error('Selecione um paciente ou lead para a avaliação.');
       }
+      if (appointmentType === 'single') {
+        if (!selectedPatient) throw new Error('Selecione o paciente da sessão avulsa.');
+        if (!selectedTreatment) throw new Error('Selecione o tratamento da sessão avulsa.');
+      }
       if (appointmentType === 'session') {
         if (!selectedTreatment) throw new Error('Selecione um tratamento.');
         const isAllowed = sessionTreatmentOptions.some((item) => item.id === selectedTreatment);
@@ -255,7 +259,7 @@ export function useAgendaStatePart2(p: AgendaStatePart1) {
       }
       const payload: TablesInsert<'appointments'> = {
         clinic_id: clinicId!,
-        patient_id: appointmentType === 'session' || selectedPatient ? selectedPatient : null,
+        patient_id: appointmentType !== 'evaluation' || selectedPatient ? selectedPatient : null,
         lead_id: appointmentType === 'evaluation' && !selectedPatient ? selectedLead : null,
         treatment_id: selectedTreatment || null,
         professional_id: profId,
@@ -263,7 +267,7 @@ export function useAgendaStatePart2(p: AgendaStatePart1) {
         end_time: endTime.toISOString(),
         scheduled_at: startTime.toISOString(),
         duration_minutes: parseInt(duration) || 60,
-        appointment_type: appointmentType,
+        appointment_type: appointmentTypeValue(appointmentType),
         credit_check_required: appointmentType === 'evaluation' ? !!lead?.cpf : false,
         credit_check_status: appointmentType === 'evaluation' && lead?.cpf ? 'pending' : 'not_required',
         notes: notes || null,

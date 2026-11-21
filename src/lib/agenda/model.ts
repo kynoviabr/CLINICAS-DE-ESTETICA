@@ -25,7 +25,7 @@ export type WaitlistPriority = Database['public']['Enums']['waitlist_priority'];
 export type WaitlistContactPreference = Database['public']['Enums']['waitlist_contact_preference'];
 export type WaitlistTargetType = 'lead' | 'patient';
 export type AppointmentRow = Database['public']['Tables']['appointments']['Row'] & {
-  appointment_type?: 'session' | 'evaluation' | null;
+  appointment_type?: 'session' | 'single_session' | 'evaluation' | null;
   scheduled_at?: string | null;
   duration_minutes?: number | null;
   lead_id?: string | null;
@@ -125,3 +125,14 @@ export function waitlistStatusLabel(status: Database['public']['Enums']['waitlis
   if (status === 'cancelled_by_patient') return 'Cancelado pelo paciente';
   return 'Cancelado pela clínica';
 }
+
+/**
+ * Tipo escolhido no Novo Agendamento:
+ * - session: sessão contratada (só tratamentos do contrato, com saldo);
+ * - single: sessão avulsa (qualquer tratamento ativo, sem contrato; gravada como 'single_session');
+ * - evaluation: avaliação de lead (ou de paciente).
+ */
+export type AppointmentKind = 'session' | 'single' | 'evaluation';
+
+/** Valor gravado em appointments.appointment_type. */
+export const appointmentTypeValue = (kind: AppointmentKind) => (kind === 'single' ? 'single_session' : kind);

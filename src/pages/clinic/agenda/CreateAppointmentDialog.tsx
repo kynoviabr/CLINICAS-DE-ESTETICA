@@ -9,6 +9,7 @@ import { AlertTriangle, UserPlus } from 'lucide-react';
 import { AnamneseAlertBanner } from '@/components/anamnese/AnamneseAlertBanner';
 import { TreatmentAnamneseAlert } from '@/components/anamnese/TreatmentAnamneseAlert';
 import type { AgendaPageController } from './useAgendaPage';
+import type { AppointmentKind } from '@/lib/agenda/model';
 
 export function CreateAppointmentDialog({ ctx }: { ctx: AgendaPageController }) {
   const {
@@ -45,7 +46,7 @@ export function CreateAppointmentDialog({ ctx }: { ctx: AgendaPageController }) 
     hasSessionBalance,
     createMutation,
   } = ctx;
-  const isPatientAppointment = appointmentType === 'session' || Boolean(selectedPatient);
+  const isPatientAppointment = appointmentType !== 'evaluation' || Boolean(selectedPatient);
   const evaluationLabel = selectedPatient ? 'Avaliação do paciente' : 'Avaliação de lead';
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -112,13 +113,21 @@ export function CreateAppointmentDialog({ ctx }: { ctx: AgendaPageController }) 
     
           <div className="space-y-2">
             <Label>Tipo de agendamento</Label>
-            <Select value={appointmentType} onValueChange={value => setAppointmentType(value as 'session' | 'evaluation')}>
+            <Select value={appointmentType} onValueChange={value => setAppointmentType(value as AppointmentKind)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="session">Sessão de paciente</SelectItem>
+                <SelectItem value="session">Sessão contratada</SelectItem>
+                <SelectItem value="single">Sessão avulsa</SelectItem>
                 <SelectItem value="evaluation">{evaluationLabel}</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              {appointmentType === 'session'
+                ? 'Usa uma sessão de um tratamento que a paciente já contratou.'
+                : appointmentType === 'single'
+                  ? 'Atendimento pontual, fora de contrato: escolha qualquer tratamento ativo. Fica como valor a receber.'
+                  : 'Primeira conversa com quem ainda não fechou tratamento.'}
+            </p>
           </div>
     
           <div className="space-y-2">
@@ -159,6 +168,14 @@ export function CreateAppointmentDialog({ ctx }: { ctx: AgendaPageController }) 
             )}
             {selectedPatient && selectedTreatment && (
               <TreatmentAnamneseAlert patientId={selectedPatient} treatmentId={selectedTreatment} />
+            )}
+            {appointmentType === 'session' && selectedPatient && sessionTreatmentOptions.length === 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Sem tratamento contratado.{' '}
+                <button type="button" className="font-medium text-primary hover:underline" onClick={() => setAppointmentType('single')}>
+                  Agendar como sessão avulsa
+                </button>
+              </p>
             )}
             {appointmentType === 'session' && selectedTreatment && selectedSessionTreatmentSummary?.balance === 0 && (
               <p className="text-xs text-destructive mt-1">
@@ -205,7 +222,9 @@ export function CreateAppointmentDialog({ ctx }: { ctx: AgendaPageController }) 
               className="flex-1"
               disabled={createMutation.isPending || (appointmentType === 'session'
                 ? (!selectedPatient || !selectedTreatment || !hasSessionBalance)
-                : (!selectedPatient && !selectedLead)) || !selectedProfessional}
+                : appointmentType === 'single'
+                  ? (!selectedPatient || !selectedTreatment)
+                  : (!selectedPatient && !selectedLead)) || !selectedProfessional}
             >
               {createMutation.isPending ? 'Criando...' : appointmentType === 'evaluation'
                 ? (selectedPatient ? 'Agendar avaliação do paciente' : 'Agendar avaliação')
