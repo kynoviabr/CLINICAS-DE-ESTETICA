@@ -1,0 +1,11 @@
+// Configuração compartilhada do projeto (nível PROJECT, Debug e Release).
+//
+// Cada dev pode criar Config/Local.xcconfig (ignorado pelo git) para
+// assinar com o próprio Team e usar um bundle ID de teste no Debug.
+// Veja Config/Local.xcconfig.example.
+
+// Sufixo anexado ao bundle ID apenas na configuração Debug do target App.
+// Vazio = bundle ID oficial (br.com.klinova.app).
+BUNDLE_ID_SUFFIX =
+
+#include? "Local.xcconfig"
