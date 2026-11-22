@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
-import { AlertTriangle, ArrowDownToLine, History, PackagePlus, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, ArrowDownToLine, History, SlidersHorizontal } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { BrandButton } from '@/components/ui/brand-button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,7 +29,14 @@ const STATUS_STYLE: Record<ItemStatus, string> = {
 const toNumber = (v: string) => Number(v.replace(',', '.'));
 
 type MaterialForm = { id: string | null; name: string; type: string; unit: string; unit_cost: string; stock_min: string };
-type EntryForm = { itemId: string; quantity: string; unitCost: string; lot: string; expiresAt: string; notes: string };
+type NewMaterial = { name: string; type: string; unit: string; stock_min: string };
+/** newMaterial: material que ainda não existe e é cadastrado junto com a entrada. */
+type EntryForm = { itemId: string; newMaterial: NewMaterial | null; quantity: string; unitCost: string; lot: string; expiresAt: string; notes: string };
+
+const NEW_MATERIAL = '__novo__';
+const emptyNewMaterial: NewMaterial = { name: '', type: 'supply', unit: 'un', stock_min: '' };
+const emptyEntry = (newMaterial: NewMaterial | null = null): EntryForm =>
+  ({ itemId: '', newMaterial, quantity: '', unitCost: '', lot: '', expiresAt: '', notes: '' });
 type AdjustForm = { itemId: string; mode: 'perda' | 'contagem'; quantity: string; notes: string };
 
 const emptyMaterial: MaterialForm = { id: null, name: '', type: 'supply', unit: 'un', unit_cost: '', stock_min: '' };
@@ -80,15 +87,26 @@ export default function StockPage() {
   const saveEntry = useMutation({
     mutationFn: async (f: EntryForm) => {
       const qty = toNumber(f.quantity);
-      if (!f.itemId || !(qty > 0)) throw new Error('Escolha o material e a quantidade.');
+      if (f.newMaterial && !f.newMaterial.name.trim()) throw new Error('Informe o nome do material novo.');
+      if ((!f.itemId && !f.newMaterial) || !(qty > 0)) throw new Error('Escolha o material e a quantidade.');
+      let itemId = f.itemId;
+      // Material novo: cadastra primeiro e já registra a entrada nele.
+      if (f.newMaterial) {
+        const { data, error: matError } = await supabase.from('cost_items').insert({
+          clinic_id: clinicId!, name: f.newMaterial.name.trim(), type: f.newMaterial.type, unit: f.newMaterial.unit.trim() || 'un',
+          unit_cost: toNumber(f.unitCost) || 0, stock_min: toNumber(f.newMaterial.stock_min) || 0, status: 'active',
+        }).select('id').single();
+        if (matError) throw matError;
+        itemId = data.id;
+      }
       const { error } = await supabase.from('stock_movements').insert({
-        clinic_id: clinicId!, cost_item_id: f.itemId, kind: 'entrada', quantity: qty,
+        clinic_id: clinicId!, cost_item_id: itemId, kind: 'entrada', quantity: qty,
         unit_cost: toNumber(f.unitCost) || null, lot: f.lot.trim() || null,
         expires_at: f.expiresAt || null, notes: f.notes.trim() || null, created_by: user?.id,
       });
       if (error) throw error;
     },
-    onSuccess: () => { refresh(); setEntry(null); toast({ title: 'Entrada registrada' }); },
+    onSuccess: (_d, f) => { refresh(); setEntry(null); toast({ title: f.newMaterial ? 'Material cadastrado e entrada registrada' : 'Entrada registrada' }); },
     onError: fail,
   });
 
@@ -139,11 +157,8 @@ export default function StockPage() {
       <PageHeader title="Estoque" description="Material da clínica, o que a agenda vai usar e o que precisa comprar">
         {stock.canManage && (
           <>
-            <BrandButton variant="outline" onClick={() => setMaterial(emptyMaterial)}>
-              <PackagePlus className="w-4 h-4" /> Novo material
-            </BrandButton>
-            <BrandButton onClick={() => setEntry({ itemId: '', quantity: '', unitCost: '', lot: '', expiresAt: '', notes: '' })} disabled={stock.materials.length === 0}>
-              <ArrowDownToLine className="w-4 h-4" /> Entrada
+            <BrandButton onClick={() => setEntry(emptyEntry(stock.materials.length === 0 ? { ...emptyNewMaterial } : null))}>
+              <ArrowDownToLine className="w-4 h-4" /> Entrada de material
             </BrandButton>
           </>
         )}
@@ -207,7 +222,12 @@ export default function StockPage() {
               <p className="font-medium">Nenhum material cadastrado</p>
               <p className="mt-1 text-sm text-muted-foreground">Cadastre o que a clínica usa (toxina, ácidos, luvas, agulhas…) para controlar o estoque.</p>
               {stock.canManage && (
-                <BrandButton className="mt-4" onClick={() => setMaterial(emptyMaterial)}><PackagePlus className="w-4 h-4" /> Novo material</BrandButton>
+                <div className="mt-4 flex flex-col items-center gap-2">
+                  <BrandButton onClick={() => setEntry(emptyEntry({ ...emptyNewMaterial }))}><ArrowDownToLine className="w-4 h-4" /> Entrada de material</BrandButton>
+                  <button type="button" className="text-xs text-muted-foreground underline-offset-4 hover:underline" onClick={() => setMaterial(emptyMaterial)}>
+                    Cadastrar material sem dar entrada
+                  </button>
+                </div>
               )}
             </div>
           ) : (
@@ -232,7 +252,7 @@ export default function StockPage() {
                   <div className="flex items-center gap-1">
                     {stock.canManage && (
                       <>
-                        <BrandButton size="sm" variant="outline" title="Entrada" onClick={() => setEntry({ itemId: item.id, quantity: '', unitCost: '', lot: '', expiresAt: '', notes: '' })}>
+                        <BrandButton size="sm" variant="outline" title="Entrada" onClick={() => setEntry({ ...emptyEntry(), itemId: item.id })}>
                           <ArrowDownToLine className="h-3.5 w-3.5" />
                         </BrandButton>
                         <BrandButton size="sm" variant="outline" title="Perda ou contagem" onClick={() => setAdjust({ itemId: item.id, mode: 'contagem', quantity: '', notes: '' })}>
@@ -296,13 +316,50 @@ export default function StockPage() {
           {entry && (
             <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); saveEntry.mutate(entry); }}>
               <div className="space-y-1.5"><Label>Material *</Label>
-                <Select value={entry.itemId} onValueChange={(v) => v && setEntry({ ...entry, itemId: v })}>
+                <Select
+                  value={entry.newMaterial ? NEW_MATERIAL : entry.itemId}
+                  onValueChange={(v) => {
+                    if (!v) return;
+                    if (v === NEW_MATERIAL) setEntry({ ...entry, itemId: '', newMaterial: entry.newMaterial ?? { ...emptyNewMaterial } });
+                    else setEntry({ ...entry, itemId: v, newMaterial: null });
+                  }}
+                >
                   <SelectTrigger><SelectValue placeholder="Escolha" /></SelectTrigger>
-                  <SelectContent>{stock.materials.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    <SelectItem value={NEW_MATERIAL} className="font-medium text-primary">+ Cadastrar novo material</SelectItem>
+                    {stock.materials.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
+              {entry.newMaterial && (
+                <div className="space-y-3 rounded-xl border border-dashed p-3">
+                  <div className="space-y-1.5"><Label htmlFor="new-material-name">Nome do material novo *</Label>
+                    <Input id="new-material-name" autoFocus value={entry.newMaterial.name} placeholder="Ex.: Toxina botulínica 100U"
+                      onChange={(e) => setEntry({ ...entry, newMaterial: { ...entry.newMaterial!, name: e.target.value } })} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1.5"><Label>Tipo</Label>
+                      <Select value={entry.newMaterial.type} onValueChange={(v) => setEntry({ ...entry, newMaterial: { ...entry.newMaterial!, type: v } })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="supply">Insumo</SelectItem>
+                          <SelectItem value="medication">Produto</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5"><Label>Unidade</Label>
+                      <Input value={entry.newMaterial.unit} placeholder="un, ml"
+                        onChange={(e) => setEntry({ ...entry, newMaterial: { ...entry.newMaterial!, unit: e.target.value } })} />
+                    </div>
+                    <div className="space-y-1.5"><Label>Estoque mínimo</Label>
+                      <Input inputMode="decimal" value={entry.newMaterial.stock_min} placeholder="0"
+                        onChange={(e) => setEntry({ ...entry, newMaterial: { ...entry.newMaterial!, stock_min: e.target.value } })} />
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5"><Label>Quantidade * {entry.itemId && `(${unit(entry.itemId)})`}</Label>
+                <div className="space-y-1.5"><Label>Quantidade * {entry.newMaterial ? `(${entry.newMaterial.unit || 'un'})` : entry.itemId && `(${unit(entry.itemId)})`}</Label>
                   <Input inputMode="decimal" value={entry.quantity} onChange={(e) => setEntry({ ...entry, quantity: e.target.value })} required />
                 </div>
                 <div className="space-y-1.5"><Label>Custo por unidade (R$)</Label>
@@ -319,6 +376,13 @@ export default function StockPage() {
                 <Input value={entry.notes} onChange={(e) => setEntry({ ...entry, notes: e.target.value })} placeholder="Ex.: nota fiscal, fornecedor" />
               </div>
               <BrandButton type="submit" className="w-full" disabled={saveEntry.isPending}>Registrar entrada</BrandButton>
+              <button
+                type="button"
+                className="w-full text-center text-xs text-muted-foreground underline-offset-4 hover:underline"
+                onClick={() => { setMaterial({ ...emptyMaterial, name: entry.newMaterial?.name || '' }); setEntry(null); }}
+              >
+                Só cadastrar um material, sem dar entrada
+              </button>
             </form>
           )}
         </DialogContent>
