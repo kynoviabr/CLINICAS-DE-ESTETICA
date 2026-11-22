@@ -44,7 +44,7 @@ import type { Tables } from '@/integrations/supabase/types';
 import { errorMessage, functionError } from '@/lib/errors';
 import { useClinicPlan } from '@/hooks/useClinicPlan';
 import { settingsTabVisible } from '@/lib/plans';
-import { navShades, readableText } from '@/lib/clinic/brandColors';
+import { navShades, readableText, textShade } from '@/lib/clinic/brandColors';
 
 type StaffMember = Pick<Tables<'user_roles'>, 'id' | 'user_id' | 'role' | 'is_active' | 'created_at' | 'can_manage_stock'>;
 type Invitation = Tables<'team_invitations'>;
@@ -394,7 +394,10 @@ export default function SettingsPage() {
                       <span className="inline-flex h-9 items-center rounded-lg border px-4 text-sm font-medium" style={{ background: secondaryColor, color: readableText(secondaryColor) }}>Secundária</span>
                       <span className="inline-flex h-7 items-center rounded-full px-3 text-xs font-semibold" style={{ background: accentColor, color: readableText(accentColor) }}>Destaque</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">O menu lateral e o topo usam a cor primária escurecida, para o texto branco ficar legível. Sobre cores claras, o texto dos botões fica escuro.</p>
+                    <p className="text-sm">
+                      Links e textos de destaque ficam assim: <span className="font-semibold underline underline-offset-4" style={{ color: `hsl(${textShade(primaryColor)})` }}>PROP-202611-219</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">O menu lateral, o topo e os textos na cor da clínica usam um tom mais escuro dela, para ficarem legíveis. Sobre cores claras, o texto dos botões fica escuro.</p>
                   </div>
                 </div>
               </div>

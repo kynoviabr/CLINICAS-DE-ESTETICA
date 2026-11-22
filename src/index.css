@@ -30,6 +30,7 @@
     --primary: 243 100% 68%;          /* #635bff */
     --primary-foreground: 0 0% 100%;
     --primary-dark: 243 75% 59%;      /* #4f46e5 */
+    --primary-text: 243 75% 55%;      /* texto/links na cor primária */
     --primary-light: 243 100% 95%;    /* #e8e7ff */
 
     --color-purple: 243 100% 68%;

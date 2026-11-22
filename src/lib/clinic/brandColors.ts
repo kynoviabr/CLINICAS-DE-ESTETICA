@@ -56,3 +56,12 @@ export function navShades(primaryHex: string) {
     border: `${p.h} ${Math.min(s, 45)}% 28%`,
   };
 }
+
+/**
+ * Textos e links na cor da clínica (text-primary): o mesmo tom, escurecido o bastante para ler
+ * sobre fundo branco. Cores já escuras ficam como estão.
+ */
+export function textShade(primaryHex: string) {
+  const p = hexToHsl(primaryHex);
+  return `${p.h} ${Math.min(p.s, 70)}% ${Math.min(p.l, 34)}%`;
+}

@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { setMonitoringContext } from '@/lib/monitoring';
-import { hexToHsl, luminance, navShades, readableTextHsl } from '@/lib/clinic/brandColors';
+import { hexToHsl, luminance, navShades, readableTextHsl, textShade } from '@/lib/clinic/brandColors';
 
 interface BrandingData {
   clinicId: string | null;
@@ -55,6 +55,7 @@ function applyBrandingCss(primary: string, secondary: string, accent: string) {
   root.style.setProperty('--sidebar-border', nav.border);
   // Botões na cor primária: texto escuro quando a cor é clara (ex.: rosa), branco quando é escura.
   root.style.setProperty('--primary-foreground', readableTextHsl(primary));
+  root.style.setProperty('--primary-text', textShade(primary));
 
   // Stripe-style: also override the purple-* family + primary-light/dark so chips,
   // hover states and focus rings stay coherent with the clinic brand.

@@ -17,3 +17,11 @@ describe('cores do branding', () => {
     expect(navShades('#0a2540').background.endsWith(' 18%')).toBe(true);
   });
 });
+
+describe('texto na cor da clínica', () => {
+  it('escurece cores claras e mantém as escuras', async () => {
+    const { textShade } = await import('@/lib/clinic/brandColors');
+    expect(textShade('#f4a4c0').endsWith(' 34%')).toBe(true); // rosa claro vira rosa escuro
+    expect(textShade('#1a7a6d').endsWith(' 29%')).toBe(true); // verde já escuro fica igual
+  });
+});
