@@ -1,4 +1,5 @@
-import { ArrowDown, ArrowUp, CalendarDays, Plus, Search } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowDown, ArrowUp, CalendarDays, Columns3, List, Plus, Search, SlidersHorizontal } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { BrandButton } from '@/components/ui/brand-button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,6 +18,8 @@ import { LeadDrawerDialog } from './crm/LeadDrawerDialog';
 import { ProposalDialog } from './crm/ProposalDialog';
 import { ProposalViewDialog } from './crm/ProposalViewDialog';
 import { ContractDialog } from './crm/ContractDialog';
+
+const formatBRL0 = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v || 0);
 
 export default function CrmPage() {
   const ctx = useCrmPage();
@@ -48,6 +51,10 @@ export default function CrmPage() {
     topKpis,
     insightFilterLabel,
   } = ctx;
+  // Filtros recolhidos por padrão; abrem sozinhos se algum estiver ligado.
+  const activeFilters = [assignedFilter, stageFilter, sourceFilter].filter((v) => v !== 'all').length;
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const showFilters = filtersOpen || activeFilters > 0;
   return (
     <div>
       <PageHeader title="CRM Kanban" description="Funil comercial de leads e avaliações da clínica">
@@ -63,62 +70,56 @@ export default function CrmPage() {
         </div>
       </PageHeader>
 
-      <div className="mb-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="overflow-hidden border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-100/70 shadow-sm">
-          <CardContent className="p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">Leads no funil</p>
-            <div className="mt-2 flex items-end justify-between">
-              <p className="text-xl font-semibold tracking-tight text-slate-900">{topKpis.total}</p>
-              <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-sm">Em aberto</span>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="overflow-hidden border-sky-200 bg-gradient-to-br from-sky-50 via-white to-sky-100/70 shadow-sm">
-          <CardContent className="p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-sky-600">Taxa de conversão</p>
-            <div className="mt-2 flex items-end justify-between">
-              <p className="text-xl font-semibold tracking-tight text-slate-900">{topKpis.conversion}%</p>
-              <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium text-sky-700 shadow-sm">Fechamento</span>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="overflow-hidden border-violet-200 bg-gradient-to-br from-violet-50 via-white to-violet-100/70 shadow-sm">
-          <CardContent className="p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-violet-600">Ticket médio</p>
-            <div className="mt-2 flex items-end justify-between gap-3">
-              <p className="text-xl font-semibold tracking-tight text-slate-900">R$ {topKpis.ticket.toFixed(0)}</p>
-              <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium text-violet-700 shadow-sm">Venda</span>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="overflow-hidden border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-emerald-100/70 shadow-sm">
-          <CardContent className="p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-600">Receita no funil</p>
-            <div className="mt-2 flex items-end justify-between gap-3">
-              <p className="text-xl font-semibold tracking-tight text-slate-900">R$ {topKpis.pipelineValue.toFixed(0)}</p>
-              <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium text-emerald-700 shadow-sm">Potencial</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       <Card className="mb-3 border-slate-200 bg-white/95 shadow-sm">
-        <CardContent className="p-3">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-            <div className="relative flex-1">
+        <CardContent className="space-y-3 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[200px] flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar por nome, telefone ou CPF..."
+                placeholder="Buscar por nome, telefone ou CPF"
+                aria-label="Buscar lead"
                 className="h-10 rounded-lg border-slate-200 bg-slate-50/80 pl-10 text-sm"
               />
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 xl:w-[620px] xl:grid-cols-4">
+            <BrandButton
+              variant="outline"
+              onClick={() => setFiltersOpen((v) => !v)}
+              aria-expanded={showFilters}
+              aria-controls="crm-filtros"
+              className={showFilters ? 'border-primary/40 bg-primary/5' : undefined}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              Filtros
+              {activeFilters > 0 && (
+                <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
+                  {activeFilters}
+                </span>
+              )}
+            </BrandButton>
+            <div role="group" aria-label="Forma de ver" className="inline-flex h-10 rounded-lg border border-slate-200 bg-slate-50/80 p-0.5">
+              {([['kanban', 'Kanban', Columns3], ['list', 'Lista', List]] as const).map(([mode, label, Icon]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setViewMode(mode)}
+                  aria-pressed={viewMode === mode}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${viewMode === mode ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {showFilters && (
+            <div id="crm-filtros" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,220px))_auto] lg:items-center">
               <Select value={assignedFilter} onValueChange={setAssignedFilter}>
-                <SelectTrigger className="h-10 rounded-lg border-slate-200 bg-slate-50/80 text-sm"><SelectValue placeholder="Responsável" /></SelectTrigger>
+                <SelectTrigger aria-label="Responsável" className="h-10 rounded-lg border-slate-200 bg-slate-50/80 text-sm"><SelectValue placeholder="Responsável" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos responsáveis</SelectItem>
+                  <SelectItem value="all">Todos os responsáveis</SelectItem>
                   <SelectItem value="unassigned">Sem responsável</SelectItem>
                   {staff.map((member) => (
                     <SelectItem key={member.user_id} value={member.user_id}>{member.label}</SelectItem>
@@ -126,28 +127,38 @@ export default function CrmPage() {
                 </SelectContent>
               </Select>
               <Select value={stageFilter} onValueChange={setStageFilter}>
-                <SelectTrigger className="h-10 rounded-lg border-slate-200 bg-slate-50/80 text-sm"><SelectValue placeholder="Etapa" /></SelectTrigger>
+                <SelectTrigger aria-label="Etapa" className="h-10 rounded-lg border-slate-200 bg-slate-50/80 text-sm"><SelectValue placeholder="Etapa" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas etapas</SelectItem>
+                  <SelectItem value="all">Todas as etapas</SelectItem>
                   {visibleStages.map((stage) => <SelectItem key={stage.code} value={stage.code}>{stage.label}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                <SelectTrigger className="h-10 rounded-lg border-slate-200 bg-slate-50/80 text-sm"><SelectValue placeholder="Origem" /></SelectTrigger>
+                <SelectTrigger aria-label="Origem" className="h-10 rounded-lg border-slate-200 bg-slate-50/80 text-sm"><SelectValue placeholder="Origem" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas origens</SelectItem>
+                  <SelectItem value="all">Todas as origens</SelectItem>
                   {availableSources.map((source) => <SelectItem key={source} value={source}>{getLeadSourceMeta(source).label}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Select value={viewMode} onValueChange={(value) => setViewMode(value as 'kanban' | 'list')}>
-                <SelectTrigger className="h-10 rounded-lg border-slate-200 bg-slate-50/80 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="kanban">Kanban</SelectItem>
-                  <SelectItem value="list">Lista</SelectItem>
-                </SelectContent>
-              </Select>
+              {activeFilters > 0 && (
+                <button
+                  type="button"
+                  className="justify-self-start text-sm font-medium text-primary underline-offset-4 hover:underline"
+                  onClick={() => { setAssignedFilter('all'); setStageFilter('all'); setSourceFilter('all'); }}
+                >
+                  Limpar filtros
+                </button>
+              )}
             </div>
-          </div>
+          )}
+
+          {/* Números do funil numa linha só: informam sem ocupar a tela. */}
+          <dl className="flex flex-wrap gap-x-6 gap-y-1 border-t border-slate-100 pt-2.5 text-sm text-slate-600">
+            <div className="flex items-baseline gap-1.5"><dd className="font-semibold text-slate-900">{topKpis.total}</dd><dt>{topKpis.total === 1 ? 'lead em aberto' : 'leads em aberto'}</dt></div>
+            <div className="flex items-baseline gap-1.5"><dt>Conversão</dt><dd className="font-semibold text-slate-900">{topKpis.conversion}%</dd></div>
+            <div className="flex items-baseline gap-1.5"><dt>Ticket médio</dt><dd className="font-semibold text-slate-900">{formatBRL0(topKpis.ticket)}</dd></div>
+            <div className="flex items-baseline gap-1.5"><dt>No funil</dt><dd className="font-semibold text-slate-900">{formatBRL0(topKpis.pipelineValue)}</dd></div>
+          </dl>
         </CardContent>
       </Card>
 

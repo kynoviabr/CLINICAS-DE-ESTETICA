@@ -1,7 +1,7 @@
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useState } from 'react';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, MessageCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { BrandButton } from '@/components/ui/brand-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,12 +44,14 @@ export function CrmBoard({ ctx }: { ctx: CrmPageController }) {
   return (
     <>
     {viewMode === 'kanban' ? (
-      <div className="pb-2">
-        <div className="grid gap-2 lg:grid-cols-3 xl:grid-cols-6">
+      // Colunas dividem a largura: poucas etapas ocupam a tela toda; muitas rolam para o lado.
+      // Cada coluna rola por dentro, para muitos leads não empurrarem a página.
+      <div className="-mx-1 overflow-x-auto px-1 pb-2">
+        <div className="flex gap-2">
         {stageGroups.map((stage) => (
           <Card
             key={stage.code}
-            className={`overflow-hidden border bg-gradient-to-b shadow-sm ${stage.surface}`}
+            className={`flex min-w-[240px] flex-1 basis-0 flex-col overflow-hidden border bg-gradient-to-b shadow-sm ${stage.surface}`}
             onDragOver={(event) => event.preventDefault()}
             onDrop={() => {
               if (!dragLeadId) return;
@@ -59,22 +61,18 @@ export function CrmBoard({ ctx }: { ctx: CrmPageController }) {
               else requestLeadStageMove(dragged, stage.code);
             }}
           >
-            <CardHeader className="space-y-1.5 border-b border-black/5 px-2.5 py-2">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <CardTitle className="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-800">
-                    {stage.label}
-                  </CardTitle>
-                  <p className="mt-0.5 text-[10px] text-slate-500">
-                    {stage.items.length} {stage.items.length === 1 ? 'lead' : 'leads'} · R$ {stage.totalValue.toFixed(0)}
-                  </p>
-                </div>
-                <span className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold ${stage.accent}`}>
+            <CardHeader className="border-b border-black/5 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="truncate text-sm font-semibold text-slate-800">{stage.label}</CardTitle>
+                <span className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${stage.accent}`}>
                   {stage.items.length}
                 </span>
               </div>
+              {stage.totalValue > 0 && (
+                <p className="text-[11px] text-slate-500">R$ {stage.totalValue.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} em negociação</p>
+              )}
             </CardHeader>
-            <CardContent className="space-y-1.5 p-1.5">
+            <CardContent className="max-h-[calc(100vh-300px)] min-h-[120px] flex-1 space-y-1.5 overflow-y-auto p-1.5">
               {stage.items.length === 0 && (
                 <div className="rounded-lg border border-dashed border-slate-200 bg-white/70 px-2 py-4 text-center text-[11px] text-slate-500">
                   Nenhum lead nesta etapa.
@@ -91,7 +89,8 @@ export function CrmBoard({ ctx }: { ctx: CrmPageController }) {
                     draggable
                     onDragStart={() => setDragLeadId(lead.id)}
                     onClick={() => setLeadDrawer(lead)}
-                    className={`w-full rounded-lg border bg-white/95 p-2 text-left shadow-sm ring-1 ring-black/5 transition-all hover:-translate-y-0.5 hover:shadow-md ${isStale ? 'border-rose-300' : 'border-slate-200'}`}
+                    className={`w-full rounded-lg border bg-white/95 p-2 text-left shadow-sm transition-colors hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isStale ? 'border-rose-300' : 'border-slate-200'}`}
+                    title={isStale ? 'Sem contato há mais de 3 dias' : undefined}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1 pr-2">
@@ -140,33 +139,39 @@ export function CrmBoard({ ctx }: { ctx: CrmPageController }) {
                         </BrandButton>
                       </div>
                     )}
-                    <div className="mt-1 flex justify-start">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${priority.className}`}>
-                        {priority.label}
-                      </span>
-                    </div>
-                    {(lead.source || '').trim() && (
-                      <div className="mt-1 flex justify-start">
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${source.className}`}>
-                          {source.label}
+                    <div className="mt-1.5 flex items-center gap-1">
+                      <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${priority.className}`}>
+                          {priority.label}
                         </span>
+                        {(lead.source || '').trim() && (
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${source.className}`}>
+                            {source.label}
+                          </span>
+                        )}
                       </div>
-                    )}
-                    {canOpenWhatsApp(lead) && (
-                      <div className="mt-2 flex justify-end">
-                        <BrandButton
-                          size="sm"
-                          variant="outline"
-                          className="h-6 rounded-md border-slate-200 bg-white px-2 text-[10px]"
+                      {canOpenWhatsApp(lead) && (
+                        <span
+                          role="link"
+                          tabIndex={0}
+                          aria-label={`Abrir WhatsApp de ${lead.full_name}`}
+                          title="Abrir WhatsApp"
+                          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-emerald-700 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           onClick={(event) => {
                             event.stopPropagation();
                             window.open(`https://wa.me/55${normalizePhone(lead.phone)}`, '_blank');
                           }}
+                          onKeyDown={(event) => {
+                            if (event.key !== 'Enter' && event.key !== ' ') return;
+                            event.preventDefault();
+                            event.stopPropagation();
+                            window.open(`https://wa.me/55${normalizePhone(lead.phone)}`, '_blank');
+                          }}
                         >
-                          WhatsApp
-                        </BrandButton>
-                      </div>
-                    )}
+                          <MessageCircle className="h-3.5 w-3.5" />
+                        </span>
+                      )}
+                    </div>
                   </button>
                 );
               })}
