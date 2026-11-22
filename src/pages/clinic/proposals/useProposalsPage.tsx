@@ -1,4 +1,5 @@
 import { buildProposalHtml, defaultValidUntil, formatBRL, whatsappLink } from '@/lib/proposals/sale';
+import { proposalWhatsAppMessage } from '@/lib/proposals/whatsappMessage';
 import { generateContractPDF } from '@/lib/contractPDF';
 import { useClinicLetterhead } from '@/hooks/useClinicLetterhead';
 import { useEffect, useState } from 'react';
@@ -17,6 +18,18 @@ import {
   type PaymentMethod, isInstallmentMethod
 } from '@/components/contracts/ContractPaymentConfigurator';
 import { buildPaymentPresetSummary, composeProposalNotesPayload, parseProposalNotesPayload } from '@/lib/proposals/paymentPreset';
+
+/** Envio da proposta pelo WhatsApp em preparo (PDF + link) ou pronto para enviar. */
+export type SendPrep = {
+  proposal: ProposalWithPatient;
+  clientName: string;
+  phone: string;
+  status: 'preparing' | 'ready' | 'error';
+  message: string;
+  pdfFile: File | null;
+  canAttach?: boolean;
+  error?: string;
+};
 
 
 interface ProposalItem {
@@ -67,6 +80,7 @@ export function useProposalsPage() {
   const [discountValue, setDiscountValue] = useState<string>('');
   const [approvedPrompt, setApprovedPrompt] = useState<ProposalWithPatient | null>(null);
   const [sendingWhatsAppId, setSendingWhatsAppId] = useState<string | null>(null);
+  const [sendPrep, setSendPrep] = useState<SendPrep | null>(null);
   const [quickPatientOpen, setQuickPatientOpen] = useState(false);
   const [proposalPaymentEnabled, setProposalPaymentEnabled] = useState(false);
   const [proposalPaymentCondition, setProposalPaymentCondition] = useState<PaymentCondition>('cash');
@@ -525,6 +539,9 @@ export function useProposalsPage() {
     w.print();
   };
 
+  // Envio pelo WhatsApp em duas etapas: primeiro prepara (PDF + link de aprovação), depois a pessoa
+  // clica em Enviar. Assim o navegador deixa compartilhar o PDF anexado (o compartilhamento só funciona
+  // logo após um clique, e gerar o PDF leva alguns segundos).
   const handleSendWhatsApp = async (proposal: ProposalWithPatient & { items?: ProposalItemWithTreatment[] }) => {
     const patient = patients.find((p) => p.id === proposal.patient_id);
     const clientName = patient?.full_name || proposal.patients?.full_name || 'Cliente';
@@ -533,30 +550,25 @@ export function useProposalsPage() {
       const { data: pData } = await supabase.from('patients').select('phone').eq('id', proposal.patient_id).maybeSingle();
       if (pData?.phone) clientPhone = pData.phone;
     }
-
     if (!clientPhone) {
       toast({
         title: 'Telefone não cadastrado',
-        description: `O paciente ${clientName} não possui telefone cadastrado para envio via WhatsApp.`,
+        description: `Cadastre o WhatsApp de ${clientName} para enviar a proposta.`,
         variant: 'destructive',
       });
       return;
     }
 
     setSendingWhatsAppId(proposal.id);
+    setSendPrep({ proposal, clientName, phone: clientPhone, status: 'preparing', message: '', pdfFile: null });
     try {
       let printItems = proposal.items;
       if (!printItems || printItems.length === 0) {
-        const { data: pItems } = await supabase
-          .from('proposal_items')
-          .select('*, treatments(name)')
-          .eq('proposal_id', proposal.id);
+        const { data: pItems } = await supabase.from('proposal_items').select('*, treatments(name)').eq('proposal_id', proposal.id);
         printItems = (pItems || []) as ProposalItemWithTreatment[];
       }
-
       const parsed = parseProposalNotesPayload(proposal.notes);
       const paymentSummary = buildPaymentPresetSummary(parsed.paymentPreset);
-
       const body = buildProposalHtml({
         clinicName,
         clinic: letterhead ?? null,
@@ -580,124 +592,75 @@ export function useProposalsPage() {
         notes: parsed.plainNotes || undefined,
       });
 
-      // 1. Converter HTML para PDF Blob oficial
-      const pdfBlob = await generateContractPDF(body);
-
-      // 2. Disparar download do arquivo PDF automaticamente
-      const downloadUrl = URL.createObjectURL(pdfBlob);
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.href = downloadUrl;
-      downloadAnchor.download = `Proposta-${proposal.proposal_number}.pdf`;
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      document.body.removeChild(downloadAnchor);
-      setTimeout(() => URL.revokeObjectURL(downloadUrl), 2000);
-
-      // 3. Tentar gerar link assinado de 7 dias via storage (caminho seguro com RLS)
-      let signedPdfUrl: string | null = null;
-      try {
-        const storagePath = `${clinicId}/${proposal.patient_id}/proposta-${proposal.proposal_number}.pdf`;
-        const { error: uploadError } = await supabase.storage
-          .from('contracts')
-          .upload(storagePath, pdfBlob, { contentType: 'application/pdf', upsert: true });
-
-        if (!uploadError) {
-          const { data: signedData } = await supabase.storage
-            .from('contracts')
-            .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
-          if (signedData?.signedUrl) {
-            signedPdfUrl = signedData.signedUrl;
-          }
-        }
-      } catch (e) {
-        console.warn('Storage link fallback:', e);
-      }
-
-      // Link público web para carregar diretamente no celular do cliente
-      const { url: proposalWebUrl } = await createProposalLink(proposal.id);
-
-      const firstName = clientName.trim().split(/\s+/)[0] || clientName;
-      const validityText = proposal.valid_until
-        ? format(new Date(`${proposal.valid_until}T12:00:00`), 'dd/MM/yyyy')
-        : '10 dias';
-
-      const itemsList = printItems
-        .map((i) => `• *${i.treatments?.name || 'Tratamento'}* (x${i.quantity}) - ${formatBRL(Number(i.unit_price) * i.quantity)}`)
-        .join('\n');
-
-      const discountAmount = Number(proposal.discount_amount || 0);
-      const discountPercent = Number(proposal.discount_percent || 0);
-      const standardTotal = Number(proposal.total_amount || proposal.final_amount);
-      const finalTotal = Number(proposal.final_amount);
-
-      let financeSummary = `*Valor Total: ${formatBRL(finalTotal)}*`;
-      if (discountAmount > 0) {
-        financeSummary = `Valor padrão: ${formatBRL(standardTotal)}\nDesconto Especial: - ${formatBRL(discountAmount)}${discountPercent ? ` (${discountPercent}%)` : ''}\n*Valor Final com Desconto: ${formatBRL(finalTotal)}*`;
-      }
-
-      let msg = `Olá, ${firstName}! Esperamos que você esteja muito bem.\n\nPassando para enviar a sua proposta comercial da *${clinicName || 'nossa clínica'}* (Nº *${proposal.proposal_number}*):\n\n📋 *Tratamentos planejados:*\n${itemsList}\n\n💰 *Valores:*\n${financeSummary}\n`;
-
-      if (paymentSummary) {
-        msg += `\n💳 *Condições sugeridas:* ${paymentSummary}\n`;
-      }
-
-      msg += `\n⏳ *Validade:* até ${validityText}\n`;
-      msg += `\n✨ *Acesse sua proposta completa com todos os detalhes pelo link:*\n👉 ${proposalWebUrl}\n`;
-
-      if (signedPdfUrl) {
-        msg += `\n📥 *Ou baixe o documento PDF oficial direto por aqui:*\n${signedPdfUrl}\n`;
-      }
-
-      msg += `\nFicamos à total disposição para tirar qualquer dúvida ou agendarmos seu início!`;
-
-      // 4. Compartilhar arquivo PDF nativamente se suportado (mobile) ou abrir WhatsApp
+      // PDF e link ao mesmo tempo (antes era um depois do outro, mais o envio do PDF para o armazenamento).
+      const [pdfBlob, link] = await Promise.all([generateContractPDF(body), createProposalLink(proposal.id)]);
       const pdfFile = new File([pdfBlob], `Proposta-${proposal.proposal_number}.pdf`, { type: 'application/pdf' });
-      let sharedViaNavigator = false;
-      if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-        try {
-          await navigator.share({
-            files: [pdfFile],
-            title: `Proposta ${proposal.proposal_number} - ${clinicName || 'Clinova'}`,
-            text: msg,
-          });
-          sharedViaNavigator = true;
-        } catch (shareErr) {
-          // Usuário cancelou ou navegador preferiu WhatsApp web
-          sharedViaNavigator = false;
-        }
-      }
+      const canAttach = typeof navigator !== 'undefined' && !!navigator.canShare && navigator.canShare({ files: [pdfFile] });
 
-      if (!sharedViaNavigator) {
-        const waUrl = whatsappLink(clientPhone, msg);
-        window.open(waUrl, '_blank', 'noopener,noreferrer');
-      }
-
-      // 5. Se estiver em rascunho, atualiza automaticamente para enviada
-      if (proposal.status === 'draft') {
-        await supabase
-          .from('proposals')
-          .update({ status: 'sent' })
-          .eq('id', proposal.id);
-        qc.invalidateQueries({ queryKey: ['proposals'] });
-        if (viewDialog && viewDialog.id === proposal.id) {
-          setViewDialog({ ...viewDialog, status: 'sent' });
-        }
-      }
-
-      toast({
-        title: 'Proposta em PDF gerada com sucesso!',
-        description: `O arquivo PDF foi baixado e o WhatsApp de ${firstName} foi aberto com a proposta.`,
+      const message = proposalWhatsAppMessage({
+        clientName,
+        clinicName,
+        number: proposal.proposal_number,
+        items: printItems.map((i) => ({ name: i.treatments?.name || 'Tratamento', quantity: i.quantity, unitPrice: Number(i.unit_price) })),
+        standardTotal: Number(proposal.total_amount || proposal.final_amount),
+        finalTotal: Number(proposal.final_amount),
+        discountAmount: Number(proposal.discount_amount || 0),
+        discountPercent: Number(proposal.discount_percent || 0),
+        paymentSummary,
+        validUntil: proposal.valid_until ? format(new Date(`${proposal.valid_until}T12:00:00`), 'dd/MM/yyyy') : null,
+        approveUrl: link.url,
+        pdfAttached: true,
       });
+      setSendPrep((cur) => (cur && cur.proposal.id === proposal.id ? { ...cur, status: 'ready', message, pdfFile, canAttach } : cur));
     } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : 'Erro ao processar PDF da proposta.';
-      toast({
-        title: 'Erro ao gerar proposta para WhatsApp',
-        description: errorMsg,
-        variant: 'destructive',
-      });
+      const errorMsg = err instanceof Error ? err.message : 'Não foi possível preparar a proposta.';
+      setSendPrep((cur) => (cur && cur.proposal.id === proposal.id ? { ...cur, status: 'error', error: errorMsg } : cur));
     } finally {
       setSendingWhatsAppId(null);
     }
+  };
+
+  const downloadFile = (file: File) => {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+
+  /** Clique em "Enviar pelo WhatsApp": anexa o PDF quando o aparelho permite; senão abre a conversa e baixa o PDF. */
+  const deliverSendPrep = async () => {
+    const prep = sendPrep;
+    if (!prep || prep.status !== 'ready' || !prep.pdfFile) return;
+    let delivered = false;
+    if (prep.canAttach) {
+      try {
+        await navigator.share({ files: [prep.pdfFile], text: prep.message });
+        delivered = true;
+      } catch (e) {
+        // Cancelou o compartilhamento: não marca como enviada.
+        if (e instanceof DOMException && e.name === 'AbortError') return;
+      }
+    }
+    if (!delivered) {
+      downloadFile(prep.pdfFile);
+      window.open(whatsappLink(prep.phone, prep.message), '_blank', 'noopener,noreferrer');
+    }
+    if (prep.proposal.status === 'draft') {
+      await supabase.from('proposals').update({ status: 'sent' }).eq('id', prep.proposal.id);
+      qc.invalidateQueries({ queryKey: ['proposals'] });
+      if (viewDialog && viewDialog.id === prep.proposal.id) setViewDialog({ ...viewDialog, status: 'sent' });
+    }
+    setSendPrep(null);
+    toast({
+      title: 'Proposta enviada',
+      description: delivered
+        ? 'O WhatsApp abriu com a mensagem e o PDF anexado.'
+        : 'O WhatsApp abriu com a mensagem. O PDF foi baixado: arraste-o para a conversa.',
+    });
   };
 
   // Emissão completa (modelo, PDF e forma de pagamento) fica na tela de Contratos,
@@ -794,6 +757,9 @@ export function useProposalsPage() {
     setApprovedPrompt,
     sendingWhatsAppId,
     setSendingWhatsAppId,
+    sendPrep,
+    setSendPrep,
+    deliverSendPrep,
     quickPatientOpen,
     setQuickPatientOpen,
     proposalPaymentEnabled,

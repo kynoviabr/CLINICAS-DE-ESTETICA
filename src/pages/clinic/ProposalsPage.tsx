@@ -18,6 +18,7 @@ import {
 } from '@/components/contracts/ContractPaymentConfigurator';
 import { buildPaymentPresetSummary, parseProposalNotesPayload } from '@/lib/proposals/paymentPreset';
 import { useProposalsPage } from './proposals/useProposalsPage';
+import { SendProposalDialog } from './proposals/SendProposalDialog';
 
 const statusMap: Record<string, { label: string; badge: BadgeStatus }> = {
   draft: { label: 'Rascunho', badge: 'draft' },
@@ -99,6 +100,9 @@ export default function ProposalsPage() {
     openView,
     handlePrint,
     handleSendWhatsApp,
+    sendPrep,
+    setSendPrep,
+    deliverSendPrep,
     goEmitContract,
     approveAndEmit,
     toggleProposalPaymentMethod,
@@ -225,7 +229,7 @@ export default function ProposalsPage() {
                         <button
                           type="button"
                           onClick={() => openView(p)}
-                          className="text-primary underline-offset-4 hover:underline focus-visible:underline focus-visible:outline-none"
+                          className="font-semibold text-foreground underline decoration-primary/60 decoration-2 underline-offset-4 hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
                           title={`Abrir proposta ${p.proposal_number}`}
                         >
                           {p.proposal_number}
@@ -717,6 +721,7 @@ export default function ProposalsPage() {
           });
         }}
       />
+      <SendProposalDialog prep={sendPrep} onClose={() => setSendPrep(null)} onSend={deliverSendPrep} />
     </div>
   );
 }
