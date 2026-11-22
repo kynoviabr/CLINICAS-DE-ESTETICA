@@ -63,7 +63,7 @@ export function MonthCashPanel({ clinicId, month, received, showExpenses }: {
                 <dt>Resultado do mês</dt>
                 <dd className={`font-semibold ${result < 0 ? 'text-destructive' : 'text-emerald-700'}`}>{formatBRL(result)}</dd>
               </div>
-              <p className="text-xs text-slate-500">Recebido no mês menos as despesas lançadas (pagas e a pagar).</p>
+              <p className="text-xs text-slate-500">Recebido menos despesas lançadas.</p>
             </dl>
           </CardContent>
         </Card>
@@ -71,17 +71,17 @@ export function MonthCashPanel({ clinicId, month, received, showExpenses }: {
 
       <div className={`grid grid-cols-1 gap-3 ${showExpenses ? 'lg:grid-cols-2' : ''}`}>
         <Card className="shadow-card">
-          <CardHeader className="pb-3">
+          <CardHeader className="space-y-1 p-4 pb-2">
             <div className="flex items-baseline justify-between gap-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <ArrowUpRight className="h-4 w-4 text-emerald-600" aria-hidden /> Receitas do mês
               </CardTitle>
               <Link to={`/clinic/financeiro/recebimentos?mes=${month}`} className="text-sm font-medium text-primary underline-offset-2 hover:underline">Ver recebimentos</Link>
             </div>
-            <p className="text-2xl font-heading font-semibold">{formatBRL(income)}</p>
+            <p className="font-heading text-xl font-semibold">{formatBRL(income)}</p>
             <p className="text-xs text-muted-foreground">Parcelas recebidas, por forma de pagamento</p>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-1">
             {incomeRows.length === 0
               ? <p className="text-sm text-muted-foreground">Nenhum recebimento neste mês ainda. Ao marcar uma parcela como "Recebi", ela entra aqui.</p>
               : <BreakdownBars rows={incomeRows} barClassName="bg-emerald-500" />}
@@ -90,19 +90,19 @@ export function MonthCashPanel({ clinicId, month, received, showExpenses }: {
 
         {showExpenses && (
           <Card className="shadow-card">
-            <CardHeader className="pb-3">
+            <CardHeader className="space-y-1 p-4 pb-2">
               <div className="flex items-baseline justify-between gap-2">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <ArrowDownRight className="h-4 w-4 text-destructive" aria-hidden /> Despesas do mês
                 </CardTitle>
                 <Link to={`/clinic/despesas?mes=${month}`} className="text-sm font-medium text-primary underline-offset-2 hover:underline">Ver despesas</Link>
               </div>
-              <p className="text-2xl font-heading font-semibold">{formatBRL(spent)}</p>
+              <p className="font-heading text-xl font-semibold">{formatBRL(spent)}</p>
               <p className="text-xs text-muted-foreground">
                 Por categoria{toPay > 0 && <> · <span className="font-medium text-amber-700">{formatBRL(toPay)} ainda a pagar</span></>}
               </p>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 pt-1">
               {isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p>
                 : expenseRows.length === 0
                   ? <p className="text-sm text-muted-foreground">Nenhuma despesa lançada neste mês. Lance aluguel, contador e anúncios em Despesas.</p>

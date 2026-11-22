@@ -108,11 +108,11 @@ export default function SimpleFinancePage() {
   const potential = monthPotential(summary.received, summary.toReceive, scheduled.summary.total);
   const potentialPct = goal ? Math.round((potential / goal) * 100) : null;
 
-  const tabs: Array<{ key: ListKey; label: string; count: number; total: number; hint: string }> = [
-    { key: 'atrasadas', label: 'Atrasadas', count: summary.overdueCount, total: summary.overdue, hint: 'parcela(s) até hoje' },
-    { key: 'receber', label: 'A receber', count: summary.toReceiveCount, total: summary.toReceive, hint: 'parcela(s) neste mês' },
-    { key: 'previsto', label: 'Previsto na agenda', count: scheduled.summary.count, total: scheduled.summary.total, hint: 'atendimento(s) agendado(s)' },
-    { key: 'recebidas', label: 'Recebidas', count: summary.receivedCount, total: summary.received, hint: 'parcela(s) neste mês' },
+  const tabs: Array<{ key: ListKey; label: string; count: number; total: number; unit: [string, string] }> = [
+    { key: 'atrasadas', label: 'Atrasadas', count: summary.overdueCount, total: summary.overdue, unit: ['parcela', 'parcelas'] },
+    { key: 'receber', label: 'A receber', count: summary.toReceiveCount, total: summary.toReceive, unit: ['parcela', 'parcelas'] },
+    { key: 'previsto', label: 'Previsto na agenda', count: scheduled.summary.count, total: scheduled.summary.total, unit: ['atendimento', 'atendimentos'] },
+    { key: 'recebidas', label: 'Recebidas', count: summary.receivedCount, total: summary.received, unit: ['parcela', 'parcelas'] },
   ];
   const current = list === 'previsto' ? [] : lists[list];
 
@@ -127,78 +127,77 @@ export default function SimpleFinancePage() {
         <Link to="/clinic/financeiro/dre"><BrandButton><FileBarChart className="h-4 w-4" /> DRE</BrandButton></Link>
       </PageHeader>
 
-      <div className="flex items-center gap-2">
-        <BrandButton variant="outline" size="sm" aria-label="Mês anterior" onClick={() => setMonth(shiftMonth(start.slice(0, 7), -1))}><ChevronLeft className="h-4 w-4" /></BrandButton>
-        <p className="min-w-44 text-center font-heading text-lg font-semibold">{monthLabel(start.slice(0, 7))}</p>
-        <BrandButton variant="outline" size="sm" aria-label="Próximo mês" onClick={() => setMonth(shiftMonth(start.slice(0, 7), 1))}><ChevronRight className="h-4 w-4" /></BrandButton>
-        {!isCurrentMonth && <BrandButton variant="ghost" size="sm" onClick={() => setMonth(today.slice(0, 7))}>Hoje</BrandButton>}
-      </div>
-
+      {/* Resumo do mês compacto: mês, recebido, meta e potencial numa faixa só. */}
       <Card className="shadow-card">
-        <CardContent className="space-y-3 p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recebido no mês</p>
-              <p className="text-3xl font-heading font-semibold">{formatBRL(summary.received)}</p>
+        <CardContent className="space-y-2.5 p-3 sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+            <div className="flex items-center gap-1">
+              <BrandButton variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Mês anterior" onClick={() => setMonth(shiftMonth(start.slice(0, 7), -1))}><ChevronLeft className="h-4 w-4" /></BrandButton>
+              <p className="min-w-40 text-center font-heading text-base font-semibold">{monthLabel(start.slice(0, 7))}</p>
+              <BrandButton variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Próximo mês" onClick={() => setMonth(shiftMonth(start.slice(0, 7), 1))}><ChevronRight className="h-4 w-4" /></BrandButton>
+              {!isCurrentMonth && <BrandButton variant="ghost" size="sm" onClick={() => setMonth(today.slice(0, 7))}>Hoje</BrandButton>}
             </div>
-            <div className="text-right">
-              {editingGoal ? (
-                <div className="flex items-center gap-2">
-                  <Input aria-label="Meta do mês em reais" inputMode="decimal" className="w-32" value={goalInput} onChange={(e) => setGoalInput(e.target.value)} placeholder="16.000" />
-                  <BrandButton size="sm" onClick={saveGoal}>Salvar</BrandButton>
-                  <BrandButton size="sm" variant="ghost" onClick={() => setEditingGoal(false)}>Cancelar</BrandButton>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <Target className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">{goal ? `Meta: ${formatBRL(goal)}` : 'Sem meta definida'}</span>
-                  {role === 'admin' && (
-                    <button type="button" aria-label="Editar meta" className="rounded p-1 text-muted-foreground hover:bg-muted"
-                      onClick={() => { setGoalInput(goal ? String(goal) : ''); setEditingGoal(true); }}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              )}
+            <div className="flex flex-1 flex-wrap items-baseline gap-x-6 gap-y-1 text-sm text-muted-foreground">
+              <p className="flex items-baseline gap-2">Recebido <span className="font-heading text-xl font-semibold text-foreground">{formatBRL(summary.received)}</span></p>
+              <p className="flex items-baseline gap-1.5">
+                Potencial <span className="font-semibold text-foreground">{formatBRL(potential)}</span>
+                {potentialPct !== null && <span>({potentialPct}% da meta)</span>}
+              </p>
             </div>
+            {editingGoal ? (
+              <div className="flex items-center gap-2">
+                <Input aria-label="Meta do mês em reais" inputMode="decimal" className="h-8 w-28" value={goalInput} onChange={(e) => setGoalInput(e.target.value)} placeholder="16.000" />
+                <BrandButton size="sm" onClick={saveGoal}>Salvar</BrandButton>
+                <BrandButton size="sm" variant="ghost" onClick={() => setEditingGoal(false)}>Cancelar</BrandButton>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Target className="h-4 w-4" aria-hidden />
+                <span>{goal ? `Meta ${formatBRL(goal)}` : 'Sem meta'}</span>
+                {role === 'admin' && (
+                  <button type="button" aria-label="Editar meta" className="rounded p-1 hover:bg-muted"
+                    onClick={() => { setGoalInput(goal ? String(goal) : ''); setEditingGoal(true); }}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           {progress && (
-            <>
-              <Progress value={progress.pct} className="h-2.5" aria-label={`${progress.pct}% da meta`} />
-              <p className="text-sm text-muted-foreground">
-                {progress.missing > 0 ? `${progress.pct}% da meta · faltam ${formatBRL(progress.missing)}` : 'Meta do mês batida!'}
-                {progress.missing > 0 && summary.toReceive > 0 && ` · ${formatBRL(summary.toReceive)} ainda a receber neste mês`}
-              </p>
-            </>
+            <div className="flex items-center gap-3">
+              <Progress value={progress.pct} className="h-2 flex-1" aria-label={`${progress.pct}% da meta`} />
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {progress.missing > 0 ? `${progress.pct}% · faltam ${formatBRL(progress.missing)}` : 'Meta batida!'}
+              </span>
+            </div>
           )}
-          <div className="rounded-lg bg-muted/60 px-4 py-3 text-sm">
-            <p>
-              <span className="font-semibold">Potencial do mês: {formatBRL(potential)}</span>
-              {potentialPct !== null && <span className="text-muted-foreground"> · {potentialPct}% da meta</span>}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Recebido {formatBRL(summary.received)} + a receber {formatBRL(summary.toReceive)} + previsto na agenda {formatBRL(scheduled.summary.total)}
-            </p>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Potencial = recebido {formatBRL(summary.received)} + a receber {formatBRL(summary.toReceive)} + previsto na agenda {formatBRL(scheduled.summary.total)}
+          </p>
         </CardContent>
       </Card>
 
-      <div role="tablist" aria-label="Parcelas" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {tabs.map((t) => (
-          <button key={t.key} type="button" role="tab" aria-selected={list === t.key} onClick={() => setList(t.key)}
-            className={`rounded-xl border p-4 text-left transition-colors ${list === t.key ? 'border-primary ring-2 ring-primary/30 bg-card' : 'bg-card hover:bg-muted/50'} ${t.key === 'atrasadas' && t.count > 0 ? 'border-destructive/40' : ''}`}>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.label}</p>
-            <p className={`text-2xl font-heading font-semibold ${t.key === 'atrasadas' && t.count > 0 ? 'text-destructive' : ''}`}>{formatBRL(t.total)}</p>
-            <p className="text-xs text-muted-foreground">{t.count} {t.hint}</p>
-          </button>
-        ))}
+      <div role="tablist" aria-label="Parcelas" className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        {tabs.map((t) => {
+          const alert = t.key === 'atrasadas' && t.count > 0;
+          return (
+            <button key={t.key} type="button" role="tab" aria-selected={list === t.key} onClick={() => setList(t.key)}
+              className={`rounded-lg border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${list === t.key ? 'border-primary bg-primary/5' : 'bg-card hover:bg-muted/50'} ${alert && list !== t.key ? 'border-destructive/40' : ''}`}>
+              <span className="flex items-baseline justify-between gap-2">
+                <span className="text-sm font-medium text-foreground">{t.label}</span>
+                <span className="text-xs text-muted-foreground">{t.count} {t.count === 1 ? t.unit[0] : t.unit[1]}</span>
+              </span>
+              <span className={`block font-heading text-lg font-semibold ${alert ? 'text-destructive' : ''}`}>{formatBRL(t.total)}</span>
+            </button>
+          );
+        })}
       </div>
 
       <Card className="shadow-card">
         <CardContent className="p-0">
           {list === 'previsto' ? (
             scheduled.rows.length === 0 && scheduled.summary.packageSessions === 0 ? (
-              <p className="p-5 text-sm text-muted-foreground">Nenhum atendimento agendado daqui até o fim do mês.</p>
+              <p className="p-4 text-sm text-muted-foreground">Nenhum atendimento agendado daqui até o fim do mês.</p>
             ) : (
               <div className="divide-y">
                 <div className="space-y-1 p-4 text-sm">
@@ -232,9 +231,9 @@ export default function SimpleFinancePage() {
               </div>
             )
           ) : isLoading ? (
-            <p className="p-5 text-sm text-muted-foreground">Carregando...</p>
+            <p className="p-4 text-sm text-muted-foreground">Carregando...</p>
           ) : current.length === 0 ? (
-            <p className="p-5 text-sm text-muted-foreground">
+            <p className="p-4 text-sm text-muted-foreground">
               {list === 'atrasadas' ? 'Nenhuma parcela atrasada.' : list === 'receber' ? 'Nada a receber neste mês a partir de hoje.' : 'Nenhum recebimento neste mês ainda.'}
             </p>
           ) : (
