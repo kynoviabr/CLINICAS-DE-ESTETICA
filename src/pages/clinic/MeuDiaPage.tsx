@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { addDays, endOfDay, format, startOfDay, startOfMonth, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowRight, CalendarPlus, Check, MessageCircle, Plus, Receipt, UserPlus, X, FileText } from 'lucide-react';
+import { CalendarPlus, Check, MessageCircle, Plus, Receipt, UserPlus, X, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -21,12 +21,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { todayIso } from '@/lib/finance/installments';
 import { MONTHLY_GOAL_KEY, goalProgress, monthBounds, parseGoal, summarizeMonth } from '@/lib/finance/simpleFinance';
-import { SETUP_COMPLETED_KEY, readClinicSetting } from '@/lib/setup/clinicSetup';
 import { formatBRL, whatsappLink } from '@/lib/proposals/sale';
 import { StockSummaryCard } from '@/components/stock/StockSummaryCard';
 import { formatPhone } from '@/lib/patients/validation';
 import { buildEvaluationScheduleLink, lostReasons } from '@/lib/crm/model';
 import { errorMessage } from '@/lib/errors';
+import { OnboardingChecklist } from '@/components/home/OnboardingChecklist';
+import { readClinicSetting } from '@/lib/setup/clinicSetup';
 import {
   FUNNEL_COLUMNS, buildDayTasks, clientsToRenew, daysWithoutContact, freeSlots, funnelColumnOf, moneyInsight, type FunnelColumnKey,
 } from '@/lib/home/meuDia';
@@ -77,12 +78,6 @@ export default function MeuDiaPage() {
   const [busy, setBusy] = useState<string | null>(null);
 
   const enabled = !!clinicId;
-
-  const { data: setupDone } = useQuery({
-    queryKey: ['setup-status', clinicId],
-    queryFn: async () => !!(await readClinicSetting(clinicId!, SETUP_COMPLETED_KEY)),
-    enabled: enabled && role === 'admin',
-  });
 
   const { data: appts = [] } = useQuery({
     queryKey: ['meudia-appts', clinicId, today],
@@ -335,17 +330,7 @@ export default function MeuDiaPage() {
         </div>
       </div>
 
-      {role === 'admin' && setupDone === false && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-semibold">Termine a implantação da clínica</p>
-              <p className="text-sm text-muted-foreground">Dados do contrato, seus horários e tratamentos. Cerca de 5 minutos.</p>
-            </div>
-            <BrandButton onClick={() => navigate('/clinic/implantacao')}>Continuar <ArrowRight className="h-4 w-4" /></BrandButton>
-          </CardContent>
-        </Card>
-      )}
+      {role === 'admin' && <OnboardingChecklist clinicId={clinicId} />}
 
       {/* Ordem: o dia (agenda e tarefas), interessadas, dinheiro do mês, contas a pagar. */}
       {/* Agenda e Tarefas de hoje */}

@@ -5,7 +5,7 @@ import { onlyDigits } from '@/lib/patients/validation';
 /** clinic_settings: quando a implantação guiada terminou (ISO). Sem ele, o Dashboard lembra de terminar. */
 export const SETUP_COMPLETED_KEY = 'setup_completed_at';
 
-export const SETUP_STEPS = ['clinica', 'atendimento', 'tratamentos', 'documentos', 'equipe', 'pronto'] as const;
+export const SETUP_STEPS = ['clinica', 'marca', 'atendimento', 'tratamentos', 'documentos', 'equipe', 'pronto'] as const;
 export type SetupStep = (typeof SETUP_STEPS)[number];
 
 export const WEEK_DAYS = [

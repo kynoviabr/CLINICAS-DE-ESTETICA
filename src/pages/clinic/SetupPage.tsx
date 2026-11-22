@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronLeft, ChevronRight, ClipboardList, FileSignature, Sparkles, Stethoscope, UserPlus } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, ClipboardList, FileSignature, ImagePlus, Lightbulb, Sparkles, Stethoscope, UserPlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -16,6 +16,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCep, lookupCepAddress } from '@/lib/cep';
 import { formatPhone } from '@/lib/patients/validation';
+import { compressImage } from '@/lib/photos/compress';
+import { navShades, readableText, textShade } from '@/lib/clinic/brandColors';
+import { BRAND_PRESETS } from '@/lib/setup/onboarding';
+import { useOnboardingStatus } from '@/hooks/useOnboardingStatus';
 import { errorMessage, functionError } from '@/lib/errors';
 import {
   SETUP_COMPLETED_KEY,
@@ -37,6 +41,7 @@ import {
 
 const STEP_LABELS: Record<SetupStep, string> = {
   clinica: 'Sua clínica',
+  marca: 'Sua marca',
   atendimento: 'Seu atendimento',
   tratamentos: 'Tratamentos',
   documentos: 'Anamnese e contrato',
@@ -48,6 +53,19 @@ type CatalogItem = { category_name: string; name: string; price: number; num_ses
 type CatalogArea = { name: string; description: string | null; notice: string | null; sort: number };
 
 const money = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+
+/** Tempo aproximado de cada passo, para a pessoa saber o que vem pela frente. */
+const STEP_MINUTES: Partial<Record<SetupStep, number>> = { clinica: 1, marca: 1, atendimento: 1, tratamentos: 2, documentos: 1, equipe: 1 };
+
+/** Quadro "por que isso importa": uma frase que explica o passo para quem nunca usou um sistema. */
+function WhyBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex gap-3 rounded-xl bg-primary/5 p-3 text-sm text-foreground">
+      <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+      <p>{children}</p>
+    </div>
+  );
+}
 
 export default function SetupPage() {
   const { user } = useAuth();
@@ -61,7 +79,12 @@ export default function SetupPage() {
 
   // 1. Clínica
   const [clinic, setClinic] = useState({ name: '', document: '', phone: '', email: '', zip: '', street: '', number: '', city: '', state: '' });
-  // 2. Atendimento
+  // 2. Marca
+  const [brand, setBrand] = useState<{ color: string; logoUrl: string | null }>({ color: BRAND_PRESETS[0].hex, logoUrl: null });
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInput = useRef<HTMLInputElement>(null);
+  const onboarding = useOnboardingStatus(clinicId);
+  // 3. Atendimento
   const ownerDefaultName = (user?.user_metadata?.full_name as string | undefined) || '';
   const [attends, setAttends] = useState(true);
   const [pro, setPro] = useState({ name: ownerDefaultName, specialty: '', registration: '' });
@@ -82,7 +105,7 @@ export default function SetupPage() {
     queryKey: ['setup-prefill', clinicId, user?.id],
     queryFn: async () => {
       const [clinicRes, documentValue, proRes, , catsRes, contractRes] = await Promise.all([
-        supabase.from('clinics').select('name, phone, email, address, city, state, zip_code').eq('id', clinicId!).maybeSingle(),
+        supabase.from('clinics').select('name, phone, email, address, city, state, zip_code, logo_url, primary_color').eq('id', clinicId!).maybeSingle(),
         readClinicSetting(clinicId!, 'cnpj'),
         supabase.from('professionals').select('id, full_name, specialty, registration_number').eq('clinic_id', clinicId!).eq('user_id', user!.id).maybeSingle(),
         Promise.resolve(null),
@@ -144,6 +167,7 @@ export default function SetupPage() {
         state: c.state || '',
         document: loaded.document ? formatDocument(loaded.document) : '',
       }));
+      setBrand((cur) => ({ color: c.primary_color || cur.color, logoUrl: c.logo_url || null }));
     }
     if (loaded.professional) {
       setPro({
@@ -157,6 +181,17 @@ export default function SetupPage() {
       setHours({ start: String(loaded.availability[0].start_time).slice(0, 5), end: String(loaded.availability[0].end_time).slice(0, 5) });
     }
   }, [loaded, catalog, user?.email, ownerDefaultName]);
+
+  // Sem passo na URL: continua de onde parou (primeiro passo ainda não feito).
+  const resumed = useRef(false);
+  useEffect(() => {
+    if (resumed.current || !onboarding.data) return;
+    resumed.current = true;
+    if (new URLSearchParams(window.location.search).has('passo')) return;
+    const byItem: Record<string, SetupStep> = { clinica: 'clinica', marca: 'marca', horarios: 'atendimento', tratamentos: 'tratamentos', contrato: 'documentos' };
+    const pending = onboarding.data.items.find((i) => !i.done && byItem[i.id]);
+    if (pending) setStep(byItem[pending.id]);
+  }, [onboarding.data, setStep]);
 
   const catalogByCategory = useMemo(() => {
     const map = new Map<string, CatalogItem[]>();
@@ -230,7 +265,40 @@ export default function SetupPage() {
     if (error) throw error;
     await upsertClinicSetting(clinicId!, 'cnpj', clinic.document.replace(/\D/g, ''));
     qc.invalidateQueries({ queryKey: ['setup-prefill'] });
+    qc.invalidateQueries({ queryKey: ['onboarding-status'] });
     nextStep();
+  });
+
+  const uploadLogo = async (file: File | undefined) => {
+    if (!file || !clinicId) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Escolha uma imagem', description: 'Use um arquivo JPG, PNG ou WebP.', variant: 'destructive' });
+      return;
+    }
+    setUploadingLogo(true);
+    try {
+      const img = await compressImage(file, 800, { quality: 0.9, keepAlpha: true });
+      if (img.blob.size > 2 * 1024 * 1024) throw new Error('A imagem precisa ter até 2 MB.');
+      const path = `${clinicId}/logo.${img.ext}`;
+      const { error: upError } = await supabase.storage.from('clinic-logos').upload(path, img.blob, { upsert: true, contentType: img.type });
+      if (upError) throw upError;
+      const { data: { publicUrl } } = supabase.storage.from('clinic-logos').getPublicUrl(path);
+      setBrand((cur) => ({ ...cur, logoUrl: `${publicUrl}?t=${Date.now()}` }));
+    } catch (err) {
+      toast({ title: 'Não foi possível enviar o logo', description: errorMessage(err, 'Tente outra imagem.'), variant: 'destructive' });
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const saveBrand = () => run(async () => {
+    if (!/^#[0-9a-f]{6}$/i.test(brand.color)) throw new Error('Escolha uma cor da lista ou digite no formato #RRGGBB.');
+    const { error } = await supabase.from('clinics').update({ primary_color: brand.color, logo_url: brand.logoUrl }).eq('id', clinicId!);
+    if (error) throw error;
+    // Marca escolhida (mesmo que seja a cor padrão): conta como passo feito.
+    await upsertClinicSetting(clinicId!, 'brand_confirmed_at', new Date().toISOString());
+    // Recarrega para o sistema todo já aparecer com a marca nova (menu, botões, textos).
+    window.location.assign('/clinic/implantacao?passo=atendimento');
   });
 
   const saveAttendance = () => run(async () => {
@@ -259,11 +327,20 @@ export default function SetupPage() {
       if (delError) throw delError;
       const { error: insError } = await supabase.from('professional_availability').insert(buildAvailabilityRows(clinicId!, professionalId, days, hours.start, hours.end));
       if (insError) throw insError;
+      // Horário da clínica (usado pela agenda online e pela IA): se ainda não tem, usa o mesmo da profissional.
+      const { count: clinicHours } = await supabase.from('clinic_business_hours').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId!);
+      if (!clinicHours) {
+        const { error: hoursError } = await supabase.from('clinic_business_hours').insert(
+          [...new Set(days)].map((day) => ({ clinic_id: clinicId!, day_of_week: day, opens_at: hours.start, closes_at: hours.end })),
+        );
+        if (hoursError) throw hoursError;
+      }
       qc.invalidateQueries({ queryKey: ['professional-availability'] });
       qc.invalidateQueries({ queryKey: ['staff-directory'] });
       qc.invalidateQueries({ queryKey: ['agenda-professionals'] });
     }
     qc.invalidateQueries({ queryKey: ['setup-prefill'] });
+    qc.invalidateQueries({ queryKey: ['onboarding-status'] });
     nextStep();
   });
 
@@ -279,6 +356,7 @@ export default function SetupPage() {
       qc.invalidateQueries({ queryKey: ['treatments-list'] });
     }
     qc.invalidateQueries({ queryKey: ['setup-prefill'] });
+    qc.invalidateQueries({ queryKey: ['onboarding-status'] });
     nextStep();
   });
 
@@ -299,6 +377,7 @@ export default function SetupPage() {
   const finish = () => run(async () => {
     await upsertClinicSetting(clinicId!, SETUP_COMPLETED_KEY, new Date().toISOString());
     qc.invalidateQueries({ queryKey: ['setup-status'] });
+    qc.invalidateQueries({ queryKey: ['onboarding-status'] });
     go('pronto');
   });
 
@@ -314,9 +393,22 @@ export default function SetupPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <p className="text-sm text-muted-foreground">Implantação da clínica · cerca de 5 minutos</p>
+        <p className="text-sm text-muted-foreground">Implantação da clínica · uns 7 minutos no total</p>
         <h1 className="mt-1 text-2xl font-heading font-semibold text-foreground">Vamos deixar sua clínica pronta para atender</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Um passo de cada vez. Tudo pode ser ajustado depois em Configurações, então não precisa estar perfeito agora.</p>
       </div>
+
+      {step !== 'pronto' && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium">Passo {Math.min(stepIndex + 1, SETUP_STEPS.length - 1)} de {SETUP_STEPS.length - 1}: {STEP_LABELS[step]}</span>
+            {STEP_MINUTES[step] && <span className="text-muted-foreground">cerca de {STEP_MINUTES[step]} min</span>}
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={SETUP_STEPS.length - 1} aria-valuenow={stepIndex} aria-label="Progresso da implantação">
+            <div className="h-full rounded-full bg-primary transition-[width] duration-300 motion-reduce:transition-none" style={{ width: `${(stepIndex / (SETUP_STEPS.length - 1)) * 100}%` }} />
+          </div>
+        </div>
+      )}
 
       <ol className="flex flex-wrap gap-2" aria-label="Etapas">
         {SETUP_STEPS.map((s, i) => (
@@ -345,6 +437,7 @@ export default function SetupPage() {
                 <h2 className="text-lg font-semibold">Sua clínica</h2>
                 <p className="text-sm text-muted-foreground">Esses dados aparecem nas propostas e nos contratos.</p>
               </div>
+              <WhyBox>O CNPJ (ou seu CPF, se você trabalha como autônoma) e o endereço entram no contrato que a cliente assina. Sem eles, o contrato sai incompleto.</WhyBox>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className={`${field} sm:col-span-2`}><Label htmlFor="s-name">Nome da clínica *</Label><Input id="s-name" value={clinic.name} onChange={(e) => setClinic({ ...clinic, name: e.target.value })} /></div>
                 <div className={field}><Label htmlFor="s-doc">CNPJ (ou CPF, se autônoma) *</Label><Input id="s-doc" inputMode="numeric" value={clinic.document} onChange={(e) => setClinic({ ...clinic, document: formatDocument(e.target.value) })} placeholder="00.000.000/0000-00" /></div>
@@ -360,12 +453,81 @@ export default function SetupPage() {
             </>
           )}
 
+          {step === 'marca' && (
+            <>
+              <div>
+                <h2 className="text-lg font-semibold">Sua marca</h2>
+                <p className="text-sm text-muted-foreground">O logo e a cor da clínica aparecem no sistema, nas propostas e no portal da cliente.</p>
+              </div>
+              <WhyBox>A cliente reconhece sua clínica em tudo o que recebe. Não tem logo ainda? Escolha só a cor e envie o logo depois.</WhyBox>
+
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-xl border bg-muted/40">
+                  {brand.logoUrl ? <img src={brand.logoUrl} alt="Logo da clínica" className="h-full w-full object-cover" /> : <ImagePlus className="h-6 w-6 text-muted-foreground" aria-hidden="true" />}
+                </div>
+                <div className="space-y-1">
+                  <input ref={logoInput} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => uploadLogo(e.target.files?.[0])} />
+                  <BrandButton variant="outline" onClick={() => logoInput.current?.click()} disabled={uploadingLogo}>
+                    {uploadingLogo ? 'Enviando…' : brand.logoUrl ? 'Trocar logo' : 'Enviar logo'}
+                  </BrandButton>
+                  <p className="text-xs text-muted-foreground">PNG, JPG ou WebP, até 2 MB. Quadrado fica melhor.</p>
+                </div>
+              </div>
+
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium">Cor da clínica</legend>
+                <div className="flex flex-wrap gap-2">
+                  {BRAND_PRESETS.map((p) => (
+                    <button
+                      key={p.hex}
+                      type="button"
+                      aria-pressed={brand.color.toLowerCase() === p.hex}
+                      onClick={() => setBrand({ ...brand, color: p.hex })}
+                      className={`flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm ${brand.color.toLowerCase() === p.hex ? 'border-foreground ring-2 ring-ring' : 'bg-card'}`}
+                    >
+                      <span className="h-5 w-5 rounded-full border border-black/10" style={{ background: p.hex }} aria-hidden="true" />
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="color" aria-label="Outra cor" value={/^#[0-9a-f]{6}$/i.test(brand.color) ? brand.color : '#000000'} onChange={(e) => setBrand({ ...brand, color: e.target.value })} className="h-10 w-12 cursor-pointer rounded-md border bg-card p-1" />
+                  <Input aria-label="Código da cor" value={brand.color} onChange={(e) => setBrand({ ...brand, color: e.target.value.trim() })} className="h-10 w-32 font-mono" />
+                  <span className="text-xs text-muted-foreground">ou use a cor exata da sua marca</span>
+                </div>
+              </fieldset>
+
+              {/* Prévia com o mesmo cálculo de cores do sistema */}
+              {/^#[0-9a-f]{6}$/i.test(brand.color) && (
+                <div className="overflow-hidden rounded-xl border sm:flex" aria-label="Prévia da marca">
+                  <div className="p-3 text-white sm:w-44 sm:shrink-0" style={{ background: `hsl(${navShades(brand.color).background})` }}>
+                    <div className="flex items-center gap-2">
+                      {brand.logoUrl ? <img src={brand.logoUrl} alt="" className="h-7 w-7 rounded-md object-cover" /> : <span className="h-7 w-7 rounded-md" style={{ background: brand.color }} />}
+                      <span className="truncate text-sm font-semibold">{clinic.name || 'Sua clínica'}</span>
+                    </div>
+                    <p className="mt-3 hidden rounded-md px-2 py-1.5 text-xs sm:block" style={{ background: `color-mix(in srgb, ${brand.color} 22%, transparent)` }}>Meu dia</p>
+                  </div>
+                  <div className="flex flex-1 flex-wrap items-center gap-3 bg-background p-4">
+                    <span className="inline-flex h-9 items-center rounded-lg px-4 text-sm font-semibold" style={{ background: brand.color, color: readableText(brand.color) }}>Nova proposta</span>
+                    <span className="text-sm font-semibold underline underline-offset-4" style={{ color: `hsl(${textShade(brand.color)})` }}>Ver agenda</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-between gap-2">
+                <BrandButton variant="outline" onClick={() => go('clinica')}><ChevronLeft className="h-4 w-4" /> Voltar</BrandButton>
+                <BrandButton onClick={saveBrand} disabled={saving || uploadingLogo}>{saving ? 'Salvando...' : 'Salvar e continuar'} <ChevronRight className="h-4 w-4" /></BrandButton>
+              </div>
+            </>
+          )}
+
           {step === 'atendimento' && (
             <>
               <div>
                 <h2 className="text-lg font-semibold">Seu atendimento</h2>
                 <p className="text-sm text-muted-foreground">Com seus dias e horários, a agenda já fica pronta para marcar clientes.</p>
               </div>
+              <WhyBox>A agenda só oferece horários dentro do seu expediente. Isso vale para a equipe, para o link de agendamento online e para a IA do WhatsApp.</WhyBox>
               <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
                 <div>
                   <Label htmlFor="s-attends" className="text-sm font-semibold">Eu também atendo clientes</Label>
@@ -399,7 +561,7 @@ export default function SetupPage() {
                 </div>
               )}
               <div className="flex justify-between gap-2">
-                <BrandButton variant="outline" onClick={() => go('clinica')}><ChevronLeft className="h-4 w-4" /> Voltar</BrandButton>
+                <BrandButton variant="outline" onClick={() => go('marca')}><ChevronLeft className="h-4 w-4" /> Voltar</BrandButton>
                 <BrandButton onClick={saveAttendance} disabled={saving}>{saving ? 'Salvando...' : 'Salvar e continuar'} <ChevronRight className="h-4 w-4" /></BrandButton>
               </div>
             </>
@@ -411,6 +573,7 @@ export default function SetupPage() {
                 <h2 className="text-lg font-semibold">O que você faz</h2>
                 <p className="text-sm text-muted-foreground">Marque as áreas que você atende e desmarque o que não faz. Os preços são uma tabela base: ajuste agora ou depois em Configurações &gt; Tratamentos.</p>
               </div>
+              <WhyBox>Os tratamentos viram os itens das propostas e as sessões da agenda. Ao escolher uma área, também criamos a anamnese específica dela, com as perguntas de risco daquele tratamento.</WhyBox>
               <div className="space-y-3">
                 {catalogByCategory.map(([name, items]) => {
                   const on = categories.includes(name);
@@ -499,6 +662,7 @@ export default function SetupPage() {
                 <h2 className="text-lg font-semibold">Anamnese e contrato</h2>
                 <p className="text-sm text-muted-foreground">Já deixamos os documentos padrão prontos para usar.</p>
               </div>
+              <WhyBox>A anamnese protege a cliente e você: registra saúde, alergias e a ciência dos riscos. O contrato é gerado a cada venda, já preenchido, para a cliente assinar pelo celular.</WhyBox>
               <ul className="space-y-3">
                 <li className="flex gap-3 rounded-lg border p-4">
                   <ClipboardList className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
@@ -514,8 +678,11 @@ export default function SetupPage() {
                   <div>
                     <p className="font-semibold">Contrato padrão</p>
                     <p className="text-sm text-muted-foreground">
-                      {loaded?.hasContract ? 'Ativo e preenchido com os dados da clínica, da cliente e da venda.' : 'Ainda não ativo: ative em Configurações > Contrato Padrão.'}
+                      {loaded?.hasContract ? 'Ativo e preenchido com os dados da clínica, da cliente e da venda.' : 'Ainda não está ativo. Revise o texto e ative para gerar contratos nas vendas.'}
                     </p>
+                    {!loaded?.hasContract && (
+                      <BrandButton size="sm" variant="outline" className="mt-2" onClick={() => navigate('/clinic/settings?aba=contract-template')}>Revisar e ativar o contrato</BrandButton>
+                    )}
                   </div>
                 </li>
                 {summary.treatments > 0 && (
@@ -542,6 +709,7 @@ export default function SetupPage() {
                 <h2 className="text-lg font-semibold">Sua equipe</h2>
                 <p className="text-sm text-muted-foreground">Tem secretária ou outra profissional? Convide agora. Se trabalha sozinha, pode pular.</p>
               </div>
+              <WhyBox>Cada pessoa entra com o próprio login e vê só o que a função dela precisa: a recepção cuida da agenda, a profissional dos atendimentos.</WhyBox>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_180px_auto] sm:items-end">
                 <div className={field}><Label htmlFor="s-inv">E-mail</Label><Input id="s-inv" type="email" value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} placeholder="secretaria@email.com" /></div>
                 <div className={field}>
@@ -576,8 +744,24 @@ export default function SetupPage() {
                 <h2 className="text-xl font-semibold">Sua clínica está pronta para atender</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Comece marcando o primeiro atendimento. Tudo o que você preencheu pode ser ajustado em Configurações.</p>
               </div>
+              {onboarding.data && onboarding.data.items.some((i) => !i.done) && (
+                <div className="mx-auto max-w-md space-y-2 text-left">
+                  <p className="text-sm font-semibold">Para começar a atender</p>
+                  <ul className="space-y-2">
+                    {onboarding.data.items.filter((i) => !i.done).map((i) => (
+                      <li key={i.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{i.title}{i.optional ? <span className="font-normal text-muted-foreground"> (opcional)</span> : null}</p>
+                          <p className="text-xs text-muted-foreground">{i.why}</p>
+                        </div>
+                        <BrandButton size="sm" variant="outline" onClick={() => navigate(i.href)}>{i.action}</BrandButton>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="flex flex-col justify-center gap-2 sm:flex-row">
-                <BrandButton onClick={() => navigate('/clinic/appointments')}>Agendar primeiro atendimento</BrandButton>
+                <BrandButton onClick={() => navigate('/clinic/appointments?openNew=1')}>Marcar o primeiro atendimento</BrandButton>
                 <BrandButton variant="outline" onClick={() => navigate('/clinic')}>Ir para o início</BrandButton>
               </div>
             </div>
