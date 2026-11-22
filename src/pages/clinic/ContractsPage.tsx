@@ -914,7 +914,13 @@ export default function ContractsPage() {
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">Selecione uma proposta aprovada para gerar a minuta:</p>
               {approvedProposals.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma proposta aprovada disponível</p>
+                <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed px-4 py-8 text-center">
+                  <p className="font-medium text-foreground">Nenhuma proposta aprovada ainda</p>
+                  <p className="max-w-md text-sm text-muted-foreground">O contrato sai de uma proposta aprovada. Monte a proposta da cliente, aprove e volte aqui para gerar o contrato.</p>
+                  <BrandButton className="mt-2" onClick={() => { setCreateDialog(false); navigate('/clinic/proposals?openNew=1'); }}>
+                    <Plus className="h-4 w-4" /> Criar proposta
+                  </BrandButton>
+                </div>
               ) : (
                 <Select value={selectedProposal} onValueChange={setSelectedProposal}>
                   <SelectTrigger>
@@ -929,8 +935,21 @@ export default function ContractsPage() {
                   </SelectContent>
                 </Select>
               )}
+              {approvedProposals.length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  A cliente ainda não tem proposta?{' '}
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
+                    onClick={() => { setCreateDialog(false); navigate('/clinic/proposals?openNew=1'); }}
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Criar proposta
+                  </button>
+                </p>
+              )}
             </div>
 
+            {approvedProposals.length > 0 && (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
               <ContractPaymentConfigurator
                 paymentCondition={paymentCondition}
@@ -965,6 +984,7 @@ export default function ContractsPage() {
                 )}
               </div>
             </div>
+            )}
 
             <div className="flex gap-3">
               <BrandButton variant="outline" onClick={() => setCreateDialog(false)} className="flex-1">
