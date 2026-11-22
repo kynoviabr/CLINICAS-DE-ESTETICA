@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useUrlState } from '@/hooks/useUrlState';
+import { BreakdownBars } from '@/components/finance/BreakdownBars';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
@@ -31,7 +33,7 @@ export default function ExpensesPage() {
   const { isEnabled } = useClinicFeatures();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [month, setMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [month, setMonth] = useUrlState<string>('mes', format(new Date(), 'yyyy-MM'));
   const [form, setForm] = useState<Form | null>(null);
   const { start, end } = monthBounds(month);
 
@@ -165,12 +167,7 @@ export default function ExpensesPage() {
       {byCategory.length > 0 && (
         <Card className="mb-4 shadow-card"><CardContent className="space-y-2 p-4">
           <p className="text-sm font-semibold">Por categoria</p>
-          {byCategory.map(([cat, value]) => (
-            <div key={cat} className="text-sm">
-              <div className="flex justify-between"><span>{cat}</span><span className="font-medium">{formatBRL(value)}</span></div>
-              <div className="mt-1 h-1.5 rounded-full bg-muted"><div className="h-1.5 rounded-full bg-primary" style={{ width: `${Math.max(2, (value / total) * 100)}%` }} /></div>
-            </div>
-          ))}
+          <BreakdownBars rows={byCategory} barClassName="bg-rose-400" />
         </CardContent></Card>
       )}
 

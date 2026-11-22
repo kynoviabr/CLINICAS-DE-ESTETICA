@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useUrlState } from '@/hooks/useUrlState';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { endOfMonth, format, parseISO } from 'date-fns';
@@ -31,7 +32,7 @@ export default function ReceiptsByMethodPage() {
   const { toast } = useToast();
   const { clinicId } = useUserRole();
   const { clinicName } = useBranding();
-  const [month, setMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [month, setMonth] = useUrlState<string>('mes', format(new Date(), 'yyyy-MM'));
   const [filter, setFilter] = useState<string | null>(null);
   const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null);
   const prev = shiftMonth(month, -1);

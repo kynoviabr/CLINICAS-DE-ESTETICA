@@ -14,6 +14,7 @@ import { BrandButton } from '@/components/ui/brand-button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import { MonthCashPanel } from '@/components/finance/MonthCashPanel';
 import { RegisterPaymentDialog } from '@/components/finance/RegisterPaymentDialog';
 import { useInstallmentPayments } from '@/components/finance/useInstallmentPayments';
 import { useScheduledRevenue } from '@/hooks/useScheduledRevenue';
@@ -279,6 +280,10 @@ export default function SimpleFinancePage() {
           )}
         </CardContent>
       </Card>
+
+      {clinicId && (
+        <MonthCashPanel clinicId={clinicId} month={start.slice(0, 7)} received={lists.recebidas} showExpenses={isEnabled('expenses')} />
+      )}
 
       <RegisterPaymentDialog
         installment={payments.paying}
