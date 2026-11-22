@@ -114,6 +114,7 @@ export default function ContractsPage() {
     payerIdForContract: string | null;
     paymentTermsText: string;
     proposal: ApprovedProposal;
+    depositIds: string[];
   } | null>(null);
   const [confirmingEmission, setConfirmingEmission] = useState(false);
   const [generatingPreview, setGeneratingPreview] = useState(false);
@@ -208,6 +209,23 @@ export default function ContractsPage() {
   });
 
   const selectedProposalData = approvedProposals.find((proposal) => proposal.id === selectedProposal) || null;
+  // Sinais pagos da cliente (crédito): entram como entrada já paga e reduzem o que falta pagar.
+  const [applyDeposits, setApplyDeposits] = useState(true);
+  const { data: patientDeposits = [] } = useQuery({
+    queryKey: ['deposits', 'credit', clinicId, selectedProposalData?.patient_id],
+    queryFn: async () => {
+      const pid = selectedProposalData!.patient_id;
+      const { data: leadRows } = await supabase.from('leads').select('id').eq('clinic_id', clinicId!).eq('patient_id', pid);
+      const leadIds = (leadRows || []).map((l) => l.id);
+      let q = supabase.from('appointment_deposits').select('id, amount, receipt_number, paid_at').eq('clinic_id', clinicId!).eq('status', 'paid');
+      q = leadIds.length ? q.or(`patient_id.eq.${pid},lead_id.in.(${leadIds.join(',')})`) : q.eq('patient_id', pid);
+      const { data, error } = await q.order('paid_at');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!clinicId && !!selectedProposalData?.patient_id,
+  });
+  const depositCredit = applyDeposits ? patientDeposits.reduce((sum, d) => sum + Number(d.amount), 0) : 0;
   const linkedPayerId = selectedProposalData?.patients?.payer_id || null;
   const { data: linkedPayerOption } = useQuery({
     queryKey: ['contract-linked-payer', clinicId, linkedPayerId],
@@ -292,7 +310,7 @@ export default function ContractsPage() {
       const proposal = approvedProposals.find((item) => item.id === selectedProposal);
       if (!proposal) throw new Error('Selecione uma proposta');
       if (selectedPaymentMethods.length === 0) throw new Error('Selecione ao menos uma forma de pagamento.');
-      const proposalAmount = Number(proposal.final_amount || 0);
+      const proposalAmount = Math.max(0, Number(proposal.final_amount || 0) - depositCredit);
 
       const amounts = selectedPaymentMethods.map((method) => Number(paymentConfig[method]?.amount || 0));
       const hasInvalidAmount = amounts.some((value) => !Number.isFinite(value) || value <= 0);
@@ -303,15 +321,19 @@ export default function ContractsPage() {
       if (hasInvalidInstallments) throw new Error('Cartão e boleto exigem quantidade de parcelas maior que zero.');
       const totalInformed = amounts.reduce((sum, value) => sum + value, 0);
       if (totalInformed + 0.0001 < proposalAmount) {
-        throw new Error(`A soma das formas de pagamento (R$ ${totalInformed.toFixed(2)}) deve ser igual ou maior ao valor da proposta (R$ ${proposalAmount.toFixed(2)}).`);
+        throw new Error(`A soma das formas de pagamento (R$ ${totalInformed.toFixed(2)}) deve ser igual ou maior ao valor ${depositCredit > 0 ? 'que falta pagar' : 'da proposta'} (R$ ${proposalAmount.toFixed(2)}).`);
       }
 
-      const paymentTermsText = buildContractPaymentNotes(
-        selectedPaymentMethods,
-        paymentConfig,
-        paymentDetails,
-        paymentConditionLabels[paymentCondition]
-      );
+      const usedDeposits = applyDeposits ? patientDeposits : [];
+      const paymentTermsText = [
+        buildContractPaymentNotes(
+          selectedPaymentMethods,
+          paymentConfig,
+          paymentDetails,
+          paymentConditionLabels[paymentCondition]
+        ),
+        ...usedDeposits.map((d) => `Sinal já pago: R$ ${Number(d.amount).toFixed(2).replace('.', ',')} (recibo ${d.receipt_number || '—'}), abatido do total.`),
+      ].join('\n');
 
       const patient = proposal.patients;
       let payerIdForContract = null;
@@ -423,7 +445,8 @@ export default function ContractsPage() {
         issuanceKey,
         payerIdForContract,
         paymentTermsText,
-        proposal
+        proposal,
+        depositIds: usedDeposits.map((d) => d.id),
       });
 
       } finally {
@@ -490,6 +513,11 @@ export default function ContractsPage() {
       if (insertError) throw insertError;
 
       await upsertContractFinancialForecast(contract.id);
+      if (previewContract.depositIds.length) {
+        const { error: depError } = await supabase.rpc('deposit_apply_to_contract', { p_contract_id: contract.id, p_deposit_ids: previewContract.depositIds });
+        if (depError) toast({ title: 'Contrato emitido, mas o sinal não foi abatido', description: depError.message, variant: 'destructive' });
+        qc.invalidateQueries({ queryKey: ['deposits'] });
+      }
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['contracts'] }),
         qc.invalidateQueries({ queryKey: ['patients'] }),
@@ -577,7 +605,7 @@ export default function ContractsPage() {
       });
     };
 
-  const selectedProposalAmount = Number(selectedProposalData?.final_amount || 0);
+  const selectedProposalAmount = Math.max(0, Number(selectedProposalData?.final_amount || 0) - depositCredit);
   const selectedAmountSum = selectedPaymentMethods.reduce(
     (sum, method) => sum + Number(paymentConfig[method]?.amount || 0),
     0
@@ -971,9 +999,19 @@ export default function ContractsPage() {
                     payerOptionsOverride={linkedPayerOption ? [linkedPayerOption] : []}
                   />
                 )}
+                {selectedProposal && patientDeposits.length > 0 && (
+                  <label className="flex cursor-pointer items-start gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                    <input type="checkbox" className="mt-1 h-4 w-4 accent-current" checked={applyDeposits} onChange={(e) => setApplyDeposits(e.target.checked)} />
+                    <span>
+                      <span className="font-semibold">Sinal pago: R$ {patientDeposits.reduce((s2, d) => s2 + Number(d.amount), 0).toFixed(2)}</span>
+                      {' '}({patientDeposits.map((d) => d.receipt_number).filter(Boolean).join(', ')}). Abater deste contrato
+                      <span className="block text-xs text-emerald-800">Entra como entrada já paga. As formas de pagamento cobrem só o que falta.</span>
+                    </span>
+                  </label>
+                )}
                 {selectedProposal && (
                   <div className="rounded-md border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
-                    Valor da proposta: <span className="font-semibold text-foreground">R$ {selectedProposalAmount.toFixed(2)}</span> ·
+                    {depositCredit > 0 ? 'Falta pagar (proposta menos o sinal)' : 'Valor da proposta'}: <span className="font-semibold text-foreground">R$ {selectedProposalAmount.toFixed(2)}</span> ·
                     Soma informada: <span className="font-semibold text-foreground">R$ {selectedAmountSum.toFixed(2)}</span>
                     {selectedAmountSum + 0.0001 < selectedProposalAmount && (
                       <span className="block text-destructive mt-1">

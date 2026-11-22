@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { Plus, GripVertical } from 'lucide-react';
+import { appointmentDepositState } from '@/lib/finance/deposit';
 import { statusConfig } from '@/lib/agenda/model';
 import { visibleWeekDays, workingWeekdays } from '@/lib/agenda/workDays';
 import { availabilityStateAt, daySlots, slotOf, weekHours } from '@/lib/agenda/daySlots';
@@ -168,6 +169,8 @@ export function WeekView({ ctx }: { ctx: AgendaPageController }) {
                             {format(getAppointmentStartDate(a), 'HH:mm')}
                             {a.appointment_type === 'evaluation' && <span className="ml-1 rounded bg-white/20 px-1 text-[9px]">Avaliação</span>}
                             {a.appointment_type === 'single_session' && <span className="ml-1 rounded bg-white/20 px-1 text-[9px]">Avulsa</span>}
+                            {appointmentDepositState((a as { appointment_deposits?: Array<{ status: string; created_at?: string }> }).appointment_deposits) === 'pending' && <span className="ml-1 rounded bg-amber-300 px-1 text-[9px] text-amber-950">Aguardando sinal</span>}
+                            {appointmentDepositState((a as { appointment_deposits?: Array<{ status: string; created_at?: string }> }).appointment_deposits) === 'paid' && <span className="ml-1 rounded bg-white/20 px-1 text-[9px]">Sinal pago</span>}
                           </span>
                           {canDrag && <GripVertical className="h-3 w-3 opacity-70 shrink-0" />}
                         </div>

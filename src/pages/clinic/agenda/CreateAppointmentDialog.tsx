@@ -8,6 +8,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { AlertTriangle, UserPlus } from 'lucide-react';
 import { AnamneseAlertBanner } from '@/components/anamnese/AnamneseAlertBanner';
 import { TreatmentAnamneseAlert } from '@/components/anamnese/TreatmentAnamneseAlert';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { useDepositConfig } from '@/hooks/useDepositConfig';
+import { defaultDepositAmount } from '@/lib/finance/deposit';
+import { errorMessage } from '@/lib/errors';
+import { WhatsAppSendDialog, type WhatsAppSend } from '@/components/deposits/WhatsAppSendDialog';
+import { prepareDepositRequest } from '@/components/deposits/depositSend';
 import type { AgendaPageController } from './useAgendaPage';
 import type { AppointmentKind } from '@/lib/agenda/model';
 
@@ -45,14 +53,56 @@ export function CreateAppointmentDialog({ ctx }: { ctx: AgendaPageController }) 
     selectedSessionTreatmentSummary,
     hasSessionBalance,
     createMutation,
+    clinicId,
+    toast,
   } = ctx;
+  const { config: depositConfig, ready: depositReady } = useDepositConfig(clinicId);
+  const [chargeDeposit, setChargeDeposit] = useState(false);
+  const [depositAmount, setDepositAmount] = useState('');
+  const [depositSend, setDepositSend] = useState<WhatsAppSend | null>(null);
+
+  // Ao abrir: "Cobrar sinal?" vem como a clínica configurou; o valor acompanha o tipo do agendamento.
+  useEffect(() => {
+    if (dialogOpen) setChargeDeposit(depositReady && depositConfig.default_on);
+  }, [dialogOpen, depositReady, depositConfig.default_on]);
+  useEffect(() => {
+    setDepositAmount(String(defaultDepositAmount(depositConfig, appointmentType)).replace('.', ','));
+  }, [appointmentType, depositConfig]);
+
+  const submit = () => {
+    const amount = Number(depositAmount.replace(/\./g, '').replace(',', '.'));
+    const wantsDeposit = chargeDeposit && depositReady;
+    if (wantsDeposit && !(amount > 0)) { toast({ title: 'Informe o valor do sinal', variant: 'destructive' }); return; }
+    // Guarda quem é antes do formulário ser limpo.
+    const person = selectedPatient ? getSelectedPatientData(selectedPatient) : getSelectedLeadData(selectedLead);
+    const clientName = person?.full_name || 'Cliente';
+    const phone = (person as { phone?: string | null } | undefined)?.phone || null;
+    createMutation.mutate(undefined, {
+      onSuccess: async (result) => {
+        if (!wantsDeposit || !result?.appointment?.id) return;
+        const title = `Enviar o Pix do sinal para ${clientName.split(/\s+/)[0]}`;
+        setDepositSend({ title, phone, status: 'preparing', message: '' });
+        try {
+          const { data, error } = await supabase.rpc('deposit_create', { p_appointment_id: result.appointment.id, p_amount: amount });
+          if (error) throw error;
+          const dep = data as { id: string; token: string };
+          const message = await prepareDepositRequest(dep.id, clientName, dep.token);
+          setDepositSend({ title, phone, status: 'ready', message });
+        } catch (err) {
+          setDepositSend({ title, phone, status: 'error', message: '', error: `O horário foi criado, mas o sinal não: ${errorMessage(err, 'tente pelo detalhe do agendamento.')}` });
+        }
+      },
+    });
+  };
   const isPatientAppointment = appointmentType !== 'evaluation' || Boolean(selectedPatient);
   const evaluationLabel = selectedPatient ? 'Avaliação do paciente' : 'Avaliação de lead';
   return (
+    <>
+    <WhatsAppSendDialog send={depositSend} onClose={() => setDepositSend(null)} />
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogContent className="max-w-lg">
         <DialogHeader><DialogTitle>Novo Agendamento</DialogTitle></DialogHeader>
-        <form onSubmit={e => { e.preventDefault(); createMutation.mutate(); }} className="space-y-4 mt-4">
+        <form onSubmit={e => { e.preventDefault(); submit(); }} className="space-y-4 mt-4">
           {createFormError && (
             <Alert className="border-amber-300 bg-amber-50 text-amber-900">
               <AlertTriangle className="h-4 w-4" />
@@ -211,6 +261,35 @@ export function CreateAppointmentDialog({ ctx }: { ctx: AgendaPageController }) 
               <Input type="number" value={duration} onChange={e => setDuration(e.target.value)} />
             </div>
           </div>
+          <div className="space-y-2 rounded-lg border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <Label className="font-medium">Cobrar sinal?</Label>
+              <div role="group" aria-label="Cobrar sinal" className="inline-flex rounded-lg border bg-muted/40 p-0.5">
+                {([['Sim', true], ['Não', false]] as const).map(([label, value]) => (
+                  <button key={label} type="button" aria-pressed={chargeDeposit === value} disabled={!depositReady && value}
+                    onClick={() => setChargeDeposit(value)}
+                    className={`rounded-md px-3 py-1 text-sm font-medium transition-colors disabled:opacity-50 ${chargeDeposit === value ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {!depositReady ? (
+              <p className="text-xs text-muted-foreground">
+                Para cobrar sinal pelo Pix, cadastre a chave em{' '}
+                <Link to="/clinic/settings?aba=pagamentos" className="font-medium text-primary underline-offset-2 hover:underline">Configurações › Pagamentos</Link>.
+              </p>
+            ) : chargeDeposit ? (
+              <div className="flex items-center gap-2">
+                <Label htmlFor="new-dep-amount" className="text-xs text-muted-foreground">Valor (R$)</Label>
+                <Input id="new-dep-amount" inputMode="decimal" className="h-9 w-28" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Abatido do tratamento. O horário fica aguardando o sinal.</p>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Dá para cobrar depois, pelo detalhe do agendamento.</p>
+            )}
+          </div>
+
           <div className="space-y-2">
             <Label>Notas</Label>
             <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} />
@@ -234,5 +313,6 @@ export function CreateAppointmentDialog({ ctx }: { ctx: AgendaPageController }) 
         </form>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

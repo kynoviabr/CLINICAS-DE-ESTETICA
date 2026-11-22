@@ -14,12 +14,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import WhatsappConnectCard from '@/components/whatsapp/WhatsappConnectCard';
 import AuraInfoCard from '@/components/whatsapp/AuraInfoCard';
 import ServiceSettingsTab from '@/components/settings/ServiceSettingsTab';
+import { DepositSettingsTab } from '@/components/settings/DepositSettingsTab';
 import { Switch } from '@/components/ui/switch';
 import { FeaturesCard } from '@/components/settings/FeaturesCard';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, ClipboardList, FileText, MessageCircle, Bot } from 'lucide-react';
+import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, ClipboardList, FileText, MessageCircle, Bot, QrCode } from 'lucide-react';
 import { AutomationsSettingsTab } from '@/components/settings/AutomationsSettingsTab';
 import TeamMfaCard from '@/components/settings/TeamMfaCard';
 import AccessLogList from '@/components/security/AccessLogList';
@@ -265,6 +266,7 @@ export default function SettingsPage() {
           <TabsTrigger value="professionals"><UserCog className="w-4 h-4 mr-1" />Profissionais</TabsTrigger>
           <TabsTrigger value="treatments"><Stethoscope className="w-4 h-4 mr-1" />Tratamentos</TabsTrigger>
           <TabsTrigger value="atendimento"><Clock className="w-4 h-4 mr-1" />Atendimento</TabsTrigger>
+          <TabsTrigger value="pagamentos"><QrCode className="w-4 h-4 mr-1" />Pagamentos</TabsTrigger>
           {role === 'admin' && <TabsTrigger value="contract-template"><FileText className="w-4 h-4 mr-1" />Contrato Padrão</TabsTrigger>}
           <TabsTrigger value="anamnese"><ClipboardList className="w-4 h-4 mr-1" />Anamnese</TabsTrigger>
           {show('crm-kanban') && <TabsTrigger value="crm-kanban"><Settings className="w-4 h-4 mr-1" />CRM Kanban</TabsTrigger>}
@@ -289,6 +291,10 @@ export default function SettingsPage() {
 
         <TabsContent value="atendimento">
           <ServiceSettingsTab />
+        </TabsContent>
+
+        <TabsContent value="pagamentos">
+          <DepositSettingsTab />
         </TabsContent>
 
         {/* ===== GENERAL ===== */}

@@ -16,6 +16,7 @@ import { whatsappLink } from '@/lib/proposals/sale';
 import { SendAnamneseLink } from '@/components/anamnese/SendAnamneseLink';
 import { TreatmentAnamneseAlert } from '@/components/anamnese/TreatmentAnamneseAlert';
 import { createAppointmentLink, reminderMessage } from '@/lib/appointments/patientLink';
+import { AppointmentDepositPanel } from '@/components/deposits/AppointmentDepositPanel';
 import type { AgendaPageController } from './useAgendaPage';
 
 export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController }) {
@@ -143,6 +144,24 @@ export function AppointmentDetailsDialog({ ctx }: { ctx: AgendaPageController })
                 </div>
                 <div className="flex justify-between items-center"><span className="text-muted-foreground">Status:</span><span className="flex items-center gap-2">{viewAppt.confirmed_via === 'patient_link' && viewAppt.status === 'confirmed' && <span className="text-xs text-emerald-700">pelo paciente</span>}<BrandBadge status={statusConfig[viewAppt.status]?.badge || 'default'}>{statusConfig[viewAppt.status]?.label || viewAppt.status}</BrandBadge></span></div>
               </div>
+
+              {!isProfessional && (
+                <AppointmentDepositPanel
+                  appt={{
+                    id: viewAppt.id,
+                    clinicId: viewAppt.clinic_id,
+                    status: viewAppt.status,
+                    appointmentType: viewAppt.appointment_type,
+                    clientName: getAppointmentDisplayName(viewAppt),
+                    phone:
+                      (viewAppt.leads as { phone?: string | null } | null)?.phone ||
+                      (getSelectedPatientData(viewAppt.patient_id) as { phone?: string | null } | undefined)?.phone ||
+                      (viewAppt.patients as { phone?: string | null } | null)?.phone ||
+                      null,
+                  }}
+                  onConfirmed={() => setViewAppt({ ...viewAppt, status: 'confirmed', confirmed_at: viewAppt.confirmed_at || new Date().toISOString() })}
+                />
+              )}
 
               {/* Seção de Notas */}
               <div className="space-y-2.5 pt-3 border-t">

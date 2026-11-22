@@ -112,7 +112,7 @@ export function useAgendaStatePart1() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('appointments')
-        .select('*, patients(full_name, phone, dissatisfaction_flag, dissatisfaction_level, dissatisfaction_reason, notes), leads!appointments_lead_id_fkey(full_name, phone, notes), treatments(name)')
+        .select('*, patients(full_name, phone, dissatisfaction_flag, dissatisfaction_level, dissatisfaction_reason, notes), leads!appointments_lead_id_fkey(full_name, phone, notes), treatments(name), appointment_deposits(status, created_at)')
         .eq('clinic_id', clinicId!)
         .gte('scheduled_at', rangeStart.toISOString())
         .lte('scheduled_at', rangeEnd.toISOString())

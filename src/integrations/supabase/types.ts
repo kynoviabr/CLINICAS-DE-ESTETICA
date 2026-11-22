@@ -489,6 +489,96 @@ export type Database = {
         }
         Relationships: []
       }
+      appointment_deposits: {
+        Row: {
+          amount: number
+          applied_at: string | null
+          applied_contract_id: string | null
+          appointment_id: string | null
+          clinic_id: string
+          confirmed_by: string | null
+          created_at: string
+          created_by: string | null
+          credit_days: number
+          due_at: string | null
+          id: string
+          lead_id: string | null
+          note: string | null
+          notice_hours: number
+          paid_at: string | null
+          patient_id: string | null
+          payer_cpf: string | null
+          payer_name: string | null
+          policy_accepted: Json | null
+          policy_text: string
+          receipt_number: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          token_hash: string | null
+          txid: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          applied_at?: string | null
+          applied_contract_id?: string | null
+          appointment_id?: string | null
+          clinic_id: string
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          credit_days?: number
+          due_at?: string | null
+          id?: string
+          lead_id?: string | null
+          note?: string | null
+          notice_hours?: number
+          paid_at?: string | null
+          patient_id?: string | null
+          payer_cpf?: string | null
+          payer_name?: string | null
+          policy_accepted?: Json | null
+          policy_text: string
+          receipt_number?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          token_hash?: string | null
+          txid: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          applied_at?: string | null
+          applied_contract_id?: string | null
+          appointment_id?: string | null
+          clinic_id?: string
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          credit_days?: number
+          due_at?: string | null
+          id?: string
+          lead_id?: string | null
+          note?: string | null
+          notice_hours?: number
+          paid_at?: string | null
+          patient_id?: string | null
+          payer_cpf?: string | null
+          payer_name?: string | null
+          policy_accepted?: Json | null
+          policy_text?: string
+          receipt_number?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          token_hash?: string | null
+          txid?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       appointments: {
         Row: {
           appointment_type: string
@@ -4377,6 +4467,34 @@ export type Database = {
       }
       lead_link_to_patient: {
         Args: { p_lead_id: string; p_patient_id: string }
+        Returns: Json
+      }
+      deposit_accept_policy: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      deposit_apply_to_contract: {
+        Args: { p_contract_id: string; p_deposit_ids: string[] }
+        Returns: Json
+      }
+      deposit_confirm: {
+        Args: { p_deposit_id: string; p_payer_cpf?: string; p_payer_name: string }
+        Returns: Json
+      }
+      deposit_create: {
+        Args: { p_amount: number; p_appointment_id: string }
+        Returns: Json
+      }
+      deposit_link: {
+        Args: { p_deposit_id: string }
+        Returns: Json
+      }
+      deposit_public: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      deposit_resolve: {
+        Args: { p_deposit_id: string; p_note?: string; p_outcome: string }
         Returns: Json
       }
       lead_signup_status: {

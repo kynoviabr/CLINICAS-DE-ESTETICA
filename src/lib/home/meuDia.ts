@@ -85,7 +85,7 @@ export function clientsToRenew(
 
 // ---------- O que fazer hoje ----------
 
-export type TaskKind = 'confirmar' | 'retomar' | 'proposta' | 'cobrar' | 'renovar';
+export type TaskKind = 'confirmar' | 'sinal' | 'retomar' | 'proposta' | 'cobrar' | 'renovar';
 export interface DayTask {
   id: string;
   kind: TaskKind;
@@ -106,6 +106,8 @@ export function buildDayTasks(input: {
   expiringProposals: Array<{ id: string; name: string; phone: string | null; valid_until: string; total: number; number: string }>;
   overdue: Array<{ id: string; name: string; phone: string | null; amount: number; due_date: string }>;
   toRenew: Array<{ patientId: string; name: string; phone: string | null; days: number }>;
+  /** Sinais cobrados que passaram do prazo sem pagamento. */
+  unpaidDeposits?: Array<{ id: string; name: string; phone: string | null; amount: number; start_time: string }>;
   limitPerKind?: number;
 }): DayTask[] {
   const limit = input.limitPerKind ?? 3;
@@ -118,6 +120,16 @@ export function buildDayTasks(input: {
       detail: a.service ? `${a.service} · ainda não confirmou` : 'Ainda não confirmou',
       phone: a.phone,
       message: `Oi ${firstName(a.name)}! Tudo bem? Confirmando seu horário amanhã às ${hour}${a.service ? ` (${a.service})` : ''} aqui na ${input.clinicName}. Posso contar com você?`,
+    });
+  });
+  (input.unpaidDeposits || []).slice(0, limit).forEach((d) => {
+    const when = format(new Date(d.start_time), "dd/MM 'às' HH:mm");
+    tasks.push({
+      id: `sinal-${d.id}`, kind: 'sinal', priority: 1,
+      title: `Sinal não pago: ${d.name}, ${when}`,
+      detail: `${formatBRL(d.amount)} · prazo vencido. Cobre de novo ou libere o horário na agenda.`,
+      phone: d.phone,
+      message: `Oi ${firstName(d.name)}! Aqui é da ${input.clinicName}. Seu horário de ${when} está reservado, aguardando o sinal de ${formatBRL(d.amount)}. Consegue fazer o Pix hoje? Se precisar, te reenvio o link.`,
     });
   });
   input.expiringProposals.slice(0, limit).forEach((p) => {

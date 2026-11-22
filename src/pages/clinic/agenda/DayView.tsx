@@ -4,6 +4,7 @@ import { BrandBadge } from '@/components/ui/brand-badge';
 import { format } from 'date-fns';
 import { Plus, GripVertical } from 'lucide-react';
 import { availabilityStateAt, dayHours, daySlots, slotOf } from '@/lib/agenda/daySlots';
+import { appointmentDepositState } from '@/lib/finance/deposit';
 import { statusConfig, formatDurationMinutes } from '@/lib/agenda/model';
 import type { AgendaPageController } from './useAgendaPage';
 import { DayColumnsView } from './DayColumnsView';
@@ -205,6 +206,12 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
                                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
                                   Avulsa
                                 </span>
+                              )}
+                              {appointmentDepositState((a as { appointment_deposits?: Array<{ status: string; created_at?: string }> }).appointment_deposits) === 'pending' && (
+                                <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-900">Aguardando sinal</span>
+                              )}
+                              {appointmentDepositState((a as { appointment_deposits?: Array<{ status: string; created_at?: string }> }).appointment_deposits) === 'paid' && (
+                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800">Sinal pago</span>
                               )}
                               {a.is_batch && (
                                 <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700">

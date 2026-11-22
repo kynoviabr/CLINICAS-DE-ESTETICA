@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { Plus, GripVertical } from 'lucide-react';
 import { availabilityStateAt, dayHoursForMany, daySlots, slotOf } from '@/lib/agenda/daySlots';
+import { appointmentDepositState } from '@/lib/finance/deposit';
 import { statusConfig, formatDurationMinutes } from '@/lib/agenda/model';
 import type { AgendaPageController } from './useAgendaPage';
 
@@ -158,6 +159,8 @@ export function DayColumnsView({ ctx, professionalIds }: { ctx: AgendaPageContro
                               {durLabel && <span className="ml-1 opacity-80 font-normal">({durLabel})</span>}
                               {a.appointment_type === 'evaluation' && <span className="ml-1 rounded bg-white/20 px-1 text-[9px]">Avaliação</span>}
                             {a.appointment_type === 'single_session' && <span className="ml-1 rounded bg-white/20 px-1 text-[9px]">Avulsa</span>}
+                            {appointmentDepositState((a as { appointment_deposits?: Array<{ status: string; created_at?: string }> }).appointment_deposits) === 'pending' && <span className="ml-1 rounded bg-amber-300 px-1 text-[9px] text-amber-950">Aguardando sinal</span>}
+                            {appointmentDepositState((a as { appointment_deposits?: Array<{ status: string; created_at?: string }> }).appointment_deposits) === 'paid' && <span className="ml-1 rounded bg-white/20 px-1 text-[9px]">Sinal pago</span>}
                             </span>
                             {canDrag && <GripVertical className="h-3 w-3 opacity-70 shrink-0" />}
                           </div>

@@ -15,6 +15,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { MonthCashPanel } from '@/components/finance/MonthCashPanel';
+import { useMonthDeposits } from '@/hooks/useMonthDeposits';
 import { RegisterPaymentDialog } from '@/components/finance/RegisterPaymentDialog';
 import { useInstallmentPayments } from '@/components/finance/useInstallmentPayments';
 import { useScheduledRevenue } from '@/hooks/useScheduledRevenue';
@@ -82,7 +83,11 @@ export default function SimpleFinancePage() {
   });
 
   const summary = summarizeMonth(rows, start.slice(0, 7), today);
-  const progress = goalProgress(summary.received, goal);
+  // Sinais pagos (e retidos) também são dinheiro recebido no mês; o abatido já virou parcela paga do contrato.
+  const monthDeposits = useMonthDeposits(clinicId, start, end);
+  const depositsTotal = monthDeposits.reduce((sum, d) => sum + Number(d.amount), 0);
+  const received = summary.received + depositsTotal;
+  const progress = goalProgress(received, goal);
   const isCurrentMonth = start.slice(0, 7) === today.slice(0, 7);
 
   const lists = useMemo(() => ({
@@ -105,14 +110,14 @@ export default function SimpleFinancePage() {
   };
 
   const scheduled = useScheduledRevenue(clinicId, start.slice(0, 7));
-  const potential = monthPotential(summary.received, summary.toReceive, scheduled.summary.total);
+  const potential = monthPotential(received, summary.toReceive, scheduled.summary.total);
   const potentialPct = goal ? Math.round((potential / goal) * 100) : null;
 
   const tabs: Array<{ key: ListKey; label: string; count: number; total: number; unit: [string, string] }> = [
     { key: 'atrasadas', label: 'Atrasadas', count: summary.overdueCount, total: summary.overdue, unit: ['parcela', 'parcelas'] },
     { key: 'receber', label: 'A receber', count: summary.toReceiveCount, total: summary.toReceive, unit: ['parcela', 'parcelas'] },
     { key: 'previsto', label: 'Previsto na agenda', count: scheduled.summary.count, total: scheduled.summary.total, unit: ['atendimento', 'atendimentos'] },
-    { key: 'recebidas', label: 'Recebidas', count: summary.receivedCount, total: summary.received, unit: ['parcela', 'parcelas'] },
+    { key: 'recebidas', label: 'Recebidas', count: summary.receivedCount + monthDeposits.length, total: received, unit: ['recebimento', 'recebimentos'] },
   ];
   const current = list === 'previsto' ? [] : lists[list];
 
@@ -138,7 +143,7 @@ export default function SimpleFinancePage() {
               {!isCurrentMonth && <BrandButton variant="ghost" size="sm" onClick={() => setMonth(today.slice(0, 7))}>Hoje</BrandButton>}
             </div>
             <div className="flex flex-1 flex-wrap items-baseline gap-x-6 gap-y-1 text-sm text-muted-foreground">
-              <p className="flex items-baseline gap-2">Recebido <span className="font-heading text-xl font-semibold text-foreground">{formatBRL(summary.received)}</span></p>
+              <p className="flex items-baseline gap-2">Recebido <span className="font-heading text-xl font-semibold text-foreground">{formatBRL(received)}</span></p>
               <p className="flex items-baseline gap-1.5">
                 Potencial <span className="font-semibold text-foreground">{formatBRL(potential)}</span>
                 {potentialPct !== null && <span>({potentialPct}% da meta)</span>}
@@ -172,7 +177,7 @@ export default function SimpleFinancePage() {
             </div>
           )}
           <p className="text-xs text-muted-foreground">
-            Potencial = recebido {formatBRL(summary.received)} + a receber {formatBRL(summary.toReceive)} + previsto na agenda {formatBRL(scheduled.summary.total)}
+            Potencial = recebido {formatBRL(received)} + a receber {formatBRL(summary.toReceive)} + previsto na agenda {formatBRL(scheduled.summary.total)}
           </p>
         </CardContent>
       </Card>
@@ -232,12 +237,24 @@ export default function SimpleFinancePage() {
             )
           ) : isLoading ? (
             <p className="p-4 text-sm text-muted-foreground">Carregando...</p>
-          ) : current.length === 0 ? (
+          ) : current.length === 0 && (list !== 'recebidas' || monthDeposits.length === 0) ? (
             <p className="p-4 text-sm text-muted-foreground">
               {list === 'atrasadas' ? 'Nenhuma parcela atrasada.' : list === 'receber' ? 'Nada a receber neste mês a partir de hoje.' : 'Nenhum recebimento neste mês ainda.'}
             </p>
           ) : (
             <ul className="divide-y">
+              {list === 'recebidas' && monthDeposits.map((d) => (
+                <li key={d.id} className="flex items-center justify-between gap-3 p-4">
+                  <div className="min-w-0">
+                    <p className="font-medium">{d.client_name || 'Cliente'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Sinal do agendamento · Pix{d.receipt_number ? ` · recibo ${d.receipt_number}` : ''}{d.status === 'retained' ? ' · retido (falta)' : ''}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Recebido em {d.paid_at ? format(new Date(d.paid_at), 'dd/MM/yyyy') : '—'}</p>
+                  </div>
+                  <span className="font-semibold">{formatBRL(Number(d.amount))}</span>
+                </li>
+              ))}
               {current.map((r) => {
                 const late = list === 'atrasadas' && r.due_date ? daysLate(r.due_date, today) : 0;
                 const installmentLabel = `${r.installment_number}/${r.installments_count}`;
@@ -281,7 +298,7 @@ export default function SimpleFinancePage() {
       </Card>
 
       {clinicId && (
-        <MonthCashPanel clinicId={clinicId} month={start.slice(0, 7)} received={lists.recebidas} showExpenses={isEnabled('expenses')} />
+        <MonthCashPanel clinicId={clinicId} month={start.slice(0, 7)} received={[...lists.recebidas, ...monthDeposits.map((d) => ({ paid_method: 'Sinal (Pix)', amount: Number(d.amount) }))]} showExpenses={isEnabled('expenses')} />
       )}
 
       <RegisterPaymentDialog

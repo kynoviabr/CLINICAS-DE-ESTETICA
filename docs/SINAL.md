@@ -1,6 +1,18 @@
 # Sinal para garantir o horário (Pix)
 
-Status: **especificado, não implementado** (decidido em 22/11/2026).
+Status: **versão 1 implementada** (22/11/2026).
+
+Onde está no código:
+- Banco: `supabase/migrations/20261223100000_sinal_agendamento.sql` (tabela `appointment_deposits` e funções `deposit_*`).
+- Pix e recibo: `src/lib/finance/pix.ts`, `src/lib/finance/deposit.ts`.
+- Configuração: Configurações › Pagamentos (`DepositSettingsTab`).
+- Agenda: "Cobrar sinal? Sim/Não" no novo agendamento e painel do sinal no detalhe (`AppointmentDepositPanel`).
+- Página da cliente: `/sinal/:token` (`PublicDepositPage`).
+- Financeiro e DRE contam o sinal pago/retido; o abatido vira parcela paga do contrato (tela Contratos).
+- Meu dia: "Sinal não pago" quando o prazo vence.
+
+Ainda não feito: abater pela geração de contrato na ficha da cliente (só pela tela Contratos) e abater em sessão
+avulsa. Nesses casos o sinal continua como crédito até um contrato.
 
 A clínica pode cobrar um valor simbólico para garantir um horário: avaliação ou procedimento, de lead ou de
 cliente antiga. A cliente paga por Pix (QR Code ou "copia e cola"). O valor é abatido do tratamento; se ela

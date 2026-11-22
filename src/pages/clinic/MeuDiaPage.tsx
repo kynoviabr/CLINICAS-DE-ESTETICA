@@ -206,6 +206,21 @@ export default function MeuDiaPage() {
     return map;
   }, [leads, monthStart]);
 
+  const { data: unpaidDeposits = [] } = useQuery({
+    queryKey: ['deposits', 'unpaid', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('appointment_deposits')
+        .select('id, amount, due_at, appointments(start_time, status), patients(full_name, phone), leads(full_name, phone)')
+        .eq('clinic_id', clinicId!).eq('status', 'pending').lt('due_at', new Date().toISOString()).limit(50);
+      if (error) throw error;
+      type Row = { id: string; amount: number; appointments: { start_time: string; status: string } | null; patients: { full_name: string; phone: string | null } | null; leads: { full_name: string; phone: string | null } | null };
+      return ((data || []) as unknown as Row[])
+        .filter((d) => d.appointments && ['scheduled', 'confirmed'].includes(d.appointments.status) && new Date(d.appointments.start_time) > new Date())
+        .map((d) => ({ id: d.id, name: d.patients?.full_name || d.leads?.full_name || 'Cliente', phone: d.patients?.phone ?? d.leads?.phone ?? null, amount: Number(d.amount), start_time: d.appointments!.start_time }));
+    },
+    enabled: !!clinicId,
+  });
+
   const tasks = buildDayTasks({
     now,
     clinicName,
@@ -220,6 +235,7 @@ export default function MeuDiaPage() {
     overdue: finance.filter((r) => r.status === 'previsto' && r.due_date && r.due_date < today)
       .map((r) => ({ id: r.id, name: r.contracts?.patients?.full_name || 'Cliente', phone: r.contracts?.patients?.phone ?? null, amount: Number(r.amount), due_date: r.due_date! })),
     toRenew: renew,
+    unpaidDeposits,
   });
   const pendingTasks = tasks.filter((t) => !done.includes(t.id));
 
