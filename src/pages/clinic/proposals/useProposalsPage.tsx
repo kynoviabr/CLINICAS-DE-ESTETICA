@@ -1,6 +1,7 @@
 import { buildProposalHtml, defaultValidUntil, formatBRL, whatsappLink } from '@/lib/proposals/sale';
 import { proposalWhatsAppMessage } from '@/lib/proposals/whatsappMessage';
 import { generateContractPDF } from '@/lib/contractPDF';
+import type { DocumentOutput } from '@/lib/documents/output';
 import { useClinicLetterhead } from '@/hooks/useClinicLetterhead';
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -507,13 +508,12 @@ export function useProposalsPage() {
     setViewDialog({ ...proposal, items: (pItems || []) as ProposalItemWithTreatment[] });
   };
 
-  const handlePrint = (proposal: ProposalWithPatient & { items?: ProposalItemWithTreatment[] }) => {
+  /** Orçamento para "Baixar PDF" e "Imprimir". */
+  const proposalDocument = (proposal: ProposalWithPatient & { items?: ProposalItemWithTreatment[] }): DocumentOutput => {
     const patient = patients.find((p) => p.id === proposal.patient_id);
     const printItems = proposal.items || [];
     const parsed = parseProposalNotesPayload(proposal.notes);
     const paymentSummary = buildPaymentPresetSummary(parsed.paymentPreset);
-    const w = window.open('', '_blank');
-    if (!w) return;
     const body = buildProposalHtml({
       clinicName,
       clinic: letterhead ?? null,
@@ -533,10 +533,7 @@ export function useProposalsPage() {
       paymentSummary,
       notes: parsed.plainNotes || undefined,
     });
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Orçamento ${proposal.proposal_number}</title>
-      <style>body{padding:32px;margin:0}@media print{body{padding:0}}</style></head><body>${body}</body></html>`);
-    w.document.close();
-    w.print();
+    return { html: body, title: `Orçamento ${proposal.proposal_number}`, filename: `Orcamento-${proposal.proposal_number}` };
   };
 
   // Envio pelo WhatsApp em duas etapas: primeiro prepara (PDF + link de aprovação), depois a pessoa
@@ -808,7 +805,7 @@ export function useProposalsPage() {
     getMinPriceWarning,
     openEdit,
     openView,
-    handlePrint,
+    proposalDocument,
     handleSendWhatsApp,
     goEmitContract,
     approveAndEmit,

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, FileText, Trash2, Search, Eye, Send, Check, X, Printer, Filter, DollarSign, Pencil, MessageCircle, Loader2, UserPlus } from 'lucide-react';
+import { Plus, FileText, Trash2, Search, Eye, Send, Check, X, Filter, DollarSign, Pencil, MessageCircle, Loader2, UserPlus } from 'lucide-react';
 import QuickPatientModal from '@/components/patient/QuickPatientModal';
 import ProposalLinkPanel from '@/components/proposals/ProposalLinkPanel';
 import { format } from 'date-fns';
@@ -19,6 +19,7 @@ import {
 import { buildPaymentPresetSummary, parseProposalNotesPayload } from '@/lib/proposals/paymentPreset';
 import { useProposalsPage } from './proposals/useProposalsPage';
 import { SendProposalDialog } from './proposals/SendProposalDialog';
+import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
 
 const statusMap: Record<string, { label: string; badge: BadgeStatus }> = {
   draft: { label: 'Rascunho', badge: 'draft' },
@@ -98,7 +99,7 @@ export default function ProposalsPage() {
     getMinPriceWarning,
     openEdit,
     openView,
-    handlePrint,
+    proposalDocument,
     handleSendWhatsApp,
     sendPrep,
     setSendPrep,
@@ -637,9 +638,7 @@ export default function ProposalsPage() {
                     )}
                   </BrandButton>
 
-                  <BrandButton variant="outline" size="sm" onClick={() => handlePrint(viewDialog)}>
-                    <Printer className="w-4 h-4" /> Imprimir
-                  </BrandButton>
+                  <DocumentOutputButtons className="contents" getDocument={() => proposalDocument(viewDialog)} />
 
                   {viewDialog.status !== 'accepted' && (viewDialog.status as string) !== 'converted' && (
                     <BrandButton

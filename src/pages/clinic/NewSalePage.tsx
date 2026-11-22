@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Check, DollarSign, Download, FileSignature, Mail, MessageCircle, Plus, Printer, Search, Send, Trash2, UserPlus } from 'lucide-react';
+import { AlertTriangle, Check, DollarSign, FileSignature, Mail, MessageCircle, Plus, Search, Send, Trash2, UserPlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -28,7 +28,7 @@ import {
 } from '@/lib/proposals/sale';
 import { createSale, ensurePatientFromLead, type LeadForSale } from '@/lib/proposals/createSale';
 import { useClinicLetterhead } from '@/hooks/useClinicLetterhead';
-import { generateContractPDF } from '@/lib/contractPDF';
+import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
 import { errorMessage } from '@/lib/errors';
 import { formatPhone } from '@/lib/patients/validation';
 
@@ -73,7 +73,6 @@ export default function NewSalePage() {
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState<'send' | 'close' | null>(null);
   const [saved, setSaved] = useState<SavedSale | null>(null);
-  const [downloading, setDownloading] = useState(false);
 
   const { data: patients = [] } = useQuery({
     queryKey: ['sale-patients', clinicId],
@@ -251,34 +250,6 @@ export default function NewSalePage() {
     notes: s.notes,
   });
 
-  const downloadPdf = async () => {
-    if (!saved) return;
-    setDownloading(true);
-    try {
-      const blob = await generateContractPDF(proposalHtml(saved));
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Proposta-${saved.number}.pdf`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
-    } catch (err) {
-      toast({ title: 'Não foi possível gerar o PDF', description: errorMessage(err, 'Tente imprimir.'), variant: 'destructive' });
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  const printProposal = () => {
-    if (!saved) return;
-    const w = window.open('', '_blank');
-    if (!w) return;
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Proposta ${saved.number}</title></head><body style="margin:32px">${proposalHtml(saved)}</body></html>`);
-    w.document.close();
-    w.focus();
-    w.print();
-  };
-
   const reset = () => {
     setSaved(null); setCustomer(null); setSearch(''); setItems([]); setMethods([]); setConfig({}); setDetails({});
     setCondition('cash'); setNotes(''); setValidUntil(defaultValidUntil());
@@ -304,12 +275,11 @@ export default function NewSalePage() {
                 className="flex min-h-11 items-center justify-center gap-2 rounded-btn border border-border bg-card px-4 font-semibold text-foreground hover:bg-muted">
                 <Mail className="h-4 w-4" /> Enviar por e-mail
               </a>
-              <BrandButton variant="outline" onClick={downloadPdf} disabled={downloading}>
-                <Download className="h-4 w-4" /> {downloading ? 'Gerando PDF...' : 'Baixar PDF'}
-              </BrandButton>
-              <BrandButton variant="outline" onClick={printProposal}>
-                <Printer className="h-4 w-4" /> Imprimir
-              </BrandButton>
+              <DocumentOutputButtons
+                size="md"
+                className="col-span-1 grid grid-cols-2 gap-3 sm:col-span-2"
+                getDocument={() => ({ html: proposalHtml(saved), title: `Proposta ${saved.number}`, filename: `Proposta-${saved.number}` })}
+              />
             </div>
             <p className="text-xs text-muted-foreground">Dica: baixe o PDF e anexe na conversa do WhatsApp junto com a mensagem.</p>
             <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:justify-between">

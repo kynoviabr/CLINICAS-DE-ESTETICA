@@ -15,7 +15,8 @@ import { formatCpf } from '@/lib/patients/validation';
 import { errorMessage } from '@/lib/errors';
 import type { Tables } from '@/integrations/supabase/types';
 import { WhatsAppSendDialog, type WhatsAppSend } from './WhatsAppSendDialog';
-import { prepareDepositReceipt, prepareDepositRequest } from './depositSend';
+import { depositReceiptDocument, prepareDepositReceipt, prepareDepositRequest } from './depositSend';
+import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
 
 type Deposit = Tables<'appointment_deposits'>;
 
@@ -227,6 +228,7 @@ export function AppointmentDepositPanel({ appt, onConfirmed }: { appt: DepositAp
                 <Receipt className="h-4 w-4" /> Enviar recibo
               </BrandButton>
             )}
+            {current.receipt_number && <DocumentOutputButtons className="contents" disabled={busy} getDocument={() => depositReceiptDocument(current.id)} />}
             {status === 'paid' && (
               <>
                 <BrandButton size="sm" variant="ghost" onClick={() => ask('Reter o sinal? Use quando a cliente faltou ou cancelou fora do prazo.', () => resolve.mutate({ dep: current, outcome: 'retained' }))} disabled={busy}>

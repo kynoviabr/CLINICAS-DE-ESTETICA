@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import QRCode from 'qrcode';
-import { CalendarDays, CheckCircle2, Copy, Download, Loader2, ShieldCheck } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Copy, Loader2, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { BrandButton } from '@/components/ui/brand-button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { generateContractPDF } from '@/lib/contractPDF';
+import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
+import type { DocumentOutput } from '@/lib/documents/output';
 import { pixCopyPaste } from '@/lib/finance/pix';
 import { appointmentWhat, appointmentWhen, buildDepositReceiptHtml, receiptDataFromPublic, type DepositPublic } from '@/lib/finance/deposit';
 import { formatBRL } from '@/lib/proposals/sale';
@@ -24,7 +25,6 @@ export default function PublicDepositPage() {
   const [accepted, setAccepted] = useState(false);
   const [qr, setQr] = useState('');
   const [copied, setCopied] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -59,25 +59,10 @@ export default function PublicDepositPage() {
     catch { setError('Não foi possível copiar. Toque e segure no código para copiar.'); }
   };
 
-  const downloadReceipt = async () => {
+  const receiptDocument = (): DocumentOutput => {
     const r = data && receiptDataFromPublic(data);
-    if (!r) return;
-    setDownloading(true);
-    try {
-      const blob = await generateContractPDF(buildDepositReceiptHtml(r));
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Recibo-${r.number}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
-    } catch {
-      setError('Não foi possível gerar o recibo agora. Tente de novo.');
-    } finally {
-      setDownloading(false);
-    }
+    if (!r) throw new Error('Recibo indisponível.');
+    return { html: buildDepositReceiptHtml(r), title: `Recibo ${r.number}`, filename: `Recibo-${r.number}` };
   };
 
   const appt = data?.appointment;
@@ -124,9 +109,8 @@ export default function PublicDepositPage() {
                       Recebemos {formatBRL(Number(data.amount || 0))}. {data.status === 'paid' ? 'Seu horário está garantido e o valor será abatido do seu atendimento.' : ''}
                     </p>
                   </div>
-                  <BrandButton className="w-full" onClick={downloadReceipt} disabled={downloading}>
-                    <Download className="h-4 w-4" /> {downloading ? 'Gerando recibo…' : `Baixar recibo ${data.receipt?.number || ''}`}
-                  </BrandButton>
+                  <DocumentOutputButtons size="md" className="grid grid-cols-2 gap-2" getDocument={receiptDocument} />
+                  <p className="text-xs text-muted-foreground">Recibo nº {data.receipt?.number}</p>
                   {data.status === 'paid' && (
                     <p className="text-xs text-muted-foreground">Se precisar remarcar, avise a clínica com pelo menos {data.notice_hours} horas de antecedência e o sinal fica como crédito.</p>
                   )}

@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CheckCircle2, FileSignature, Loader2, Printer } from 'lucide-react';
+import { CheckCircle2, FileSignature, Loader2 } from 'lucide-react';
+import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
+import type { DocumentOutput } from '@/lib/documents/output';
+import { signatureNoteHtml } from '@/lib/documents/signatureNote';
 import { supabase } from '@/integrations/supabase/client';
 import AcceptForm from '@/components/public/AcceptForm';
 import { sanitizeContractTemplate } from '@/lib/contractTemplateRenderer';
@@ -52,6 +55,11 @@ export default function PublicContractPage() {
   if (!data) return <div className="flex min-h-screen items-center justify-center bg-slate-50"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div>;
 
   const color = data.clinic.primary_color || '#059669';
+  const contractDocument = (): DocumentOutput => ({
+    html: html + signatureNoteHtml(data.signature && { signerName: data.signature.signer_name, signedAt: data.signature.signed_at, documentHash: data.signature.document_hash }),
+    title: `Contrato ${data.contract_number}`,
+    filename: `Contrato-${data.contract_number}`,
+  });
   return (
     <div className="min-h-screen bg-slate-100/70 pb-10">
       <header className="sticky top-0 z-20 border-b bg-white shadow-sm print:hidden">
@@ -63,9 +71,7 @@ export default function PublicContractPage() {
               <p className="text-[11px] text-slate-500">Contrato nº {data.contract_number}</p>
             </div>
           </div>
-          <button type="button" onClick={() => window.print()} className="flex h-10 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium text-slate-700">
-            <Printer className="h-4 w-4" /> Salvar PDF
-          </button>
+          <DocumentOutputButtons className="flex shrink-0 gap-2" getDocument={contractDocument} />
         </div>
       </header>
 

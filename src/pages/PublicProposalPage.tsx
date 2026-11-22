@@ -20,7 +20,11 @@ import { BrandButton } from '@/components/ui/brand-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { formatBRL, whatsappLink } from '@/lib/proposals/sale';
+import { buildProposalHtml, formatBRL, whatsappLink } from '@/lib/proposals/sale';
+import { escapeHtml } from '@/lib/documents/letterhead';
+import { downloadDocumentPdf, type DocumentOutput } from '@/lib/documents/output';
+import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
+import { toast } from 'sonner';
 import { proposalLinkErrorMessage } from '@/lib/proposals/publicLink';
 import AcceptForm from '@/components/public/AcceptForm';
 import { signingError, type IdentityCheck } from '@/lib/signing/acceptance';
@@ -68,6 +72,7 @@ export default function PublicProposalPage() {
   const { id: token } = useParams<{ id: string }>();
   const [proposal, setProposal] = useState<PublicProposalData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState('');
@@ -152,8 +157,33 @@ export default function PublicProposalPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handlePrint = () => {
-    window.print();
+  const proposalDocument = (): DocumentOutput => {
+    const accepted = proposal.acceptance
+      ? `<p style="margin-top:18px;padding:10px 12px;border:1px solid #a7f3d0;background:#ecfdf5;border-radius:8px;font-size:12px;color:#065f46">Aceita eletronicamente por ${escapeHtml(proposal.acceptance.signer_name)} em ${format(new Date(proposal.acceptance.accepted_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}.</p>`
+      : '';
+    const html = buildProposalHtml({
+      clinicName: clinic.name,
+      clinic: { name: clinic.name, address: clinic.address, city: clinic.city, state: clinic.state, phone: clinic.phone, email: clinic.email, logoUrl: clinic.logo_url, accentColor: clinic.primary_color },
+      number: proposal.proposal_number,
+      date: new Date(proposal.created_at),
+      validUntil: proposal.valid_until,
+      clientName: patient?.full_name || '—',
+      items: items.map((i) => ({ treatment_id: i.treatment_id, name: i.treatment_name || '—', quantity: i.quantity, unit_price: Number(i.unit_price), min_price: null })),
+      total: finalTotal,
+      standardTotal,
+      discountAmount: Number(proposal.discount_amount || 0),
+      discountPercent: Number(proposal.discount_percent || 0),
+      paymentSummary,
+      notes: parsedNotes.plainNotes || undefined,
+    }) + accepted;
+    return { html, title: `Proposta ${proposal.proposal_number}`, filename: `Proposta-${proposal.proposal_number}` };
+  };
+
+  const handlePrint = async () => {
+    setPdfBusy(true);
+    try { await downloadDocumentPdf(proposalDocument()); }
+    catch { toast.error('Não foi possível gerar o PDF agora. Tente de novo.'); }
+    finally { setPdfBusy(false); }
   };
 
   const handleOpenWhatsApp = () => {
@@ -369,6 +399,16 @@ export default function PublicProposalPage() {
             </CardContent>
           </Card>
         )}
+
+        <Card className="rounded-2xl border-0 bg-white shadow-sm">
+          <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Cópia da proposta</p>
+              <p className="text-xs text-slate-500">Guarde o PDF ou imprima, se precisar.</p>
+            </div>
+            <DocumentOutputButtons className="grid grid-cols-2 gap-2 sm:flex" getDocument={proposalDocument} />
+          </CardContent>
+        </Card>
       </main>
 
       {/* Barra Fixa Inferior de Ações para Mobile e Desktop */}
@@ -378,9 +418,10 @@ export default function PublicProposalPage() {
             variant="outline"
             size="sm"
             onClick={handlePrint}
+            disabled={pdfBusy}
             className="flex-1 sm:flex-initial h-11 text-xs sm:text-sm font-semibold border-slate-300 text-slate-700"
           >
-            <Download className="w-4 h-4 mr-1.5 text-slate-500" /> Baixar PDF
+            {pdfBusy ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin text-slate-500" /> : <Download className="w-4 h-4 mr-1.5 text-slate-500" />} {pdfBusy ? 'Gerando…' : 'Baixar PDF'}
           </BrandButton>
 
           {proposal.can_accept && !proposal.acceptance ? (

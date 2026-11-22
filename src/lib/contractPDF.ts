@@ -1,45 +1,43 @@
 import html2pdf from 'html2pdf.js';
 
 /**
- * Generates a PDF blob from a raw HTML string.
- * This is the SINGLE SOURCE OF TRUTH for contract text, matching the web view exactly.
+ * Gera o PDF (A4) a partir do HTML do documento. Fonte única do texto: o mesmo HTML da tela.
+ *
+ * O conteúdo fica num quadro fora da tela, mas o html2pdf recebe o elemento de dentro: ele copia o
+ * elemento que recebe, e se a cópia levasse o "fora da tela" o PDF saía em branco.
  */
 export async function generateContractPDF(htmlContent: string): Promise<Blob> {
-  // Create a hidden container to hold the HTML for rendering
-  const container = document.createElement('div');
-
-  // We apply some styling to ensure it renders like a document
-  container.innerHTML = `
-    <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6; padding: 20px;">
-      ${htmlContent}
-    </div>
-  `;
-
-  // Style the container so it doesn't mess up the visible DOM but can be rendered
-  container.style.position = 'absolute';
-  container.style.left = '-9999px';
-  container.style.top = '0';
-  container.style.width = '800px'; // fixed width for A4 proportion
-  container.style.backgroundColor = '#ffffff';
-  document.body.appendChild(container);
+  const holder = document.createElement('div');
+  Object.assign(holder.style, { position: 'absolute', left: '-10000px', top: '0', width: '800px' });
+  const page = document.createElement('div');
+  page.style.cssText = 'box-sizing:border-box;padding:8px;background:#fff;font-family:Arial,sans-serif;font-size:14px;color:#333;line-height:1.6';
+  page.innerHTML = htmlContent;
+  holder.appendChild(page);
+  document.body.appendChild(holder);
 
   try {
     const opt = {
-      margin:       15,
-      filename:     'contrato.pdf',
-      image:        { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
+      margin: [12, 12, 16, 12] as [number, number, number, number],
+      filename: 'documento.pdf',
+      image: { type: 'jpeg' as const, quality: 0.85 },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
+      pagebreak: { mode: ['css', 'legacy'] },
     };
-
-    // html2pdf returns a promise that resolves to the worker
-    // We want the output as a blob to upload it to Supabase
-    const pdfBlob = await html2pdf().set(opt).from(container).output('blob');
-    return pdfBlob;
-  } finally {
-    // Always cleanup the hidden container
-    if (document.body.contains(container)) {
-      document.body.removeChild(container);
+    const worker = html2pdf().set(opt).from(page).toPdf();
+    const pdf = await worker.get('pdf');
+    // Número da página no rodapé (Página X de Y).
+    const total = pdf.internal.getNumberOfPages();
+    const w = pdf.internal.pageSize.getWidth();
+    const h = pdf.internal.pageSize.getHeight();
+    for (let i = 1; i <= total; i++) {
+      pdf.setPage(i);
+      pdf.setFontSize(8);
+      pdf.setTextColor(156, 163, 175);
+      pdf.text(`Página ${i} de ${total}`, w - 12, h - 7, { align: 'right' });
     }
+    return pdf.output('blob') as Blob;
+  } finally {
+    holder.remove();
   }
 }

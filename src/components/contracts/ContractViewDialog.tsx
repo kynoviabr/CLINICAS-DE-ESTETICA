@@ -10,7 +10,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ContractStatusBadge } from './ContractStatusBadge';
 import ContractSignaturePanel from './ContractSignaturePanel';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, Copy, ExternalLink, FileUp, Printer, TriangleAlert } from 'lucide-react';
+import { CheckCircle2, Copy, ExternalLink, FileUp, TriangleAlert } from 'lucide-react';
+import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
+import type { DocumentOutput } from '@/lib/documents/output';
+import { signatureNoteHtml } from '@/lib/documents/signatureNote';
+import { sanitizeContractTemplate } from '@/lib/contractTemplateRenderer';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { Database } from '@/integrations/supabase/types';
@@ -256,13 +260,15 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
     refreshContracts();
   };
 
-  const handlePrint = () => {
-    if (!c.template_html) return;
-    const windowRef = window.open('', '_blank');
-    if (!windowRef) return;
-    windowRef.document.write(c.template_html);
-    windowRef.document.close();
-    windowRef.print();
+  /** Contrato para "Baixar PDF" e "Imprimir" (com a assinatura eletrônica, se já houver). */
+  const contractDocument = async (): Promise<DocumentOutput> => {
+    const html = sanitizeContractTemplate(c.template_snapshot_html || c.template_html || '');
+    const { data: sig } = await supabase.from('contract_signatures').select('signer_name, signed_at, document_hash').eq('contract_id', c.id).maybeSingle();
+    return {
+      html: html + signatureNoteHtml(sig && { signerName: sig.signer_name, signedAt: sig.signed_at, documentHash: sig.document_hash }),
+      title: `Contrato ${c.contract_number || ''}`.trim(),
+      filename: `Contrato-${c.contract_number || 'minuta'}`,
+    };
   };
 
   const toggleReviewMethod = (method: PaymentMethod, checked: boolean) => {
@@ -760,10 +766,7 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
 
           <div className="flex flex-wrap gap-2 pt-4 border-t">
             {displayHtml && (
-              <BrandButton variant="outline" size="sm" onClick={handlePrint}>
-                <Printer className="w-4 h-4" />
-                Imprimir minuta
-              </BrandButton>
+              <DocumentOutputButtons className="contents" getDocument={contractDocument} />
             )}
 
 
