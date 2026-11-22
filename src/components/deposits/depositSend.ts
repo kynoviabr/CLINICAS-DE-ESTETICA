@@ -71,7 +71,7 @@ export async function depositReceiptDocument(depositId: string): Promise<Documen
     professionalName(appt.professional_id),
     dep.confirmed_by ? supabase.from('professionals').select('full_name').eq('user_id', dep.confirmed_by).limit(1).maybeSingle().then((r) => r.data?.full_name ?? null) : null,
   ]);
-  const accepted = dep.policy_accepted as { at?: string } | null;
+  const accepted = dep.policy_accepted as { at?: string; ip?: string; user_agent?: string } | null;
   const html = buildDepositReceiptHtml({
     clinic,
     number: dep.receipt_number,
@@ -87,6 +87,8 @@ export async function depositReceiptDocument(depositId: string): Promise<Documen
     noticeHours: Number(dep.notice_hours ?? 24),
     creditDays: Number(dep.credit_days ?? 90),
     policyAcceptedAt: accepted?.at ?? null,
+    policyAcceptedIp: accepted?.ip ?? null,
+    policyAcceptedUserAgent: accepted?.user_agent ?? null,
     confirmedBy,
   });
   return { html, title: `Recibo ${dep.receipt_number}`, filename: `Recibo-${dep.receipt_number}` };

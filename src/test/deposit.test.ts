@@ -96,3 +96,18 @@ describe('adiantamento no contrato', () => {
     expect(p.advance).toBe('');
   });
 });
+
+describe('folha de assinatura do recibo', () => {
+  it('traz a confirmação da clínica e o aceite das condições pela cliente', () => {
+    const html = buildDepositReceiptHtml({
+      clinic: { name: 'Aura' }, number: 'RS-2026-0002', amount: 50, paidAt: '2026-11-22T15:00:00.000Z', payerName: 'Maria',
+      clientName: 'Ana Lima', kind: 'single', treatment: 'Peeling', startTime: '2026-11-25T17:00:00.000Z', noticeHours: 24, creditDays: 90,
+      policyAcceptedAt: '2026-11-22T14:00:00.000Z', policyAcceptedIp: '200.1.2.3', policyAcceptedUserAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) Safari/604.1',
+      confirmedBy: 'Dra. Paula',
+    });
+    expect(html).toContain('Folha de assinatura');
+    expect(html).toContain('Recebimento confirmado por Dra. Paula');
+    expect(html).toContain('200.1.2.3');
+    expect(html).toContain('Li e concordo');
+  });
+});

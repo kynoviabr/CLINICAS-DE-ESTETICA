@@ -13,7 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, Copy, ExternalLink, FileUp, TriangleAlert } from 'lucide-react';
 import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
 import type { DocumentOutput } from '@/lib/documents/output';
-import { signatureNoteHtml } from '@/lib/documents/signatureNote';
+import { buildSignatureSheet } from '@/lib/documents/signatureSheet';
+import { loadAcceptances } from '@/lib/documents/acceptances';
 import { sanitizeContractTemplate } from '@/lib/contractTemplateRenderer';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -263,9 +264,10 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
   /** Contrato para "Baixar PDF" e "Imprimir" (com a assinatura eletrônica, se já houver). */
   const contractDocument = async (): Promise<DocumentOutput> => {
     const html = sanitizeContractTemplate(c.template_snapshot_html || c.template_html || '');
-    const { data: sig } = await supabase.from('contract_signatures').select('signer_name, signed_at, document_hash').eq('contract_id', c.id).maybeSingle();
+    const { records, documentHash } = await loadAcceptances('contract', c.id);
+    const label = `Contrato nº ${c.contract_number || '(sem número)'}`;
     return {
-      html: html + signatureNoteHtml(sig && { signerName: sig.signer_name, signedAt: sig.signed_at, documentHash: sig.document_hash }),
+      html: html + buildSignatureSheet({ documentLabel: label, documentHash: documentHash || c.document_hash, records, pendingText: 'Aguardando assinatura da cliente' }),
       title: `Contrato ${c.contract_number || ''}`.trim(),
       filename: `Contrato-${c.contract_number || 'minuta'}`,
     };

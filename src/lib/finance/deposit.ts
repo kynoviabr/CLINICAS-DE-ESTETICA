@@ -2,6 +2,7 @@
 import { buildLetterhead, documentFooter, escapeHtml, formatClinicDocument, type ClinicLetterhead } from '@/lib/documents/letterhead';
 import { formatBRL } from '@/lib/proposals/sale';
 import type { PixKeyType } from '@/lib/finance/pix';
+import { brasiliaDateTime, buildSignatureSheet } from '@/lib/documents/signatureSheet';
 
 export const DEPOSIT_CONFIG_KEY = 'deposit_config';
 
@@ -184,6 +185,8 @@ export type DepositReceiptData = {
   noticeHours: number;
   creditDays: number;
   policyAcceptedAt?: string | null;
+  policyAcceptedIp?: string | null;
+  policyAcceptedUserAgent?: string | null;
   confirmedBy?: string | null;
 };
 
@@ -232,7 +235,20 @@ export function buildDepositReceiptHtml(r: DepositReceiptData): string {
     <p style="margin:0 0 14px;color:#4b5563">Este sinal tem natureza de arras confirmatórias, nos termos dos arts. 417 e 418 do Código Civil.</p>
     <p style="margin:0">${e(r.clinic.city || '')}${r.clinic.city ? ', ' : ''}${e(dateBr(r.paidAt))}.</p>
   </div>
-  ${documentFooter(`Recibo emitido eletronicamente por ${r.clinic.name}${r.confirmedBy ? `, confirmado por ${r.confirmedBy}` : ''} em ${dateTimeBr(r.paidAt)}.${r.clinic.phone ? ` Dúvidas: ${r.clinic.phone}.` : ''}`)}`;
+  ${documentFooter(`Recibo emitido eletronicamente por ${r.clinic.name}${r.confirmedBy ? `, confirmado por ${r.confirmedBy}` : ''} em ${dateTimeBr(r.paidAt)}.${r.clinic.phone ? ` Dúvidas: ${r.clinic.phone}.` : ''}`)}
+  ${buildSignatureSheet({
+    documentLabel: `Recibo de sinal nº ${r.number}`,
+    issuer: `Emitido por ${r.clinic.name}. Recebimento confirmado${r.confirmedBy ? ` por ${r.confirmedBy}` : ''} em ${brasiliaDateTime(r.paidAt)} (horário de Brasília).`,
+    records: r.policyAcceptedAt ? [{
+      signerName: r.clientName,
+      acceptedAt: r.policyAcceptedAt,
+      method: 'link',
+      ip: r.policyAcceptedIp,
+      userAgent: r.policyAcceptedUserAgent,
+      note: 'Leu e concordou com as condições do sinal antes de pagar ("Li e concordo").',
+    }] : [],
+    pendingText: 'Condições sem aceite registrado pela cliente',
+  })}`;
 }
 
 // ---------- dados da página pública (RPC deposit_public) ----------
@@ -255,7 +271,7 @@ export type DepositPublic = {
   };
   receipt?: {
     number: string; client_name: string; payer_name: string; payer_cpf: string | null; paid_at: string;
-    confirmed_by: string | null; policy_accepted: { at?: string } | null;
+    confirmed_by: string | null; policy_accepted: { at?: string; ip?: string; user_agent?: string } | null;
   } | null;
 };
 
@@ -280,6 +296,8 @@ export function receiptDataFromPublic(p: DepositPublic): DepositReceiptData | nu
     noticeHours: Number(p.notice_hours ?? 24),
     creditDays: Number(p.credit_days ?? 90),
     policyAcceptedAt: p.receipt.policy_accepted?.at ?? null,
+    policyAcceptedIp: p.receipt.policy_accepted?.ip ?? null,
+    policyAcceptedUserAgent: p.receipt.policy_accepted?.user_agent ?? null,
     confirmedBy: p.receipt.confirmed_by,
   };
 }

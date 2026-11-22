@@ -29,6 +29,7 @@ import {
 import { createSale, ensurePatientFromLead, type LeadForSale } from '@/lib/proposals/createSale';
 import { useClinicLetterhead } from '@/hooks/useClinicLetterhead';
 import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
+import { buildSignatureSheet } from '@/lib/documents/signatureSheet';
 import { errorMessage } from '@/lib/errors';
 import { formatPhone } from '@/lib/patients/validation';
 
@@ -278,7 +279,7 @@ export default function NewSalePage() {
               <DocumentOutputButtons
                 size="md"
                 className="col-span-1 grid grid-cols-2 gap-3 sm:col-span-2"
-                getDocument={() => ({ html: proposalHtml(saved), title: `Proposta ${saved.number}`, filename: `Proposta-${saved.number}` })}
+                getDocument={() => ({ html: proposalHtml(saved) + buildSignatureSheet({ documentLabel: `Proposta nº ${saved.number}`, records: [], pendingText: 'Aguardando aceite da cliente' }), title: `Proposta ${saved.number}`, filename: `Proposta-${saved.number}` })}
               />
             </div>
             <p className="text-xs text-muted-foreground">Dica: baixe o PDF e anexe na conversa do WhatsApp junto com a mensagem.</p>

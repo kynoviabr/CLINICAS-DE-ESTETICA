@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { isIosBrowser, pdfFileName, printableDocument } from '@/lib/documents/output';
 import { buildAnamneseHtml } from '@/lib/anamnese/document';
-import { signatureNoteHtml } from '@/lib/documents/signatureNote';
+import { brasiliaDateTime, buildSignatureSheet } from '@/lib/documents/signatureSheet';
+import { deviceLabel } from '@/lib/documents/device';
 
 describe('saída de documentos', () => {
   it('nome de arquivo seguro', () => {
@@ -24,11 +25,46 @@ describe('saída de documentos', () => {
     expect(doc).toContain('<p>Oi</p>');
   });
 
-  it('quadro de assinatura escapa o nome e mostra o código', () => {
-    const html = signatureNoteHtml({ signerName: 'Ana <b>', signedAt: '2026-11-22T15:00:00.000Z', documentHash: 'abc123' });
+  it('aparelho em português', () => {
+    expect(deviceLabel('Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1'))
+      .toBe('iPhone · iOS 18.1 · Safari');
+    expect(deviceLabel('Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36'))
+      .toBe('SM-S918B · Android 14 · Chrome');
+    expect(deviceLabel('Mozilla/5.0 (Linux; Android 13; K) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36 WhatsApp/2.24'))
+      .toBe('Celular Android · Android 13 · navegador do WhatsApp');
+    expect(deviceLabel('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36 Edg/130.0'))
+      .toBe('Computador · Windows · Edge');
+    expect(deviceLabel(null)).toBe('Não informado');
+  });
+
+  it('hora de Brasília com segundos', () => {
+    expect(brasiliaDateTime('2026-11-22T17:54:13.000Z')).toBe('22/11/2026 às 14:54:13');
+  });
+
+  it('folha de assinatura: dados do aceite, código e texto legal; nada injetado', () => {
+    const html = buildSignatureSheet({
+      documentLabel: 'Contrato nº CT-1',
+      documentHash: 'abc123',
+      records: [{ signerName: 'Ana <b>', acceptedAt: '2026-11-22T17:54:13.000Z', method: 'link', verifiedBy: 'birth_date', ip: '200.1.2.3',
+        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) Safari/604.1', verificationCode: 'C50E6-3A628' }],
+    });
+    expect(html).toContain('Folha de assinatura');
+    expect(html).toContain('page-break-before:always');
     expect(html).toContain('Ana &lt;b&gt;');
+    expect(html).toContain('Data de nascimento conferida');
+    expect(html).toContain('Link pessoal enviado pela clínica');
+    expect(html).toContain('22/11/2026 às 14:54:13 (horário de Brasília)');
+    expect(html).toContain('200.1.2.3');
+    expect(html).toContain('iPhone · iOS 18.1');
+    expect(html).toContain('C50E6-3A628');
     expect(html).toContain('abc123');
-    expect(signatureNoteHtml(null)).toBe('');
+    expect(html).toContain('Lei 14.063/2020');
+  });
+
+  it('sem aceite mostra a pendência e não o texto legal', () => {
+    const html = buildSignatureSheet({ documentLabel: 'Proposta nº 1', records: [], pendingText: 'Aguardando aceite da cliente' });
+    expect(html).toContain('Aguardando aceite da cliente');
+    expect(html).not.toContain('Lei 14.063');
   });
 });
 
@@ -52,9 +88,9 @@ describe('anamnese em PDF', () => {
     expect(html).toContain('#fffbeb');
     expect(html).toContain('Nada &lt;script&gt;');
     expect(html).not.toContain('<script>');
-    expect(html).toContain('Registro do envio');
+    expect(html).toContain('Folha de assinatura');
     expect(html).toContain('200.1.2.3');
-    expect(html).toContain('aceita eletronicamente');
+    expect(html).toContain('Assinado eletronicamente');
   });
 
   it('sem respostas avisa no documento', () => {

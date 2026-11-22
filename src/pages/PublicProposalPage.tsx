@@ -21,7 +21,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { buildProposalHtml, formatBRL, whatsappLink } from '@/lib/proposals/sale';
-import { escapeHtml } from '@/lib/documents/letterhead';
+import { buildSignatureSheet } from '@/lib/documents/signatureSheet';
+import { loadPublicAcceptances } from '@/lib/documents/acceptances';
 import { downloadDocumentPdf, type DocumentOutput } from '@/lib/documents/output';
 import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
 import { toast } from 'sonner';
@@ -157,10 +158,8 @@ export default function PublicProposalPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const proposalDocument = (): DocumentOutput => {
-    const accepted = proposal.acceptance
-      ? `<p style="margin-top:18px;padding:10px 12px;border:1px solid #a7f3d0;background:#ecfdf5;border-radius:8px;font-size:12px;color:#065f46">Aceita eletronicamente por ${escapeHtml(proposal.acceptance.signer_name)} em ${format(new Date(proposal.acceptance.accepted_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}.</p>`
-      : '';
+  const proposalDocument = async (): Promise<DocumentOutput> => {
+    const { records, documentHash } = await loadPublicAcceptances('proposal', token!);
     const html = buildProposalHtml({
       clinicName: clinic.name,
       clinic: { name: clinic.name, address: clinic.address, city: clinic.city, state: clinic.state, phone: clinic.phone, email: clinic.email, logoUrl: clinic.logo_url, accentColor: clinic.primary_color },
@@ -175,13 +174,13 @@ export default function PublicProposalPage() {
       discountPercent: Number(proposal.discount_percent || 0),
       paymentSummary,
       notes: parsedNotes.plainNotes || undefined,
-    }) + accepted;
+    }) + buildSignatureSheet({ documentLabel: `Proposta nº ${proposal.proposal_number}`, documentHash, records, pendingText: 'Aguardando aceite' });
     return { html, title: `Proposta ${proposal.proposal_number}`, filename: `Proposta-${proposal.proposal_number}` };
   };
 
   const handlePrint = async () => {
     setPdfBusy(true);
-    try { await downloadDocumentPdf(proposalDocument()); }
+    try { await downloadDocumentPdf(await proposalDocument()); }
     catch { toast.error('Não foi possível gerar o PDF agora. Tente de novo.'); }
     finally { setPdfBusy(false); }
   };

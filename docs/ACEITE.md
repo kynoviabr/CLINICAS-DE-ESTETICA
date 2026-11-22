@@ -1,6 +1,6 @@
 # Aceite eletrônico, PDF e impressão de documentos
 
-Status: etapa 1 (Baixar PDF e Imprimir) implementada; etapas 2 a 6 pendentes.
+Status: etapas 1 (Baixar PDF e Imprimir) e 2 (registro dos aceites e folha de assinatura) implementadas; etapas 3 a 6 pendentes.
 
 Etapa 1, onde está:
 - `src/lib/documents/output.ts`: PDF e impressão (quadro escondido no computador; PDF + menu de
@@ -9,8 +9,17 @@ Etapa 1, onde está:
   sinal (agendamento e link da cliente).
 - `src/lib/contractPDF.ts`: corrigido o PDF em branco (o html2pdf copiava o "fora da tela" junto) e
   acrescentado "Página X de Y".
-- Até a folha de assinatura (etapa 2), proposta, contrato e anamnese levam um quadro "assinado
-  eletronicamente" no fim, com nome, data e código de integridade.
+
+Etapa 2, onde está:
+- `supabase/migrations/20261224100000_registro_aceites.sql`: tabela `document_acceptances` com código
+  de verificação; gatilhos copiam cada aceite de proposta e assinatura de contrato; `document_acceptance_sheet`
+  entrega a folha a quem tem o link do documento.
+- `src/lib/documents/signatureSheet.ts` (folha de assinatura, horário de Brasília com segundos),
+  `src/lib/documents/device.ts` (aparelho legível) e `src/lib/documents/acceptances.ts` (leitura).
+- Folha no fim de proposta, contrato, anamnese (a partir do registro do envio) e recibo do sinal
+  (confirmação da clínica e aceite das condições pela cliente).
+- Anamnese e sinal ainda não gravam na tabela única (etapa 3); a folha deles usa as provas já guardadas,
+  sem código de verificação.
 
 ## Objetivo
 

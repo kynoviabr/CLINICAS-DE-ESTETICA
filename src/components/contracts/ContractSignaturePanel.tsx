@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useBranding } from '@/contexts/BrandingContext';
 import { whatsappLink } from '@/lib/proposals/sale';
 import { contractLinkMessage, contractLinkUrl } from '@/lib/signing/acceptance';
+import { deviceLabel } from '@/lib/documents/device';
 
 /** Assinatura digital do contrato: enviar o link pelo WhatsApp e ver a prova da assinatura. */
 export default function ContractSignaturePanel({ contract }: {
@@ -62,7 +63,7 @@ export default function ContractSignaturePanel({ contract }: {
       <div className="space-y-1 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
         <p className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4" /> Assinado digitalmente pelo paciente</p>
         <p>{s.signer_name} · {format(new Date(s.signed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })} · identidade conferida por {s.verified_by === 'birth_date' ? 'data de nascimento' : s.verified_by === 'cpf' ? 'CPF' : 'nome'}</p>
-        <p className="break-all text-xs text-emerald-800">Rede: {s.ip || '—'} · Aparelho: {s.user_agent || '—'}</p>
+        <p className="break-all text-xs text-emerald-800">Rede: {s.ip || '—'} · Aparelho: {deviceLabel(s.user_agent)}</p>
         <p className="break-all text-xs text-emerald-800">Código de integridade (SHA-256): {s.document_hash}</p>
       </div>
     );

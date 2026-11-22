@@ -5,7 +5,8 @@ import { ptBR } from 'date-fns/locale';
 import { CheckCircle2, FileSignature, Loader2 } from 'lucide-react';
 import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
 import type { DocumentOutput } from '@/lib/documents/output';
-import { signatureNoteHtml } from '@/lib/documents/signatureNote';
+import { buildSignatureSheet } from '@/lib/documents/signatureSheet';
+import { loadPublicAcceptances } from '@/lib/documents/acceptances';
 import { supabase } from '@/integrations/supabase/client';
 import AcceptForm from '@/components/public/AcceptForm';
 import { sanitizeContractTemplate } from '@/lib/contractTemplateRenderer';
@@ -55,11 +56,19 @@ export default function PublicContractPage() {
   if (!data) return <div className="flex min-h-screen items-center justify-center bg-slate-50"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div>;
 
   const color = data.clinic.primary_color || '#059669';
-  const contractDocument = (): DocumentOutput => ({
-    html: html + signatureNoteHtml(data.signature && { signerName: data.signature.signer_name, signedAt: data.signature.signed_at, documentHash: data.signature.document_hash }),
-    title: `Contrato ${data.contract_number}`,
-    filename: `Contrato-${data.contract_number}`,
-  });
+  const contractDocument = async (): Promise<DocumentOutput> => {
+    const { records, documentHash } = await loadPublicAcceptances('contract', token);
+    return {
+      html: html + buildSignatureSheet({
+        documentLabel: `Contrato nº ${data.contract_number}`,
+        documentHash: documentHash || data.signature?.document_hash,
+        records,
+        pendingText: 'Aguardando assinatura',
+      }),
+      title: `Contrato ${data.contract_number}`,
+      filename: `Contrato-${data.contract_number}`,
+    };
+  };
   return (
     <div className="min-h-screen bg-slate-100/70 pb-10">
       <header className="sticky top-0 z-20 border-b bg-white shadow-sm print:hidden">

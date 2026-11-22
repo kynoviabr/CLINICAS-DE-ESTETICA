@@ -1,7 +1,7 @@
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { buildLetterhead, documentFooter, escapeHtml, type ClinicLetterhead } from '@/lib/documents/letterhead';
-import { signatureNoteHtml } from '@/lib/documents/signatureNote';
+import { buildSignatureSheet, type AcceptanceRecord } from '@/lib/documents/signatureSheet';
 
 /** Nomes das seções, campos e origens da anamnese (tela e PDF). */
 export const sourceLabels: Record<string, string> = {
@@ -179,16 +179,22 @@ export function buildAnamneseHtml(a: AnamneseDocumentInput): string {
     return `<h3 style="margin:18px 0 6px;font-size:14px;color:#111827">${escapeHtml(sectionLabels[key] || key)}</h3><table style="width:100%;font-size:12px">${rows}</table>`;
   }).join('') || '<p style="color:#6b7280">Nenhuma resposta digital registrada.</p>';
 
-  const evidence = sub
-    ? `<div style="margin-top:22px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:11px;color:#4b5563;break-inside:avoid">
-        <div style="font-weight:700;color:#111827;margin-bottom:4px">Registro do envio</div>
-        <div>Enviada em ${escapeHtml(when(String(sub.at || '')))}${sub.via === 'link' ? ' pelo link pessoal' : ''}${sub.filled_by === 'patient' ? ', preenchida pela própria cliente' : ''}.</div>
-        ${sub.ip ? `<div>IP: ${escapeHtml(String(sub.ip))}</div>` : ''}
-        ${sub.user_agent ? `<div style="word-break:break-all">Aparelho: ${escapeHtml(String(sub.user_agent))}</div>` : ''}
-      </div>`
-    : '';
-  const signer = typeof consent?.signature_name === 'string' && consent.signature_name.trim() ? consent.signature_name.trim() : '';
-  const signed = signer && sub?.at ? signatureNoteHtml({ signerName: signer, signedAt: String(sub.at), label: 'Declarada verdadeira e aceita eletronicamente' }) : '';
+  const signer = typeof consent?.signature_name === 'string' ? consent.signature_name.trim() : '';
+  const records: AcceptanceRecord[] = signer && sub?.at ? [{
+    signerName: signer,
+    acceptedAt: String(sub.at),
+    method: sub.via === 'link' ? 'link' : sub.via === 'portal' ? 'portal' : null,
+    ip: typeof sub.ip === 'string' ? sub.ip : null,
+    userAgent: typeof sub.user_agent === 'string' ? sub.user_agent : null,
+    note: 'Declarou que as informações são verdadeiras e concordou com os termos da anamnese.',
+  }] : [];
+  const sheet = buildSignatureSheet({
+    documentLabel: `Anamnese ${a.number}`,
+    records,
+    pendingText: a.source === 'internal_manual' || a.source === 'manual_upload'
+      ? 'Preenchida pela clínica, sem aceite eletrônico da cliente'
+      : 'Aguardando aceite da cliente',
+  });
 
   return `${buildLetterhead(a.clinic)}
   <div style="font-family:Arial,sans-serif;color:#1f2937">
@@ -202,8 +208,7 @@ export function buildAnamneseHtml(a: AnamneseDocumentInput): string {
       <tr><td style="${cell};color:#6b7280">Vale até</td><td style="${cell}">${escapeHtml(day(a.expiresAt))}</td></tr>
     </table>
     ${body}
-    ${signed}
-    ${evidence}
   </div>
-  ${documentFooter(`Documento gerado em ${when(new Date().toISOString())}. Informações de saúde: uso restrito da clínica e da cliente (LGPD, art. 11).`)}`;
+  ${documentFooter(`Documento gerado em ${when(new Date().toISOString())}. Informações de saúde: uso restrito da clínica e da cliente (LGPD, art. 11).`)}
+  ${sheet}`;
 }

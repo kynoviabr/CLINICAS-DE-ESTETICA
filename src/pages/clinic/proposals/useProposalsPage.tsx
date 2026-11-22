@@ -2,6 +2,8 @@ import { buildProposalHtml, defaultValidUntil, formatBRL, whatsappLink } from '@
 import { proposalWhatsAppMessage } from '@/lib/proposals/whatsappMessage';
 import { generateContractPDF } from '@/lib/contractPDF';
 import type { DocumentOutput } from '@/lib/documents/output';
+import { buildSignatureSheet } from '@/lib/documents/signatureSheet';
+import { loadAcceptances } from '@/lib/documents/acceptances';
 import { useClinicLetterhead } from '@/hooks/useClinicLetterhead';
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -509,7 +511,8 @@ export function useProposalsPage() {
   };
 
   /** Orçamento para "Baixar PDF" e "Imprimir". */
-  const proposalDocument = (proposal: ProposalWithPatient & { items?: ProposalItemWithTreatment[] }): DocumentOutput => {
+  const proposalDocument = async (proposal: ProposalWithPatient & { items?: ProposalItemWithTreatment[] }): Promise<DocumentOutput> => {
+    const { records, documentHash } = await loadAcceptances('proposal', proposal.id);
     const patient = patients.find((p) => p.id === proposal.patient_id);
     const printItems = proposal.items || [];
     const parsed = parseProposalNotesPayload(proposal.notes);
@@ -533,7 +536,8 @@ export function useProposalsPage() {
       paymentSummary,
       notes: parsed.plainNotes || undefined,
     });
-    return { html: body, title: `Orçamento ${proposal.proposal_number}`, filename: `Orcamento-${proposal.proposal_number}` };
+    const html = body + buildSignatureSheet({ documentLabel: `Proposta nº ${proposal.proposal_number}`, documentHash, records, pendingText: 'Aguardando aceite da cliente' });
+    return { html, title: `Orçamento ${proposal.proposal_number}`, filename: `Orcamento-${proposal.proposal_number}` };
   };
 
   // Envio pelo WhatsApp em duas etapas: primeiro prepara (PDF + link de aprovação), depois a pessoa

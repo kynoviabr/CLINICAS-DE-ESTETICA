@@ -1694,6 +1694,81 @@ export type Database = {
           },
         ]
       }
+      document_acceptances: {
+        Row: {
+          id: string
+          clinic_id: string
+          patient_id: string | null
+          lead_id: string | null
+          document_kind: string
+          document_id: string
+          method: string
+          signer_name: string
+          verified_by: string | null
+          ip: string | null
+          user_agent: string | null
+          phone: string | null
+          geo: Json | null
+          whatsapp_message_id: string | null
+          signature_image_path: string | null
+          document_hash: string
+          snapshot: Json | null
+          verification_code: string
+          staff_user_id: string | null
+          source_id: string | null
+          accepted_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clinic_id: string
+          patient_id?: string | null
+          lead_id?: string | null
+          document_kind: string
+          document_id: string
+          method?: string
+          signer_name: string
+          verified_by?: string | null
+          ip?: string | null
+          user_agent?: string | null
+          phone?: string | null
+          geo?: Json | null
+          whatsapp_message_id?: string | null
+          signature_image_path?: string | null
+          document_hash: string
+          snapshot?: Json | null
+          verification_code: string
+          staff_user_id?: string | null
+          source_id?: string | null
+          accepted_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clinic_id?: string
+          patient_id?: string | null
+          lead_id?: string | null
+          document_kind?: string
+          document_id?: string
+          method?: string
+          signer_name?: string
+          verified_by?: string | null
+          ip?: string | null
+          user_agent?: string | null
+          phone?: string | null
+          geo?: Json | null
+          whatsapp_message_id?: string | null
+          signature_image_path?: string | null
+          document_hash?: string
+          snapshot?: Json | null
+          verification_code?: string
+          staff_user_id?: string | null
+          source_id?: string | null
+          accepted_at?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       documents: {
         Row: {
           clinic_id: string
@@ -4495,6 +4570,10 @@ export type Database = {
       }
       deposit_resolve: {
         Args: { p_deposit_id: string; p_note?: string; p_outcome: string }
+        Returns: Json
+      }
+      document_acceptance_sheet: {
+        Args: { p_kind: string; p_token: string }
         Returns: Json
       }
       lead_signup_status: {
