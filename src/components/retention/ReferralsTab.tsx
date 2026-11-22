@@ -30,12 +30,22 @@ export default function ReferralsTab({ clinicId }: { clinicId: string | null }) 
   });
   const pending = rows.filter((r) => r.lead_stage === 'closed_won' && !r.reward_given_at).length;
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
+  if (isLoading) return <Card className="shadow-card"><CardContent className="p-6 text-sm text-muted-foreground">Carregando…</CardContent></Card>;
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">{rows.length} indicação(ões) · {pending} recompensa(s) a entregar. Ligue a indicação em Configurações &gt; Atendimento.</p>
+      <p className="text-sm text-[hsl(var(--text-secondary))]">
+        {rows.length === 1 ? '1 indicação' : `${rows.length} indicações`}
+        {pending > 0 && <>, <span className="font-semibold text-foreground">{pending === 1 ? '1 recompensa a entregar' : `${pending} recompensas a entregar`}</span></>}.
+        {' '}O programa de indicação é ligado em Configurações &gt; Atendimento.
+      </p>
       {rows.length === 0 ? (
-        <Card className="shadow-card"><CardContent className="p-6 text-center text-sm text-muted-foreground">Nenhuma indicação ainda.</CardContent></Card>
+        <Card className="shadow-card">
+          <CardContent className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10"><Gift className="h-5 w-5 text-primary" aria-hidden /></span>
+            <p className="font-medium text-foreground">Nenhuma indicação ainda</p>
+            <p className="max-w-md text-sm text-muted-foreground">Quando uma cliente indicar alguém pelo link do portal, a indicação aparece aqui.</p>
+          </CardContent>
+        </Card>
       ) : (
         <Card className="shadow-card"><CardContent className="divide-y p-0">
           {rows.map((r) => (

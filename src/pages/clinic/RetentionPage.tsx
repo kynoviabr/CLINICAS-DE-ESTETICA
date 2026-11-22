@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { MessageCircle, Phone, RefreshCw } from 'lucide-react';
+import { Cake, Check, Gift, Hourglass, Info, MessageCircle, PackageCheck, Phone, RefreshCw, Sparkles, type LucideIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
 import { PageHeader } from '@/components/ui/page-header';
@@ -17,7 +17,23 @@ import { RETENTION_TABS, groupRetention, retentionMessage, type RetentionKind, t
 const monthStart = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };
 const today = () => new Date().toISOString().slice(0, 10);
 
-/** Retorno de pacientes: quem chamar hoje e quanto as chamadas trouxeram de volta. */
+const KIND_ICON: Record<RetentionKind, LucideIcon> = {
+  maintenance: Sparkles,
+  package_ending: PackageCheck,
+  inactive: Hourglass,
+  birthday: Cake,
+};
+
+const initials = (name: string) => name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+
+// Motivo como "aba": ícone, nome, quantas pessoas e uma linha do que significa.
+const tileClass = [
+  'group flex h-auto min-w-0 flex-col items-start gap-1 rounded-xl border border-border bg-card p-3 text-left shadow-none whitespace-normal',
+  'hover:border-primary/40',
+  'data-[state=active]:border-primary data-[state=active]:bg-primary/5 data-[state=active]:shadow-none',
+].join(' ');
+
+/** Retorno de clientes: quem chamar hoje e quanto as chamadas trouxeram de volta. */
 export default function RetentionPage() {
   const { clinicId, clinicName } = useBranding();
   const navigate = useNavigate();
@@ -45,6 +61,8 @@ export default function RetentionPage() {
   });
   const groups = useMemo(() => groupRetention(rows), [rows]);
   const totals = results.reduce((a, r) => ({ contacted: a.contacted + Number(r.contacted), returned: a.returned + Number(r.returned), revenue: a.revenue + Number(r.revenue) }), { contacted: 0, returned: 0, revenue: 0 });
+  const returnRate = totals.contacted ? Math.round((totals.returned / totals.contacted) * 100) : 0;
+  const toCall = rows.length;
 
   const contact = useMutation({
     mutationFn: async (row: RetentionRow) => {
@@ -62,64 +80,127 @@ export default function RetentionPage() {
   });
 
   const callWhatsapp = (row: RetentionRow) => {
-    if (!row.phone) { toast({ title: 'Sem telefone', description: 'Cadastre o telefone do paciente.', variant: 'destructive' }); return; }
+    if (!row.phone) { toast({ title: 'Sem telefone', description: 'Cadastre o telefone da cliente para chamar no WhatsApp.', variant: 'destructive' }); return; }
     window.open(whatsappLink(row.phone, retentionMessage(row, clinicName || 'nossa clínica')), '_blank', 'noopener,noreferrer');
     contact.mutate(row);
   };
 
   return (
     <div>
-      <PageHeader title="Retorno de pacientes" description="Quem chamar hoje para voltar à clínica">
-        <BrandButton variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+      <PageHeader title="Retorno de clientes" description="Quem chamar hoje para voltar à clínica">
+        <BrandButton variant="outline" onClick={() => refetch()} disabled={isFetching}>
           <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} /> Atualizar
         </BrandButton>
       </PageHeader>
 
-      <div className="mb-6 grid grid-cols-3 gap-3">
-        {[
-          { label: 'Chamados no mês', value: String(totals.contacted) },
-          { label: 'Voltaram (agendaram)', value: String(totals.returned) },
-          { label: 'Receita das propostas', value: formatBRL(totals.revenue) },
-        ].map((s) => (
-          <Card key={s.label} className="shadow-card"><CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">{s.label}</p>
-            <p className="text-xl font-bold sm:text-2xl">{s.value}</p>
-          </CardContent></Card>
-        ))}
-      </div>
+      {/* Resultado do mês numa linha só, como no CRM: informa sem ocupar a tela. */}
+      <Card className="mb-4 border-slate-200 bg-white/95 shadow-sm">
+        <CardContent className="p-3">
+          <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-600">
+            <div className="flex items-baseline gap-1.5"><dd className="font-semibold text-slate-900">{toCall}</dd><dt>{toCall === 1 ? 'cliente para chamar' : 'clientes para chamar'}</dt></div>
+            <div className="flex items-baseline gap-1.5"><dt>Chamadas no mês</dt><dd className="font-semibold text-slate-900">{totals.contacted}</dd></div>
+            <div className="flex items-baseline gap-1.5">
+              <dt>Voltaram</dt>
+              <dd className="font-semibold text-slate-900">{totals.returned}{totals.contacted > 0 && <span className="ml-1 font-normal text-slate-500">({returnRate}%)</span>}</dd>
+            </div>
+            <div className="flex items-baseline gap-1.5"><dt>Em propostas</dt><dd className="font-semibold text-slate-900">{formatBRL(totals.revenue)}</dd></div>
+          </dl>
+        </CardContent>
+      </Card>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as RetentionKind | 'referrals')}>
-        <TabsList className="flex h-auto w-full flex-wrap justify-start">
-          {RETENTION_TABS.map((t) => <TabsTrigger key={t.kind} value={t.kind}>{t.label} ({groups[t.kind].length})</TabsTrigger>)}
-          <TabsTrigger value="referrals">Indicações</TabsTrigger>
+        <TabsList aria-label="Motivo do retorno" className="grid h-auto w-full grid-cols-2 gap-2 bg-transparent p-0 sm:grid-cols-3 lg:grid-cols-5">
+          {RETENTION_TABS.map((t) => {
+            const Icon = KIND_ICON[t.kind];
+            const count = groups[t.kind].length;
+            return (
+              <TabsTrigger key={t.kind} value={t.kind} className={tileClass}>
+                <span className="flex w-full items-center justify-between gap-2">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Icon className="h-4 w-4 text-primary" aria-hidden /> {t.label}
+                  </span>
+                  <span className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-xs font-semibold ${count > 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                    {count}
+                  </span>
+                </span>
+                <span className="text-xs font-normal text-muted-foreground">{t.short}</span>
+              </TabsTrigger>
+            );
+          })}
+          <TabsTrigger value="referrals" className={tileClass}>
+            <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <Gift className="h-4 w-4 text-primary" aria-hidden /> Indicações
+            </span>
+            <span className="text-xs font-normal text-muted-foreground">Recompensas a entregar</span>
+          </TabsTrigger>
         </TabsList>
-        <TabsContent value="referrals"><ReferralsTab clinicId={clinicId} /></TabsContent>
-        {RETENTION_TABS.map((t) => (
-          <TabsContent key={t.kind} value={t.kind} className="space-y-3">
-            <p className="text-xs text-muted-foreground">{t.hint} Quem você chamar some da lista por 30 dias.</p>
-            {isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p> : groups[t.kind].length === 0 ? (
-              <Card className="shadow-card"><CardContent className="p-6 text-center text-sm text-muted-foreground">Ninguém para chamar agora.</CardContent></Card>
-            ) : (
-              <Card className="shadow-card"><CardContent className="divide-y p-0">
-                {groups[t.kind].map((r) => (
-                  <div key={`${r.kind}-${r.patient_id}-${r.treatment_id || ''}`} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
-                    <button type="button" className="min-w-0 text-left" onClick={() => navigate(`/clinic/patients/${r.patient_id}`)}>
-                      <p className="truncate font-medium">{r.full_name}</p>
-                      <p className="text-xs text-muted-foreground">{r.detail}</p>
-                      {r.phone && <p className="flex items-center gap-1 text-xs text-muted-foreground"><Phone className="h-3 w-3" /> {r.phone}</p>}
-                    </button>
-                    <div className="flex shrink-0 gap-2">
-                      <BrandButton size="sm" onClick={() => callWhatsapp(r)} disabled={contact.isPending}>
-                        <MessageCircle className="h-4 w-4" /> Chamar no WhatsApp
-                      </BrandButton>
-                      <BrandButton size="sm" variant="outline" onClick={() => contact.mutate(r)} disabled={contact.isPending}>Já falei</BrandButton>
-                    </div>
-                  </div>
-                ))}
-              </CardContent></Card>
-            )}
-          </TabsContent>
-        ))}
+
+        <TabsContent value="referrals" className="mt-4"><ReferralsTab clinicId={clinicId} /></TabsContent>
+
+        {RETENTION_TABS.map((t) => {
+          const list = groups[t.kind];
+          const Icon = KIND_ICON[t.kind];
+          return (
+            <TabsContent key={t.kind} value={t.kind} className="mt-4 space-y-3">
+              <p className="flex items-start gap-2 text-sm text-[hsl(var(--text-secondary))]">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                <span>{t.hint} Depois que você chama, a cliente sai da lista por 30 dias.</span>
+              </p>
+
+              {isLoading ? (
+                <Card className="shadow-card"><CardContent className="p-6 text-sm text-muted-foreground">Carregando…</CardContent></Card>
+              ) : list.length === 0 ? (
+                <Card className="shadow-card">
+                  <CardContent className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10"><Icon className="h-5 w-5 text-primary" aria-hidden /></span>
+                    <p className="font-medium text-foreground">Ninguém para chamar agora</p>
+                    <p className="max-w-md text-sm text-muted-foreground">{t.empty}</p>
+                    {t.kind === 'maintenance' && (
+                      <Link to="/clinic/treatments" className="text-sm font-medium text-primary underline-offset-4 hover:underline">Configurar prazos em Tratamentos</Link>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="shadow-card">
+                  <CardContent className="p-0">
+                    <ul className="divide-y">
+                      {list.map((r) => (
+                        <li key={`${r.kind}-${r.patient_id}-${r.treatment_id || ''}`} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                          <button
+                            type="button"
+                            className="flex min-w-0 items-center gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            onClick={() => navigate(`/clinic/patients/${r.patient_id}`)}
+                          >
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                              {initials(r.full_name)}
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block truncate font-medium text-foreground">{r.full_name}</span>
+                              <span className="block truncate text-sm text-muted-foreground">{r.detail}</span>
+                              {r.phone ? (
+                                <span className="flex items-center gap-1 text-xs text-muted-foreground"><Phone className="h-3 w-3" aria-hidden /> {r.phone}</span>
+                              ) : (
+                                <span className="text-xs font-medium text-warning">Sem telefone cadastrado</span>
+                              )}
+                            </span>
+                          </button>
+                          <div className="flex shrink-0 gap-2">
+                            <BrandButton className="flex-1 sm:flex-none" onClick={() => callWhatsapp(r)} disabled={contact.isPending || !r.phone}>
+                              <MessageCircle className="h-4 w-4" /> Chamar no WhatsApp
+                            </BrandButton>
+                            <BrandButton variant="outline" onClick={() => contact.mutate(r)} disabled={contact.isPending}>
+                              <Check className="h-4 w-4" /> Já falei
+                            </BrandButton>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+          );
+        })}
       </Tabs>
     </div>
   );

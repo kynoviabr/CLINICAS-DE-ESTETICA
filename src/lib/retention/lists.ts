@@ -4,11 +4,19 @@ export type RetentionRow = {
   treatment_id: string | null; treatment_name: string | null; reference_date: string; detail: string;
 };
 
-export const RETENTION_TABS: { kind: RetentionKind; label: string; hint: string }[] = [
-  { kind: 'maintenance', label: 'Manutenção', hint: 'Tratamentos com manutenção vencendo ou vencida (configure os dias em Tratamentos).' },
-  { kind: 'package_ending', label: 'Pacote no fim', hint: 'Pacientes na última sessão do pacote: hora de oferecer a renovação.' },
-  { kind: 'inactive', label: 'Sumidos', hint: 'Sem visita há mais de 60 dias e sem horário marcado.' },
-  { kind: 'birthday', label: 'Aniversários', hint: 'Aniversariantes dos próximos 7 dias.' },
+export const RETENTION_TABS: { kind: RetentionKind; label: string; short: string; hint: string; empty: string }[] = [
+  { kind: 'maintenance', label: 'Manutenção', short: 'Hora de repetir',
+    hint: 'Clientes com a manutenção do tratamento vencendo ou vencida.',
+    empty: 'Nenhuma manutenção vencendo. Os prazos de cada tratamento ficam em Tratamentos.' },
+  { kind: 'package_ending', label: 'Pacote no fim', short: 'Oferecer renovação',
+    hint: 'Clientes na última sessão do pacote: bom momento para oferecer a renovação.',
+    empty: 'Nenhum pacote terminando agora.' },
+  { kind: 'inactive', label: 'Sumidas', short: 'Mais de 60 dias',
+    hint: 'Sem visita há mais de 60 dias e sem horário marcado.',
+    empty: 'Ninguém sumido. Suas clientes estão voltando.' },
+  { kind: 'birthday', label: 'Aniversários', short: 'Próximos 7 dias',
+    hint: 'Aniversariantes dos próximos 7 dias: um carinho que traz de volta.',
+    empty: 'Nenhum aniversário nos próximos 7 dias.' },
 ];
 
 /** Mensagem pronta para o WhatsApp, por motivo. */
