@@ -292,3 +292,43 @@ export function appointmentDepositState(rows: Array<{ status: string; created_at
   if (live.status === 'pending') return 'pending';
   return live.status === 'paid' ? 'paid' : null;
 }
+
+// ---------- adiantamento no contrato ----------
+
+export type CreditDeposit = { id: string; amount: number; paid_at: string | null; payer_name: string | null; receipt_number: string | null };
+
+const brl = (v: number) => formatBRL(v);
+
+/** "Adiantamento (sinal pago via Pix) de R$ 50,00 em 22/11/2026, por Maria Lima, recibo nº RS-2026-0001". */
+export function advanceDetailsText(deposits: CreditDeposit[]): string {
+  return deposits.map((d) => [
+    `Adiantamento (sinal pago via Pix) de ${brl(Number(d.amount))}`,
+    d.paid_at ? ` em ${dateBr(d.paid_at)}` : '',
+    d.payer_name ? `, por ${d.payer_name}` : '',
+    d.receipt_number ? `, recibo nº ${d.receipt_number}` : '',
+  ].join('')).join('; ');
+}
+
+/** Valor total, adiantamento e valor a pagar (total - adiantamento, nunca negativo). */
+export function contractAmounts(total: number, deposits: CreditDeposit[]) {
+  const advance = Math.round(deposits.reduce((s, d) => s + Number(d.amount), 0) * 100) / 100;
+  return { total, advance, due: Math.max(0, Math.round((total - advance) * 100) / 100) };
+}
+
+/**
+ * Campos de pagamento do contrato com o adiantamento. Modelos antigos não têm {{payment.advance...}}:
+ * nesses o adiantamento e o saldo entram no início de "Forma(s) de pagamento", para sempre aparecer.
+ */
+export function withAdvance<T extends { methods: string }>(payment: T, total: number, deposits: CreditDeposit[], templateHtml: string) {
+  const { advance, due } = contractAmounts(total, deposits);
+  if (advance <= 0) return { ...payment, advance: '', advance_details: '', amount_due: brl(total) };
+  const details = advanceDetailsText(deposits);
+  const usesPlaceholders = /\{\{\s*payment\.(advance|advance_details|amount_due)\s*\}\}/.test(templateHtml || '');
+  return {
+    ...payment,
+    methods: usesPlaceholders ? payment.methods : `${details}. Valor a pagar: ${brl(due)}, por ${payment.methods}`,
+    advance: brl(advance),
+    advance_details: details,
+    amount_due: brl(due),
+  };
+}

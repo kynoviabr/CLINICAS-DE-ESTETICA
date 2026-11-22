@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  brlInWords, buildDepositReceiptHtml, depositReady, depositReceiptMessage, depositRequestMessage, parseDepositConfig,
+  brlInWords, buildDepositReceiptHtml, contractAmounts, depositReady, depositReceiptMessage, depositRequestMessage, parseDepositConfig, withAdvance,
 } from '@/lib/finance/deposit';
 
 describe('valor por extenso', () => {
@@ -60,5 +60,39 @@ describe('mensagens e recibo', () => {
     expect(html).toContain('válido por 90 dias');
     expect(html).toContain('Aura &lt;b&gt;');
     expect(html).not.toContain('Aura <b>');
+  });
+});
+
+describe('adiantamento no contrato', () => {
+  const dep = [{ id: 'd1', amount: 100, paid_at: '2026-11-22T15:00:00.000Z', payer_name: 'Maria Lima', receipt_number: 'RS-2026-0001' }];
+  const base = { total_value: 'R$ 1.000,00', condition: 'À vista', methods: 'Pix à vista', installments: 1, due_dates: '22/11/2026' };
+
+  it('valor a pagar = total - adiantamento', () => {
+    expect(contractAmounts(1000, dep)).toEqual({ total: 1000, advance: 100, due: 900 });
+    expect(contractAmounts(50, dep).due).toBe(0);
+  });
+
+  it('modelo antigo: adiantamento e saldo entram em "Forma(s) de pagamento"', () => {
+    const p = withAdvance(base, 1000, dep, '<p>Forma(s): {{payment.methods}}</p>');
+    expect(p.methods).toContain('Adiantamento (sinal pago via Pix)');
+    expect(p.methods).toContain('22/11/2026');
+    expect(p.methods).toContain('Maria Lima');
+    expect(p.methods).toContain('RS-2026-0001');
+    expect(p.methods).toContain('Valor a pagar');
+    expect(p.methods).toContain('Pix à vista');
+    expect(p.total_value).toBe('R$ 1.000,00');
+  });
+
+  it('modelo com os campos do sinal: não repete em "Forma(s)"', () => {
+    const p = withAdvance(base, 1000, dep, '<p>{{payment.advance_details}} Saldo: {{payment.amount_due}}</p>');
+    expect(p.methods).toBe('Pix à vista');
+    expect(p.advance_details).toContain('RS-2026-0001');
+    expect(p.amount_due.replace(/\s/g, ' ')).toContain('900,00');
+  });
+
+  it('sem sinal não muda nada', () => {
+    const p = withAdvance(base, 1000, [], '');
+    expect(p.methods).toBe('Pix à vista');
+    expect(p.advance).toBe('');
   });
 });

@@ -1,4 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
+import { usePatientDepositCredit } from '@/hooks/usePatientDepositCredit';
+import { advanceDetailsText, contractAmounts } from '@/lib/finance/deposit';
 import { compressImage } from '@/lib/photos/compress';
 import { logAccess } from '@/lib/accessLog';
 import { useUrlState } from '@/hooks/useUrlState';
@@ -97,6 +99,9 @@ export function usePatientDetailPage() {
   const [checkingDuplicates, setCheckingDuplicates] = useState(false);
   const duplicates = usePatientDuplicateCheck(clinicId, id);
   const [contractDialogProposal, setContractDialogProposal] = useState<ProposalRow | null>(null);
+  // Sinal pago (Pix) entra no contrato como adiantamento: valor a pagar = total - adiantamento.
+  const depositCredit = usePatientDepositCredit(clinicId, id);
+  const [applyDeposits, setApplyDeposits] = useState(true);
   const [paymentCondition, setPaymentCondition] = useState<PaymentCondition>('cash');
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<PaymentMethod[]>([]);
   const [paymentDetails, setPaymentDetails] = useState<Record<string, string>>({});
@@ -440,7 +445,8 @@ export function usePatientDetailPage() {
       if (!clinicId || !id || !contractDialogProposal) throw new Error('Selecione uma proposta aprovada.');
       if (selectedPaymentMethods.length === 0) throw new Error('Selecione ao menos uma forma de pagamento.');
 
-      const proposalAmount = Number(contractDialogProposal.final_amount || 0);
+      const usedDeposits = applyDeposits ? depositCredit : [];
+      const proposalAmount = contractAmounts(Number(contractDialogProposal.final_amount || 0), usedDeposits).due;
       const amounts = selectedPaymentMethods.map((method) => Number(paymentConfig[method]?.amount || 0));
       if (amounts.some((value) => !Number.isFinite(value) || value <= 0)) {
         throw new Error('Informe um valor válido para cada forma selecionada.');
@@ -454,7 +460,7 @@ export function usePatientDetailPage() {
       const totalInformed = amounts.reduce((sum, value) => sum + value, 0);
       if (totalInformed + 0.0001 < proposalAmount) {
         throw new Error(
-          `A soma das formas de pagamento (R$ ${totalInformed.toFixed(2)}) deve ser igual ou maior ao valor da proposta (R$ ${proposalAmount.toFixed(2)}).`
+          `A soma das formas de pagamento (R$ ${totalInformed.toFixed(2)}) deve ser igual ou maior ao valor ${usedDeposits.length ? 'a pagar' : 'da proposta'} (R$ ${proposalAmount.toFixed(2)}).`
         );
       }
 
@@ -489,12 +495,15 @@ export function usePatientDetailPage() {
 
       const now = new Date();
       const contractNumber = `CONT-${format(now, 'yyyyMM')}-${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}`;
-      const paymentNotes = buildContractPaymentNotes(
-        selectedPaymentMethods,
-        paymentConfig,
-        paymentDetails,
-        paymentConditionLabels[paymentCondition]
-      );
+      const paymentNotes = [
+        buildContractPaymentNotes(
+          selectedPaymentMethods,
+          paymentConfig,
+          paymentDetails,
+          paymentConditionLabels[paymentCondition]
+        ),
+        ...(usedDeposits.length ? [`${advanceDetailsText(usedDeposits)}. Abatido do valor total.`] : []),
+      ].join('\n');
 
       const { data: insertedContract, error } = await supabase
         .from('contracts')
@@ -515,6 +524,12 @@ export function usePatientDetailPage() {
 
       if (insertedContract?.id) {
         await upsertContractFinancialForecast(insertedContract.id);
+        if (usedDeposits.length) {
+          const { error: depError } = await supabase.rpc('deposit_apply_to_contract', {
+            p_contract_id: insertedContract.id, p_deposit_ids: usedDeposits.map((d) => d.id),
+          });
+          if (depError) toast.error(`Contrato gerado, mas o sinal não foi abatido: ${depError.message}`);
+        }
       }
 
       const { error: patientError } = await supabase
@@ -535,6 +550,7 @@ export function usePatientDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['patient-proposals', id] });
       queryClient.invalidateQueries({ queryKey: ['contracts'] });
       queryClient.invalidateQueries({ queryKey: ['finance-contracts'] });
+      queryClient.invalidateQueries({ queryKey: ['deposits'] });
       toast.success(`Contrato ${contractNumber} gerado`);
       resetContractDialog();
     },
@@ -580,6 +596,9 @@ export function usePatientDetailPage() {
   };
 
   return {
+    depositCredit,
+    applyDeposits,
+    setApplyDeposits,
     patientTab,
     setPatientTab,
     modules,

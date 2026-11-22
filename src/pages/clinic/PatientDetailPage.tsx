@@ -1,4 +1,5 @@
 import PortalAccessButton from '@/components/patient/PortalAccessButton';
+import { ContractAdvanceSummary } from '@/components/deposits/ContractAdvanceSummary';
 import AccessLogList from '@/components/security/AccessLogList';
 import { logAccess } from '@/lib/accessLog';
 import { PageHeader } from '@/components/ui/page-header';
@@ -89,6 +90,9 @@ export default function PatientDetailPage() {
     resetContractDialog,
     togglePaymentMethod,
     generateContractMutation,
+    depositCredit,
+    applyDeposits,
+    setApplyDeposits,
     handleEditCepChange,
   } = h;
 
@@ -429,10 +433,13 @@ export default function PatientDetailPage() {
                     onChange={setPayerData}
                     patientName={patient.full_name || undefined}
                   />
-                  <div className="rounded-md border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
-                    Valor da proposta: <span className="font-semibold text-foreground">R$ {Number(contractDialogProposal.final_amount || 0).toFixed(2)}</span> ·
-                    Soma informada: <span className="font-semibold text-foreground">R$ {selectedPaymentMethods.reduce((sum, method) => sum + Number(paymentConfig[method]?.amount || 0), 0).toFixed(2)}</span>
-                  </div>
+                  <ContractAdvanceSummary
+                    total={Number(contractDialogProposal.final_amount || 0)}
+                    deposits={depositCredit}
+                    apply={applyDeposits}
+                    onApplyChange={setApplyDeposits}
+                    informed={selectedPaymentMethods.reduce((sum, method) => sum + Number(paymentConfig[method]?.amount || 0), 0)}
+                  />
                 </div>
               </div>
 

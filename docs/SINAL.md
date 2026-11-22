@@ -11,8 +11,11 @@ Onde está no código:
 - Financeiro e DRE contam o sinal pago/retido; o abatido vira parcela paga do contrato (tela Contratos).
 - Meu dia: "Sinal não pago" quando o prazo vence.
 
-Ainda não feito: abater pela geração de contrato na ficha da cliente (só pela tela Contratos) e abater em sessão
-avulsa. Nesses casos o sinal continua como crédito até um contrato.
+Toda venda termina em contrato, inclusive o atendimento avulso. No contrato (pela tela Contratos ou pela ficha da
+cliente), o sinal entra como **adiantamento** com os dados do Pix (valor, data, quem pagou, recibo):
+valor total = proposta; valor a pagar = total - adiantamento. Modelos de contrato podem usar
+`{{payment.advance}}`, `{{payment.advance_details}}` e `{{payment.amount_due}}`; nos modelos antigos o adiantamento
+e o valor a pagar entram no início de "Forma(s) de pagamento".
 
 A clínica pode cobrar um valor simbólico para garantir um horário: avaliação ou procedimento, de lead ou de
 cliente antiga. A cliente paga por Pix (QR Code ou "copia e cola"). O valor é abatido do tratamento; se ela

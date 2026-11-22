@@ -37,6 +37,9 @@ export type ContractTemplateData = {
     methods: string;
     installments: number;
     due_dates: string;
+    advance?: string;          // adiantamento (sinal pago via Pix)
+    advance_details?: string;  // valor, data, quem pagou e recibo
+    amount_due?: string;       // valor total - adiantamento
   };
   proposal: {
     number: string;
@@ -134,6 +137,7 @@ export function renderContractTemplate(html: string, data: ContractTemplateInput
     'payer.name', 'payer.cpf', 'payer.birth_date',
     'contract.start_date', 'contract.end_date',
     'payment.condition', 'payment.methods', 'payment.installments', 'payment.due_dates',
+    'payment.advance', 'payment.advance_details', 'payment.amount_due',
     'proposal.number', 'anamnesis.number'
   ]);
   
