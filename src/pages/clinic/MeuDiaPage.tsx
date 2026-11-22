@@ -347,92 +347,7 @@ export default function MeuDiaPage() {
         </Card>
       )}
 
-      {/* Dinheiro do mês */}
-      <Card className="shadow-card">
-        <CardContent className="space-y-4 p-5">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-base font-semibold first-letter:uppercase">Dinheiro de {format(now, 'MMMM', { locale: ptBR })}</h2>
-            <Link to="/clinic/financeiro" className="text-sm font-medium text-primary underline-offset-2 hover:underline">{goal ? `Meta: ${formatBRL(goal)}` : 'Definir meta'}</Link>
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recebido</p>
-              <p className="text-3xl font-heading font-semibold">{formatBRL(money.received)}</p>
-              {progress && <Progress value={progress.pct} className="mt-2 h-2" aria-label={`${progress.pct}% da meta`} />}
-              {progress && <p className="mt-1 text-xs text-muted-foreground">{progress.missing > 0 ? `${progress.pct}% da meta · faltam ${formatBRL(progress.missing)}` : 'Meta batida!'}</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">A receber no mês</p>
-              <p className="text-3xl font-heading font-semibold">{formatBRL(money.toReceive)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{money.toReceiveCount} parcela(s){money.overdueCount ? ` · ${money.overdueCount} atrasada(s): ${formatBRL(money.overdue)}` : ''}</p>
-              {scheduled.summary.total > 0 && <p className="text-xs text-muted-foreground">+ {formatBRL(scheduled.summary.total)} previsto na agenda ({scheduled.summary.count} atendimento(s))</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Em negociação</p>
-              <p className="text-3xl font-heading font-semibold">{formatBRL(negotiating)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{negotiatingList.length} proposta(s) em aberto</p>
-            </div>
-          </div>
-          <p className="rounded-lg bg-primary/5 px-4 py-3 text-sm font-medium text-foreground">
-            {moneyInsight({ received: money.received, goal, toReceive: money.toReceive, negotiating, negotiatingCount: negotiatingList.length, scheduled: scheduled.summary.total })}
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Interessadas */}
-      <Card className="shadow-card">
-        <CardHeader className="pb-2">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <CardTitle className="text-base">Interessadas</CardTitle>
-            <Link to="/clinic/crm" className="text-sm font-medium text-primary underline-offset-2 hover:underline">Ver todas</Link>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {FUNNEL_COLUMNS.map((c) => {
-              const list = columns[c.key];
-              const value = list.reduce((s, l) => s + Number(l.proposals?.final_amount || 0), 0);
-              return (
-                <div key={c.key} className="space-y-2 rounded-xl bg-muted/50 p-3">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <p className="text-sm font-semibold">{c.label} · {list.length}</p>
-                    {value > 0 && <p className="text-xs text-muted-foreground">{formatBRL(value)}</p>}
-                  </div>
-                  {list.length === 0 && <p className="text-xs text-muted-foreground">Ninguém aqui.</p>}
-                  {list.slice(0, 6).map((l) => {
-                    const days = daysWithoutContact(l, now);
-                    return (
-                      <div key={l.id} className="space-y-1.5 rounded-lg border bg-card p-3">
-                        <p className="truncate font-medium" title={l.full_name}>{l.full_name}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {l.treatments_of_interest?.[0] || (l.phone ? formatPhone(l.phone) : 'Sem telefone')}
-                          {l.proposals?.final_amount ? ` · ${formatBRL(Number(l.proposals.final_amount))}` : ''}
-                        </p>
-                        {c.key !== 'fechou' && days >= 3 && <p className="text-xs font-semibold text-warning">{days} dias sem contato</p>}
-                        {c.key !== 'fechou' && (
-                          <div className="flex flex-wrap gap-1.5 pt-1">
-                            {leadAction(c.key, l)}
-                            <a href={whatsappLink(l.phone, `Oi ${l.full_name.split(' ')[0]}! Aqui é da ${clinicName}.`)} target="_blank" rel="noopener noreferrer"
-                              aria-label={`WhatsApp de ${l.full_name}`} className="inline-flex h-8 w-8 items-center justify-center rounded-btn border border-border hover:bg-muted">
-                              <MessageCircle className="h-3.5 w-3.5" />
-                            </a>
-                            <button type="button" aria-label={`Marcar ${l.full_name} como perdida`} onClick={() => { setLostLead(l); setLostReason(lostReasons[0]); }}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-btn border border-border text-muted-foreground hover:bg-muted">
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {list.length > 6 && <Link to="/clinic/crm" className="block text-xs font-medium text-primary">+ {list.length - 6} no CRM</Link>}
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
+      {/* Ordem: o dia (agenda e tarefas), interessadas, dinheiro do mês, contas a pagar. */}
       {/* Agenda e Tarefas de hoje */}
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         {/* Agenda */}
@@ -510,6 +425,92 @@ export default function MeuDiaPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Interessadas */}
+      <Card className="shadow-card">
+        <CardHeader className="pb-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <CardTitle className="text-base">Interessadas</CardTitle>
+            <Link to="/clinic/crm" className="text-sm font-medium text-primary underline-offset-2 hover:underline">Ver todas</Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {FUNNEL_COLUMNS.map((c) => {
+              const list = columns[c.key];
+              const value = list.reduce((s, l) => s + Number(l.proposals?.final_amount || 0), 0);
+              return (
+                <div key={c.key} className="space-y-2 rounded-xl bg-muted/50 p-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="text-sm font-semibold">{c.label} · {list.length}</p>
+                    {value > 0 && <p className="text-xs text-muted-foreground">{formatBRL(value)}</p>}
+                  </div>
+                  {list.length === 0 && <p className="text-xs text-muted-foreground">Ninguém aqui.</p>}
+                  {list.slice(0, 6).map((l) => {
+                    const days = daysWithoutContact(l, now);
+                    return (
+                      <div key={l.id} className="space-y-1.5 rounded-lg border bg-card p-3">
+                        <p className="truncate font-medium" title={l.full_name}>{l.full_name}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {l.treatments_of_interest?.[0] || (l.phone ? formatPhone(l.phone) : 'Sem telefone')}
+                          {l.proposals?.final_amount ? ` · ${formatBRL(Number(l.proposals.final_amount))}` : ''}
+                        </p>
+                        {c.key !== 'fechou' && days >= 3 && <p className="text-xs font-semibold text-warning">{days} dias sem contato</p>}
+                        {c.key !== 'fechou' && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {leadAction(c.key, l)}
+                            <a href={whatsappLink(l.phone, `Oi ${l.full_name.split(' ')[0]}! Aqui é da ${clinicName}.`)} target="_blank" rel="noopener noreferrer"
+                              aria-label={`WhatsApp de ${l.full_name}`} className="inline-flex h-8 w-8 items-center justify-center rounded-btn border border-border hover:bg-muted">
+                              <MessageCircle className="h-3.5 w-3.5" />
+                            </a>
+                            <button type="button" aria-label={`Marcar ${l.full_name} como perdida`} onClick={() => { setLostLead(l); setLostReason(lostReasons[0]); }}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-btn border border-border text-muted-foreground hover:bg-muted">
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {list.length > 6 && <Link to="/clinic/crm" className="block text-xs font-medium text-primary">+ {list.length - 6} no CRM</Link>}
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Dinheiro do mês */}
+      <Card className="shadow-card">
+        <CardContent className="space-y-4 p-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-base font-semibold first-letter:uppercase">Dinheiro de {format(now, 'MMMM', { locale: ptBR })}</h2>
+            <Link to="/clinic/financeiro" className="text-sm font-medium text-primary underline-offset-2 hover:underline">{goal ? `Meta: ${formatBRL(goal)}` : 'Definir meta'}</Link>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recebido</p>
+              <p className="text-3xl font-heading font-semibold">{formatBRL(money.received)}</p>
+              {progress && <Progress value={progress.pct} className="mt-2 h-2" aria-label={`${progress.pct}% da meta`} />}
+              {progress && <p className="mt-1 text-xs text-muted-foreground">{progress.missing > 0 ? `${progress.pct}% da meta · faltam ${formatBRL(progress.missing)}` : 'Meta batida!'}</p>}
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">A receber no mês</p>
+              <p className="text-3xl font-heading font-semibold">{formatBRL(money.toReceive)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{money.toReceiveCount} parcela(s){money.overdueCount ? ` · ${money.overdueCount} atrasada(s): ${formatBRL(money.overdue)}` : ''}</p>
+              {scheduled.summary.total > 0 && <p className="text-xs text-muted-foreground">+ {formatBRL(scheduled.summary.total)} previsto na agenda ({scheduled.summary.count} atendimento(s))</p>}
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Em negociação</p>
+              <p className="text-3xl font-heading font-semibold">{formatBRL(negotiating)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{negotiatingList.length} proposta(s) em aberto</p>
+            </div>
+          </div>
+          <p className="rounded-lg bg-primary/5 px-4 py-3 text-sm font-medium text-foreground">
+            {moneyInsight({ received: money.received, goal, toReceive: money.toReceive, negotiating, negotiatingCount: negotiatingList.length, scheduled: scheduled.summary.total })}
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Estoque e Contas a Pagar */}
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
