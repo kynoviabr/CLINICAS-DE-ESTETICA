@@ -221,7 +221,16 @@ export default function ProposalsPage() {
                   const sm = statusMap[p.status] || { label: p.status, badge: 'default' as BadgeStatus };
                   return (
                     <tr key={p.id} className="border-b last:border-0 hover:bg-secondary/30 transition-colors">
-                      <td className="px-4 py-3 text-sm font-medium text-foreground">{p.proposal_number}</td>
+                      <td className="px-4 py-3 text-sm font-medium">
+                        <button
+                          type="button"
+                          onClick={() => openView(p)}
+                          className="text-primary underline-offset-4 hover:underline focus-visible:underline focus-visible:outline-none"
+                          title={`Abrir proposta ${p.proposal_number}`}
+                        >
+                          {p.proposal_number}
+                        </button>
+                      </td>
                       <td className="px-4 py-3 text-sm text-foreground">{p.patients?.full_name}</td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">{format(new Date(p.created_at), 'dd/MM/yyyy', { locale: ptBR })}</td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">{p.valid_until ? format(new Date(p.valid_until + 'T12:00'), 'dd/MM/yyyy', { locale: ptBR }) : '—'}</td>
