@@ -15,6 +15,7 @@ import { toast as sonnerToast } from 'sonner';
 import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
 import { loadClinicLetterhead } from '@/hooks/useClinicLetterhead';
 import { supabase } from '@/integrations/supabase/client';
+import { loadAcceptancesSafe } from '@/lib/documents/acceptances';
 import { buildAnamneseHtml, fieldLabels, formatValue, highlightedBooleanFields, isYesAnswer, sectionLabels, sourceLabels, visibleSections } from '@/lib/anamnese/document';
 
 type AnamneseRow = Database['public']['Tables']['patient_anamneses']['Row'];
@@ -47,9 +48,10 @@ export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: P
   const allExpanded = sections.length > 0 && expanded.length === sections.length;
 
   const anamneseDocument = async () => {
-    const [letterhead, patientRes] = await Promise.all([
+    const [letterhead, patientRes, acceptances] = await Promise.all([
       loadClinicLetterhead(a.clinic_id),
       supabase.from('patients').select('full_name').eq('id', a.patient_id).maybeSingle(),
+      loadAcceptancesSafe('anamnese', a.id),
     ]);
     return {
       html: buildAnamneseHtml({
@@ -63,6 +65,7 @@ export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: P
         expiresAt: a.expires_at,
         source: a.source_type,
         formData,
+        acceptances,
       }),
       title: `Anamnese ${a.anamnese_number}`,
       filename: `Anamnese-${a.anamnese_number}`,

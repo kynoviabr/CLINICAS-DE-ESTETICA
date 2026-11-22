@@ -1,6 +1,6 @@
 # Aceite eletrônico, PDF e impressão de documentos
 
-Status: etapas 1 (Baixar PDF e Imprimir) e 2 (registro dos aceites e folha de assinatura) implementadas; etapas 3 a 6 pendentes.
+Status: etapas 1 (Baixar PDF e Imprimir), 2 (registro dos aceites e folha de assinatura) e 3 (anamnese, sinal, recibo e cadastro no registro) implementadas; etapas 4 a 6 pendentes.
 
 Etapa 1, onde está:
 - `src/lib/documents/output.ts`: PDF e impressão (quadro escondido no computador; PDF + menu de
@@ -18,8 +18,17 @@ Etapa 2, onde está:
   `src/lib/documents/device.ts` (aparelho legível) e `src/lib/documents/acceptances.ts` (leitura).
 - Folha no fim de proposta, contrato, anamnese (a partir do registro do envio) e recibo do sinal
   (confirmação da clínica e aceite das condições pela cliente).
-- Anamnese e sinal ainda não gravam na tabela única (etapa 3); a folha deles usa as provas já guardadas,
-  sem código de verificação.
+
+Etapa 3, onde está:
+- `supabase/migrations/20261225100000_aceites_anamnese_sinal_cadastro.sql`: gatilhos copiam para o
+  registro a anamnese respondida pelo link (identidade: data de nascimento), o "Li e concordo" do sinal e o
+  consentimento do cadastro do lead, com código de integridade e telefone do cadastro; aceites antigos
+  foram trazidos. `deposit_receipt_ack` grava o "Recebi e estou de acordo" do recibo (opcional, no link do
+  recibo). `document_acceptance_sheet('deposit', token)` entrega condições e recibo à cliente.
+- Folha da anamnese e do recibo passam a usar o registro (com código de verificação); sem registro, usam
+  as provas antigas.
+- O telefone guardado é o do cadastro da cliente: o sistema ainda não registra para qual número o link
+  foi enviado.
 
 ## Objetivo
 

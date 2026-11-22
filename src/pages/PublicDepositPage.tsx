@@ -7,6 +7,7 @@ import { BrandButton } from '@/components/ui/brand-button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
 import type { DocumentOutput } from '@/lib/documents/output';
+import { loadPublicAcceptances, type AcceptanceSheetData } from '@/lib/documents/acceptances';
 import { pixCopyPaste } from '@/lib/finance/pix';
 import { appointmentWhat, appointmentWhen, buildDepositReceiptHtml, receiptDataFromPublic, type DepositPublic } from '@/lib/finance/deposit';
 import { formatBRL } from '@/lib/proposals/sale';
@@ -26,13 +27,19 @@ export default function PublicDepositPage() {
   const [qr, setQr] = useState('');
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
+  const [sheet, setSheet] = useState<AcceptanceSheetData | null>(null);
+  const [acking, setAcking] = useState(false);
+
+  const loadSheet = () => loadPublicAcceptances('deposit', token).then(setSheet).catch(() => setSheet(null));
 
   useEffect(() => {
     supabase.rpc('deposit_public', { p_token: token }).then(({ data: d, error: e }) => {
       const result = e ? ({ status: 'invalid' } as DepositPublic) : (d as unknown as DepositPublic);
       setData(result);
       setAccepted(!!result.policy_accepted_at);
+      if (result.receipt) loadSheet();
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const code = useMemo(() => (data?.status === 'pending' && data.pix
@@ -62,7 +69,17 @@ export default function PublicDepositPage() {
   const receiptDocument = (): DocumentOutput => {
     const r = data && receiptDataFromPublic(data);
     if (!r) throw new Error('Recibo indisponível.');
-    return { html: buildDepositReceiptHtml(r), title: `Recibo ${r.number}`, filename: `Recibo-${r.number}` };
+    return { html: buildDepositReceiptHtml({ ...r, acceptances: sheet?.records }), title: `Recibo ${r.number}`, filename: `Recibo-${r.number}` };
+  };
+
+  const receiptAcked = !!sheet?.records.some((r) => r.documentKind === 'deposit_receipt');
+  const ackReceipt = async () => {
+    setAcking(true);
+    setError('');
+    const { error: e } = await supabase.rpc('deposit_receipt_ack', { p_token: token });
+    if (e) setError(e.message);
+    else await loadSheet();
+    setAcking(false);
   };
 
   const appt = data?.appointment;
@@ -109,6 +126,15 @@ export default function PublicDepositPage() {
                       Recebemos {formatBRL(Number(data.amount || 0))}. {data.status === 'paid' ? 'Seu horário está garantido e o valor será abatido do seu atendimento.' : ''}
                     </p>
                   </div>
+                  {receiptAcked ? (
+                    <p className="flex items-center justify-center gap-1.5 text-sm text-emerald-700">
+                      <ShieldCheck className="h-4 w-4" /> Você confirmou o recebimento deste recibo.
+                    </p>
+                  ) : sheet && (
+                    <BrandButton size="md" variant="outline" className="w-full" onClick={ackReceipt} disabled={acking}>
+                      {acking && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Recebi e estou de acordo
+                    </BrandButton>
+                  )}
                   <DocumentOutputButtons size="md" className="grid grid-cols-2 gap-2" getDocument={receiptDocument} />
                   <p className="text-xs text-muted-foreground">Recibo nº {data.receipt?.number}</p>
                   {data.status === 'paid' && (

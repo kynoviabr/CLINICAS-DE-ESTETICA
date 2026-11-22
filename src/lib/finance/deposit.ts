@@ -2,7 +2,7 @@
 import { buildLetterhead, documentFooter, escapeHtml, formatClinicDocument, type ClinicLetterhead } from '@/lib/documents/letterhead';
 import { formatBRL } from '@/lib/proposals/sale';
 import type { PixKeyType } from '@/lib/finance/pix';
-import { brasiliaDateTime, buildSignatureSheet } from '@/lib/documents/signatureSheet';
+import { brasiliaDateTime, buildSignatureSheet, type AcceptanceRecord } from '@/lib/documents/signatureSheet';
 
 export const DEPOSIT_CONFIG_KEY = 'deposit_config';
 
@@ -188,6 +188,13 @@ export type DepositReceiptData = {
   policyAcceptedIp?: string | null;
   policyAcceptedUserAgent?: string | null;
   confirmedBy?: string | null;
+  /** Aceites do registro único (condições e "Recebi e estou de acordo"), com código de verificação. */
+  acceptances?: AcceptanceRecord[] | null;
+};
+
+const DEPOSIT_NOTES: Record<string, string> = {
+  deposit_policy: 'Leu e concordou com as condições do sinal antes de pagar ("Li e concordo").',
+  deposit_receipt: 'Recebeu este recibo e declarou estar de acordo ("Recebi e estou de acordo").',
 };
 
 const dateBr = (iso: string) => { const d = new Date(iso); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`; };
@@ -239,7 +246,9 @@ export function buildDepositReceiptHtml(r: DepositReceiptData): string {
   ${buildSignatureSheet({
     documentLabel: `Recibo de sinal nº ${r.number}`,
     issuer: `Emitido por ${r.clinic.name}. Recebimento confirmado${r.confirmedBy ? ` por ${r.confirmedBy}` : ''} em ${brasiliaDateTime(r.paidAt)} (horário de Brasília).`,
-    records: r.policyAcceptedAt ? [{
+    records: r.acceptances?.length
+      ? r.acceptances.map((a) => ({ ...a, note: DEPOSIT_NOTES[a.documentKind || ''] || a.note }))
+      : r.policyAcceptedAt ? [{
       signerName: r.clientName,
       acceptedAt: r.policyAcceptedAt,
       method: 'link',

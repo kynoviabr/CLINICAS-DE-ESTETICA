@@ -158,6 +158,8 @@ export type AnamneseDocumentInput = {
   expiresAt?: string | null;
   source: string;
   formData: Record<string, Record<string, unknown>> | null;
+  /** Aceites do registro único (com código de verificação). Sem eles, a folha usa o registro do envio. */
+  acceptances?: { records: AcceptanceRecord[]; documentHash: string | null } | null;
 };
 
 const when = (d?: string | null) => (d ? format(new Date(d), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : '—');
@@ -179,17 +181,20 @@ export function buildAnamneseHtml(a: AnamneseDocumentInput): string {
     return `<h3 style="margin:18px 0 6px;font-size:14px;color:#111827">${escapeHtml(sectionLabels[key] || key)}</h3><table style="width:100%;font-size:12px">${rows}</table>`;
   }).join('') || '<p style="color:#6b7280">Nenhuma resposta digital registrada.</p>';
 
+  const note = 'Declarou que as informações são verdadeiras e concordou com os termos da anamnese.';
   const signer = typeof consent?.signature_name === 'string' ? consent.signature_name.trim() : '';
-  const records: AcceptanceRecord[] = signer && sub?.at ? [{
+  const registered = a.acceptances?.records.length ? a.acceptances.records.map((r) => ({ ...r, note })) : null;
+  const records: AcceptanceRecord[] = registered ?? (signer && sub?.at ? [{
     signerName: signer,
     acceptedAt: String(sub.at),
     method: sub.via === 'link' ? 'link' : sub.via === 'portal' ? 'portal' : null,
     ip: typeof sub.ip === 'string' ? sub.ip : null,
     userAgent: typeof sub.user_agent === 'string' ? sub.user_agent : null,
-    note: 'Declarou que as informações são verdadeiras e concordou com os termos da anamnese.',
-  }] : [];
+    note,
+  }] : []);
   const sheet = buildSignatureSheet({
     documentLabel: `Anamnese ${a.number}`,
+    documentHash: registered ? a.acceptances?.documentHash : null,
     records,
     pendingText: a.source === 'internal_manual' || a.source === 'manual_upload'
       ? 'Preenchida pela clínica, sem aceite eletrônico da cliente'

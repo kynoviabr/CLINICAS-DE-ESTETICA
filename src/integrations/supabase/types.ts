@@ -4576,6 +4576,10 @@ export type Database = {
         Args: { p_kind: string; p_token: string }
         Returns: Json
       }
+      deposit_receipt_ack: {
+        Args: { p_token: string }
+        Returns: Json
+      }
       lead_signup_status: {
         Args: { p_token: string }
         Returns: Json

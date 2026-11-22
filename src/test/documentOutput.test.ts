@@ -93,6 +93,22 @@ describe('anamnese em PDF', () => {
     expect(html).toContain('Assinado eletronicamente');
   });
 
+  it('com o registro único mostra identidade conferida, código de verificação e integridade', () => {
+    const html = buildAnamneseHtml({
+      ...base,
+      formData: { consent: { agrees_terms: true, signature_name: 'Ana Lima' } },
+      acceptances: {
+        documentHash: 'abc123',
+        records: [{ signerName: 'Ana Lima', acceptedAt: '2026-11-20T12:00:00.000Z', method: 'link', verifiedBy: 'birth_date', phone: '11999990000', verificationCode: 'C0DE1-23456' }],
+      },
+    });
+    expect(html).toContain('C0DE1-23456');
+    expect(html).toContain('Data de nascimento conferida');
+    expect(html).toContain('11999990000');
+    expect(html).toContain('abc123');
+    expect(html).toContain('verdadeiras');
+  });
+
   it('sem respostas avisa no documento', () => {
     expect(buildAnamneseHtml({ ...base, formData: null })).toContain('Nenhuma resposta digital');
   });

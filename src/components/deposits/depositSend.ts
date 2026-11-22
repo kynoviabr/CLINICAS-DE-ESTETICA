@@ -3,6 +3,7 @@ import { publicOrigin } from '@/lib/publicOrigin';
 import { generateContractPDF } from '@/lib/contractPDF';
 import { loadClinicLetterhead } from '@/hooks/useClinicLetterhead';
 import type { DocumentOutput } from '@/lib/documents/output';
+import { loadAcceptancesSafe } from '@/lib/documents/acceptances';
 import {
   buildDepositReceiptHtml, depositReceiptMessage, depositRequestMessage, depositUrl, receiptDataFromPublic, type DepositPublic,
 } from '@/lib/finance/deposit';
@@ -71,6 +72,7 @@ export async function depositReceiptDocument(depositId: string): Promise<Documen
     professionalName(appt.professional_id),
     dep.confirmed_by ? supabase.from('professionals').select('full_name').eq('user_id', dep.confirmed_by).limit(1).maybeSingle().then((r) => r.data?.full_name ?? null) : null,
   ]);
+  const acceptances = await loadAcceptancesSafe(['deposit_policy', 'deposit_receipt'], dep.id);
   const accepted = dep.policy_accepted as { at?: string; ip?: string; user_agent?: string } | null;
   const html = buildDepositReceiptHtml({
     clinic,
@@ -90,6 +92,7 @@ export async function depositReceiptDocument(depositId: string): Promise<Documen
     policyAcceptedIp: accepted?.ip ?? null,
     policyAcceptedUserAgent: accepted?.user_agent ?? null,
     confirmedBy,
+    acceptances: acceptances?.records,
   });
   return { html, title: `Recibo ${dep.receipt_number}`, filename: `Recibo-${dep.receipt_number}` };
 }

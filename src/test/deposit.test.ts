@@ -110,4 +110,20 @@ describe('folha de assinatura do recibo', () => {
     expect(html).toContain('200.1.2.3');
     expect(html).toContain('Li e concordo');
   });
+
+  it('usa o registro único: condições e "Recebi e estou de acordo", com código de verificação', () => {
+    const html = buildDepositReceiptHtml({
+      clinic: { name: 'Aura' }, number: 'RS-2026-0003', amount: 50, paidAt: '2026-11-22T15:00:00.000Z', payerName: 'Maria',
+      clientName: 'Ana Lima', kind: 'single', treatment: 'Peeling', startTime: '2026-11-25T17:00:00.000Z', noticeHours: 24, creditDays: 90,
+      policyAcceptedAt: '2026-11-22T14:00:00.000Z',
+      acceptances: [
+        { signerName: 'Ana Lima', acceptedAt: '2026-11-22T14:00:00.000Z', method: 'link', verificationCode: 'AAAAA-11111', documentKind: 'deposit_policy' },
+        { signerName: 'Ana Lima', acceptedAt: '2026-11-22T16:00:00.000Z', method: 'link', verificationCode: 'BBBBB-22222', documentKind: 'deposit_receipt' },
+      ],
+    });
+    expect(html).toContain('AAAAA-11111');
+    expect(html).toContain('BBBBB-22222');
+    expect(html).toContain('Recebi e estou de acordo');
+    expect(html).toContain('Li e concordo');
+  });
 });

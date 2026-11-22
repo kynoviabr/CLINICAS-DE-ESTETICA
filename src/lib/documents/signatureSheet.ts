@@ -16,6 +16,8 @@ export type AcceptanceRecord = {
   verificationCode?: string | null;
   /** Texto extra (ex.: o que foi aceito). */
   note?: string | null;
+  /** Tipo do documento no registro (ex.: deposit_policy). */
+  documentKind?: string | null;
 };
 
 export type SignatureSheetInput = {
@@ -56,11 +58,12 @@ export const VERIFIED_LABELS: Record<string, string> = {
 /** Linha de um aceite com os campos da tabela document_acceptances (ou da folha pública). */
 export function acceptanceFromRow(r: {
   signer_name: string; accepted_at: string; method?: string | null; verified_by?: string | null; ip?: string | null;
-  user_agent?: string | null; phone?: string | null; geo?: unknown; verification_code?: string | null;
+  user_agent?: string | null; phone?: string | null; geo?: unknown; verification_code?: string | null; document_kind?: string | null;
 }): AcceptanceRecord {
   return {
     signerName: r.signer_name, acceptedAt: r.accepted_at, method: r.method, verifiedBy: r.verified_by, ip: r.ip,
     userAgent: r.user_agent, phone: r.phone, geo: (r.geo as AcceptanceRecord['geo']) ?? null, verificationCode: r.verification_code,
+    documentKind: r.document_kind ?? null,
   };
 }
 
