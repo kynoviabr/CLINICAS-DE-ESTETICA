@@ -21,7 +21,7 @@ export function PageHeader({ title, description, children }: PageHeaderProps) {
           </p>
         )}
       </div>
-      {children && <div className="flex flex-wrap items-center gap-2 [&>button]:h-10 sm:[&>button]:h-auto">{children}</div>}
+      {children && <div className="flex flex-wrap items-center gap-2 [&>button]:h-10">{children}</div>}
     </div>
   );
 }
