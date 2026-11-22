@@ -44,6 +44,7 @@ import type { Tables } from '@/integrations/supabase/types';
 import { errorMessage, functionError } from '@/lib/errors';
 import { useClinicPlan } from '@/hooks/useClinicPlan';
 import { settingsTabVisible } from '@/lib/plans';
+import { navShades, readableText } from '@/lib/clinic/brandColors';
 
 type StaffMember = Pick<Tables<'user_roles'>, 'id' | 'user_id' | 'role' | 'is_active' | 'created_at' | 'can_manage_stock'>;
 type Invitation = Tables<'team_invitations'>;
@@ -370,18 +371,31 @@ export default function SettingsPage() {
 
               <div className="p-4 rounded-xl border">
                 <p className="text-sm font-medium text-foreground mb-3">Pré-visualização</p>
-                <div className="flex items-center gap-4 mb-4">
-                  {logoUrl ? <img src={logoUrl} alt="" className="w-10 h-10 rounded-lg object-cover" /> : (
-                    <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: primaryColor }}>
-                      <Stethoscope className="w-5 h-5 text-white" />
+                {/* Mesmo cálculo de cores do app: menu e topo escurecidos, texto legível sobre cada cor. */}
+                <div className="overflow-hidden rounded-xl border sm:flex" aria-label="Pré-visualização do sistema com as cores escolhidas">
+                  <div className="p-3 text-white sm:w-48 sm:shrink-0" style={{ background: `hsl(${navShades(primaryColor).background})` }}>
+                    <div className="mb-3 flex items-center gap-2">
+                      {logoUrl ? <img src={logoUrl} alt="" className="h-8 w-8 rounded-lg object-cover" /> : (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: primaryColor }}>
+                          <Stethoscope className="h-4 w-4" style={{ color: readableText(primaryColor) }} />
+                        </div>
+                      )}
+                      <span className="truncate text-sm font-semibold">{name || 'Sua Clínica'}</span>
                     </div>
-                  )}
-                  <span className="font-bold text-foreground">{name || 'Sua Clínica'}</span>
-                </div>
-                <div className="flex gap-3">
-                  <div className="h-12 flex-1 rounded-lg flex items-center justify-center text-xs font-semibold text-white" style={{ background: primaryColor }}>Primária</div>
-                  <div className="h-12 flex-1 rounded-lg flex items-center justify-center text-xs font-semibold border" style={{ background: secondaryColor }}>Secundária</div>
-                  <div className="h-12 flex-1 rounded-lg flex items-center justify-center text-xs font-semibold text-white" style={{ background: accentColor }}>Destaque</div>
+                    <div className="hidden space-y-1 text-xs sm:block">
+                      <div className="rounded-md px-2 py-1.5 font-medium" style={{ background: `color-mix(in srgb, ${primaryColor} 22%, transparent)` }}>Meu dia</div>
+                      <div className="px-2 py-1.5 text-white/70">Agenda</div>
+                      <div className="px-2 py-1.5 text-white/70">CRM</div>
+                    </div>
+                  </div>
+                  <div className="flex-1 space-y-3 bg-background p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex h-9 items-center rounded-lg px-4 text-sm font-semibold" style={{ background: primaryColor, color: readableText(primaryColor) }}>Nova proposta</span>
+                      <span className="inline-flex h-9 items-center rounded-lg border px-4 text-sm font-medium" style={{ background: secondaryColor, color: readableText(secondaryColor) }}>Secundária</span>
+                      <span className="inline-flex h-7 items-center rounded-full px-3 text-xs font-semibold" style={{ background: accentColor, color: readableText(accentColor) }}>Destaque</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">O menu lateral e o topo usam a cor primária escurecida, para o texto branco ficar legível. Sobre cores claras, o texto dos botões fica escuro.</p>
+                  </div>
                 </div>
               </div>
 

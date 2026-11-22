@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { setMonitoringContext } from '@/lib/monitoring';
+import { hexToHsl, luminance, navShades, readableTextHsl } from '@/lib/clinic/brandColors';
 
 interface BrandingData {
   clinicId: string | null;
@@ -25,39 +26,9 @@ const defaultBranding: BrandingData = {
   loading: true,
 };
 
+const getLuminance = luminance;
+
 const BrandingContext = createContext<BrandingData>(defaultBranding);
-
-function hexToHsl(hex: string): { h: number; s: number; l: number } {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!result) return { h: 174, s: 58, l: 28 };
-
-  const r = parseInt(result[1], 16) / 255;
-  const g = parseInt(result[2], 16) / 255;
-  const b = parseInt(result[3], 16) / 255;
-
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0, s = 0;
-  const l = (max + min) / 2;
-
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
-      case g: h = ((b - r) / d + 2) / 6; break;
-      case b: h = ((r - g) / d + 4) / 6; break;
-    }
-  }
-
-  return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
-}
-
-function getLuminance(hex: string): number {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!result) return 0;
-  const [r, g, b] = [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)];
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-}
 
 function applyBrandingCss(primary: string, secondary: string, accent: string) {
   const root = document.documentElement;
@@ -76,15 +47,14 @@ function applyBrandingCss(primary: string, secondary: string, accent: string) {
   root.style.setProperty('--accent', `${a.h} ${a.s}% ${a.l}%`);
   root.style.setProperty('--sidebar-primary', `${p.h} ${p.s}% ${p.l}%`);
 
-  // Menu lateral e topo (computador, celular e portal) na cor da clínica: o mesmo tom da cor primária,
-  // escurecido, para o texto branco continuar legível qualquer que seja a cor escolhida.
-  const navS = Math.min(p.s, 60);
-  root.style.setProperty('--bg-navy', `${p.h} ${navS}% 18%`);
-  root.style.setProperty('--sidebar-background', `${p.h} ${navS}% 18%`);
-  root.style.setProperty('--sidebar-accent', `${p.h} ${navS}% 25%`);
-  root.style.setProperty('--sidebar-border', `${p.h} ${Math.min(navS, 45)}% 28%`);
+  // Menu lateral e topo (computador, celular e portal) na cor da clínica, escurecida para o texto branco.
+  const nav = navShades(primary);
+  root.style.setProperty('--bg-navy', nav.background);
+  root.style.setProperty('--sidebar-background', nav.background);
+  root.style.setProperty('--sidebar-accent', nav.accent);
+  root.style.setProperty('--sidebar-border', nav.border);
   // Botões na cor primária: texto escuro quando a cor é clara (ex.: rosa), branco quando é escura.
-  root.style.setProperty('--primary-foreground', getLuminance(primary) > 0.6 ? '0 0% 10%' : '0 0% 100%');
+  root.style.setProperty('--primary-foreground', readableTextHsl(primary));
 
   // Stripe-style: also override the purple-* family + primary-light/dark so chips,
   // hover states and focus rings stay coherent with the clinic brand.
