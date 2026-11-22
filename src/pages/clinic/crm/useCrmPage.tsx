@@ -170,9 +170,15 @@ export function useCrmPage() {
         if (patientError) throw patientError;
       }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['crm-leads'] });
       qc.invalidateQueries({ queryKey: ['appointments'] });
+      qc.invalidateQueries({ queryKey: ['lead-cpf-matches'] });
+      // O banco recalcula o aviso de CPF repetido quando o CPF muda: traz o valor novo para a janela aberta.
+      if (leadDrawer) {
+        const { data } = await supabase.from('leads').select('signup_flags').eq('id', leadDrawer.id).maybeSingle();
+        if (data) setLeadDrawer((cur) => (cur && cur.id === leadDrawer.id ? { ...cur, signup_flags: data.signup_flags } : cur));
+      }
       toast({ title: 'Lead atualizado' });
     },
     onError: (error: Error) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),

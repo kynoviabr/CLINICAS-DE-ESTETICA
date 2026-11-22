@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
-import { AlertTriangle, CheckCircle2, Copy, MessageCircle, UserPlus } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { AlertTriangle, CheckCircle2, Copy, Link2, MessageCircle, UserPlus } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { BrandButton } from '@/components/ui/brand-button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -15,6 +16,7 @@ import { leadSignupMessage, leadSignupUrl, SIGNUP_FLAG_LABELS } from '@/lib/crm/
 type Lead = {
   id: string;
   full_name: string;
+  cpf?: string | null;
   phone?: string | null;
   patient_id?: string | null;
   signup_completed_at?: string | null;
@@ -87,16 +89,104 @@ export function LeadSignupButton({ lead, className }: { lead: Lead; className?: 
   );
 }
 
-/** Selo "Cadastro completo" e avisos (CPF repetido, outro WhatsApp) para a equipe. */
-export function LeadSignupStatus({ lead }: { lead: Lead }) {
+type CpfMatch = { type: 'patient' | 'lead'; id: string; full_name: string; created_at: string; patient_id?: string | null };
+
+/** Campo de CPF do lead na janela do CRM (para o "Não é a mesma pessoa" levar até ele). */
+export const LEAD_CPF_INPUT_ID = 'lead-drawer-cpf';
+
+/**
+ * Selo "Cadastro feito pelo lead" e avisos para a equipe. CPF repetido vira uma decisão:
+ * "É a mesma pessoa" (liga o lead à paciente que já existe) ou "Não é" (corrigir o CPF).
+ */
+export function LeadSignupStatus({ lead, onLinked }: { lead: Lead; onLinked?: (patientId: string) => void }) {
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [correcting, setCorrecting] = useState(false);
+  const hasDuplicate = (lead.signup_flags || []).includes('cpf_duplicate') && !lead.patient_id;
+
+  const { data: matches = [] } = useQuery({
+    queryKey: ['lead-cpf-matches', lead.id],
+    enabled: !!lead.signup_completed_at && hasDuplicate,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('lead_cpf_matches', { p_lead_id: lead.id });
+      if (error) throw error;
+      return (data || []) as CpfMatch[];
+    },
+  });
+
+  const link = useMutation({
+    mutationFn: async (patientId: string) => {
+      const { data, error } = await supabase.rpc('lead_link_to_patient', { p_lead_id: lead.id, p_patient_id: patientId });
+      if (error) throw error;
+      return data as { patient_id: string; patient_name: string };
+    },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['crm-leads'] });
+      qc.invalidateQueries({ queryKey: ['lead-cpf-matches', lead.id] });
+      toast({ title: 'Lead ligado à paciente', description: `${r.patient_name}: propostas, vendas e a conversa do WhatsApp passam a usar a ficha dela.` });
+      onLinked?.(r.patient_id);
+    },
+    onError: (e: Error) => toast({ title: 'Não foi possível ligar', description: e.message, variant: 'destructive' }),
+  });
+
   if (!lead.signup_completed_at) return null;
-  const flags = (lead.signup_flags || []).filter((f) => SIGNUP_FLAG_LABELS[f]);
+  const otherFlags = (lead.signup_flags || []).filter((f) => f !== 'cpf_duplicate' && SIGNUP_FLAG_LABELS[f]);
+  const showDuplicate = hasDuplicate && matches.length > 0;
+
+  const notSame = () => {
+    setCorrecting(true);
+    const input = document.getElementById(LEAD_CPF_INPUT_ID) as HTMLInputElement | null;
+    input?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+    input?.focus();
+  };
+
   return (
-    <div className="mb-3 space-y-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-sm">
+    <div className={`mb-3 space-y-2 rounded-xl border px-3 py-2 text-sm ${showDuplicate ? 'border-amber-300 bg-amber-50/70' : 'border-emerald-200 bg-emerald-50/70'}`}>
       <p className="flex items-center gap-2 font-medium text-emerald-800">
         <CheckCircle2 className="h-4 w-4" /> Cadastro feito pelo lead em {format(parseISO(lead.signup_completed_at), 'dd/MM/yyyy HH:mm')}
       </p>
-      {flags.map((f) => (
+
+      {showDuplicate && (
+        <div className="space-y-2 rounded-lg border border-amber-200 bg-white/70 p-3">
+          <p className="flex items-start gap-2 font-medium text-amber-900">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> Este CPF já está em outro cadastro. É a mesma pessoa?
+          </p>
+          {matches.map((m) => (
+            <div key={`${m.type}-${m.id}`} className="flex flex-wrap items-center gap-2">
+              <span className="text-foreground">
+                {m.type === 'patient' ? 'Paciente' : 'Lead'} <strong>{m.full_name}</strong>
+                <span className="text-muted-foreground"> · desde {format(parseISO(m.created_at), 'dd/MM/yyyy')}</span>
+              </span>
+              {m.type === 'patient' && (
+                <>
+                  <BrandButton size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => navigate(`/clinic/patients/${m.id}`)}>
+                    Ver ficha
+                  </BrandButton>
+                  <BrandButton size="sm" className="h-7 px-2 text-xs" onClick={() => link.mutate(m.id)} disabled={link.isPending}>
+                    <Link2 className="h-3.5 w-3.5" /> {link.isPending ? 'Ligando…' : 'É a mesma pessoa: ligar à paciente'}
+                  </BrandButton>
+                </>
+              )}
+              {m.type === 'lead' && m.patient_id && (
+                <BrandButton size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => navigate(`/clinic/patients/${m.patient_id}`)}>
+                  Ver paciente
+                </BrandButton>
+              )}
+            </div>
+          ))}
+          <div className="flex flex-wrap items-center gap-2 border-t border-amber-200 pt-2">
+            <BrandButton size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={notSame}>
+              Não é a mesma pessoa
+            </BrandButton>
+            {correcting && (
+              <span className="text-xs text-amber-900">Corrija o CPF em Dados Gerais e clique em Salvar alterações. O aviso some sozinho.</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {otherFlags.map((f) => (
         <p key={f} className="flex items-start gap-2 text-xs text-amber-800">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           {SIGNUP_FLAG_LABELS[f]}{f === 'phone_changed' && lead.signup_phone ? ` (${lead.signup_phone})` : ''}

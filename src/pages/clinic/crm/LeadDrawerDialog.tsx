@@ -12,7 +12,7 @@ import { BrandBadge } from '@/components/ui/brand-badge';
 import { interactionTypes, relativeDate, normalizePhone, buildEvaluationScheduleLink, getRiskLabel, getFollowUpStatus, getPriorityBadge, normalizeLeadSource, getLeadSourceMeta, type StageCode } from '@/lib/crm/model';
 import type { CrmPageController } from './useCrmPage';
 import ContactWhatsappPanel from '@/components/whatsapp/ContactWhatsappPanel';
-import { LeadSignupButton, LeadSignupStatus } from '@/components/crm/LeadSignupLink';
+import { LeadSignupButton, LeadSignupStatus, LEAD_CPF_INPUT_ID } from '@/components/crm/LeadSignupLink';
 
 export function LeadDrawerDialog({ ctx }: { ctx: CrmPageController }) {
   const {
@@ -104,7 +104,10 @@ export function LeadDrawerDialog({ ctx }: { ctx: CrmPageController }) {
                 )}
               </div>
 
-              <LeadSignupStatus lead={leadDrawer} />
+              <LeadSignupStatus
+                lead={leadDrawer}
+                onLinked={(patientId) => setLeadDrawer({ ...leadDrawer, patient_id: patientId, signup_flags: (leadDrawer.signup_flags || []).filter((f) => f !== 'cpf_duplicate') })}
+              />
     
               <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
                 <div className="flex flex-col gap-3 md:flex-row md:items-end">
@@ -195,7 +198,7 @@ export function LeadDrawerDialog({ ctx }: { ctx: CrmPageController }) {
                     </div>
                     <div className="space-y-2">
                       <Label>CPF <span className="text-muted-foreground font-normal">(opcional)</span></Label>
-                      <Input value={leadDrawer.cpf || ''} onChange={(event) => setLeadDrawer({ ...leadDrawer, cpf: event.target.value })} />
+                      <Input id={LEAD_CPF_INPUT_ID} value={leadDrawer.cpf || ''} onChange={(event) => setLeadDrawer({ ...leadDrawer, cpf: event.target.value })} />
                     </div>
                     <div className="space-y-2">
                       <Label>E-mail</Label>

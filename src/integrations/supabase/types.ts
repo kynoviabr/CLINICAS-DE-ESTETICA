@@ -4371,6 +4371,14 @@ export type Database = {
         Args: { p_lead_id: string }
         Returns: Json
       }
+      lead_cpf_matches: {
+        Args: { p_lead_id: string }
+        Returns: Json
+      }
+      lead_link_to_patient: {
+        Args: { p_lead_id: string; p_patient_id: string }
+        Returns: Json
+      }
       lead_signup_status: {
         Args: { p_token: string }
         Returns: Json
