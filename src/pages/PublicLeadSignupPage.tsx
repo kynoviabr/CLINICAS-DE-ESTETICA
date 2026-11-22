@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { CheckCircle2, Loader2, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, Loader2, Pencil, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { BrandButton } from '@/components/ui/brand-button';
 import { Input } from '@/components/ui/input';
@@ -27,11 +27,12 @@ const MESSAGES: Record<Exclude<LinkStatus['status'], 'ok'>, string> = {
 export default function PublicLeadSignupPage() {
   const { token = '' } = useParams<{ token: string }>();
   const [link, setLink] = useState<LinkStatus | null>(null);
-  const [form, setForm] = useState<LeadSignupForm>({ fullName: '', birthDate: '', cpf: '', phone: '', consent: false });
+  const [form, setForm] = useState<LeadSignupForm>({ fullName: '', birthDate: '', cpf: '', phone: '', email: '', consent: false });
   const [errors, setErrors] = useState<LeadSignupErrors>({});
   const [serverError, setServerError] = useState('');
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
 
   useEffect(() => {
     supabase.rpc('lead_signup_status', { p_token: token }).then(({ data, error }) => {
@@ -52,6 +53,11 @@ export default function PublicLeadSignupPage() {
     const found = validateLeadSignup(form);
     setErrors(found);
     if (Object.keys(found).length > 0) return;
+    setReviewing(true); // mostra o resumo antes de enviar
+  };
+
+  const send = async () => {
+    setServerError('');
     setSending(true);
     const { data, error } = await supabase.rpc('lead_signup_submit', {
       p_token: token,
@@ -60,6 +66,7 @@ export default function PublicLeadSignupPage() {
       p_cpf: form.cpf,
       p_phone: form.phone,
       p_consent: form.consent,
+      ...(form.email.trim() ? { p_email: form.email.trim() } : {}),
     });
     setSending(false);
     if (error) { setServerError(error.message); return; }
@@ -92,6 +99,42 @@ export default function PublicLeadSignupPage() {
             </div>
           ) : link.status !== 'ok' ? (
             <p className="py-6 text-center text-sm">{MESSAGES[link.status]}</p>
+          ) : reviewing ? (
+            <div className="space-y-4">
+              <div>
+                <p className="font-medium">Confira seus dados</p>
+                <p className="mt-1 text-sm text-muted-foreground">É isto que vai para a {link.clinic_name || 'clínica'}.</p>
+              </div>
+              <dl className="divide-y rounded-xl border text-sm">
+                {[
+                  ['Nome completo', form.fullName.trim().replace(/\s+/g, ' ')],
+                  ['Data de nascimento', form.birthDate.split('-').reverse().join('/')],
+                  ['CPF', form.cpf],
+                  ['WhatsApp', form.phone],
+                  ['E-mail', form.email.trim() || 'Não informado'],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between gap-3 px-3 py-2.5">
+                    <dt className="text-muted-foreground">{label}</dt>
+                    <dd className="text-right font-medium break-all">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="flex items-start gap-2 text-xs text-muted-foreground">
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Você autorizou a clínica a usar esses dados para cadastro, agendamento e atendimento.
+              </p>
+
+              {serverError && <p className="text-sm text-destructive">{serverError}</p>}
+
+              <p className="text-center font-medium">Confirmar e enviar?</p>
+              <div className="flex gap-3">
+                <BrandButton type="button" variant="outline" className="flex-1" onClick={() => setReviewing(false)} disabled={sending}>
+                  <Pencil className="h-4 w-4" /> Revisar
+                </BrandButton>
+                <BrandButton type="button" className="flex-1" onClick={send} disabled={sending}>
+                  {sending ? 'Enviando…' : 'Confirmar e enviar'}
+                </BrandButton>
+              </div>
+            </div>
           ) : (
             <form onSubmit={submit} className="space-y-4" noValidate>
               <div>
@@ -128,16 +171,24 @@ export default function PublicLeadSignupPage() {
                 {fieldError('phone')}
               </div>
 
+              <div className="space-y-1.5">
+                <Label htmlFor="email">E-mail <span className="font-normal text-muted-foreground">(opcional)</span></Label>
+                <Input id="email" type="email" inputMode="email" autoComplete="email" placeholder="voce@email.com" value={form.email}
+                  onChange={(e) => set('email', e.target.value)}
+                  aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-error' : undefined} />
+                {fieldError('email')}
+              </div>
+
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm">
                 <Checkbox checked={form.consent} onCheckedChange={(v) => set('consent', v === true)} aria-label="Autorizo o uso dos meus dados" className="mt-0.5" />
-                <span>Autorizo a clínica a usar meus dados (nome, data de nascimento, CPF e WhatsApp) para cadastro, agendamento e atendimento.</span>
+                <span>Autorizo a clínica a usar meus dados (nome, data de nascimento, CPF, WhatsApp e e-mail) para cadastro, agendamento e atendimento.</span>
               </label>
               {fieldError('consent')}
 
               {serverError && <p className="text-sm text-destructive">{serverError}</p>}
 
               <BrandButton type="submit" className="w-full" disabled={sending}>
-                {sending ? 'Enviando…' : 'Enviar cadastro'}
+                Continuar
               </BrandButton>
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" /> Link pessoal, de uso único. Seus dados vão direto para a clínica.</p>
             </form>

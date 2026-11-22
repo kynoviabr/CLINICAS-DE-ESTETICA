@@ -4388,6 +4388,7 @@ export type Database = {
           p_birth_date: string
           p_consent: boolean
           p_cpf: string
+          p_email?: string
           p_full_name: string
           p_phone: string
           p_token: string

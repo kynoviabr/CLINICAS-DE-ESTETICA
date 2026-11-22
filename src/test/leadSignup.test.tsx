@@ -11,7 +11,7 @@ vi.mock('@/integrations/supabase/client', () => ({ supabase: { rpc: (...args: un
 
 import PublicLeadSignupPage from '@/pages/PublicLeadSignupPage';
 
-const ok = { fullName: 'Maria da Silva', birthDate: '1990-05-10', cpf: '529.982.247-25', phone: '(13) 99123-4567', consent: true };
+const ok = { fullName: 'Maria da Silva', birthDate: '1990-05-10', cpf: '529.982.247-25', phone: '(13) 99123-4567', email: '', consent: true };
 
 describe('regras do cadastro do lead', () => {
   it('aceita dados válidos', () => {
@@ -19,7 +19,7 @@ describe('regras do cadastro do lead', () => {
   });
 
   it('aponta cada campo inválido', () => {
-    const e = validateLeadSignup({ fullName: 'Maria', birthDate: '2030-01-01', cpf: '111.111.111-11', phone: '123', consent: false }, new Date('2026-11-21'));
+    const e = validateLeadSignup({ fullName: 'Maria', birthDate: '2030-01-01', cpf: '111.111.111-11', phone: '123', email: '', consent: false }, new Date('2026-11-21'));
     expect(Object.keys(e).sort()).toEqual(['birthDate', 'consent', 'cpf', 'fullName', 'phone']);
   });
 
@@ -48,7 +48,7 @@ describe('página de cadastro do lead', () => {
     renderPage();
 
     expect(await screen.findByDisplayValue('(13) 99123-4567')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Enviar cadastro/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Continuar/ }));
     expect(screen.getByText('Digite seu nome completo.')).toBeInTheDocument();
     expect(rpc).toHaveBeenCalledTimes(1); // não enviou
 
@@ -57,13 +57,45 @@ describe('página de cadastro do lead', () => {
     fireEvent.change(screen.getByLabelText('CPF'), { target: { value: '52998224725' } });
     expect(screen.getByLabelText('CPF')).toHaveValue('529.982.247-25');
     fireEvent.click(screen.getByRole('checkbox'));
-    fireEvent.click(screen.getByRole('button', { name: /Enviar cadastro/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Continuar/ }));
+
+    // Resumo antes de enviar: dá para voltar e revisar.
+    expect(screen.getByText('Confira seus dados')).toBeInTheDocument();
+    expect(screen.getByText('10/05/1990')).toBeInTheDocument();
+    expect(screen.getByText('Não informado')).toBeInTheDocument();
+    expect(rpc).toHaveBeenCalledTimes(1); // ainda não enviou
+    fireEvent.click(screen.getByRole('button', { name: /Revisar/ }));
+    expect(screen.getByLabelText('Nome completo')).toHaveValue('Maria da Silva');
+    fireEvent.click(screen.getByRole('button', { name: /Continuar/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar e enviar/ }));
 
     expect(await screen.findByText('Cadastro enviado!')).toBeInTheDocument();
     expect(rpc).toHaveBeenLastCalledWith('lead_signup_submit', {
       p_token: 'tok123', p_full_name: 'Maria da Silva', p_birth_date: '1990-05-10',
       p_cpf: '529.982.247-25', p_phone: '(13) 99123-4567', p_consent: true,
     });
+  });
+
+  it('e-mail é opcional, mas se preenchido precisa ser válido', async () => {
+    rpc.mockImplementation(async (fn: string) => fn === 'lead_signup_status'
+      ? { data: { status: 'ok', clinic_name: 'Aura', first_name: 'Maria', phone: '5513991234567' }, error: null }
+      : { data: { ok: true }, error: null });
+    renderPage();
+    await screen.findByDisplayValue('(13) 99123-4567');
+    fireEvent.change(screen.getByLabelText('Nome completo'), { target: { value: 'Maria da Silva' } });
+    fireEvent.change(screen.getByLabelText('Data de nascimento'), { target: { value: '1990-05-10' } });
+    fireEvent.change(screen.getByLabelText('CPF'), { target: { value: '52998224725' } });
+    fireEvent.change(screen.getByLabelText(/E-mail/), { target: { value: 'maria@' } });
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: /Continuar/ }));
+    expect(screen.getByText('Confira o e-mail (ou deixe em branco).')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/E-mail/), { target: { value: ' maria@gmail.com ' } });
+    fireEvent.click(screen.getByRole('button', { name: /Continuar/ }));
+    expect(screen.getByText('maria@gmail.com')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar e enviar/ }));
+    expect(await screen.findByText('Cadastro enviado!')).toBeInTheDocument();
+    expect(rpc).toHaveBeenLastCalledWith('lead_signup_submit', expect.objectContaining({ p_email: 'maria@gmail.com' }));
   });
 
   it('link usado ou vencido mostra o aviso, sem formulário', async () => {
