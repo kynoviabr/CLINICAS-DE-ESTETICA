@@ -11,8 +11,7 @@ Ele para antes de aplicar se o banco tiver alguma migration que não existe no r
 1. **Settings > Environments**: crie `homolog` e `production`. Em `production`, marque **Required reviewers** e escolha você.
 2. **Settings > Secrets and variables > Actions > Secrets**:
    - `SUPABASE_ACCESS_TOKEN`: Supabase > avatar > Account preferences > Access Tokens > Generate new token.
-   - `SUPABASE_DB_PASSWORD_HOMOLOG`: Supabase (homologação) > Project Settings > Database > senha do banco (se não souber, "Reset database password").
-   - `SUPABASE_DB_PASSWORD_PROD`: o mesmo no projeto de produção.
+   - Não precisa da senha do banco: com o token, a publicação cria um acesso temporário ao banco.
 3. **Mesma tela, aba Variables**:
    - `SUPABASE_PROJECT_HOMOLOG` = `majqksguuwmjhuuwjltj`
    - `SUPABASE_PROJECT_PROD` = `tunoirtswleljvyohdxp`
