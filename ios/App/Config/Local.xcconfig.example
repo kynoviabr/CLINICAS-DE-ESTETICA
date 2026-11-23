@@ -4,5 +4,5 @@
 DEVELOPMENT_TEAM = XXXXXXXXXX
 
 // Sufixo do bundle ID no Debug, para instalar no seu iPhone com um Team
-// pessoal. Ex.: br.com.klinova.app.teste.seunome
+// pessoal. Ex.: br.com.kynovia.estetica.teste.seunome
 BUNDLE_ID_SUFFIX = .teste.seunome

@@ -2,7 +2,7 @@
 // Segredos (Supabase > Edge Functions > Secrets). Sem eles, a plataforma correspondente fica desligada.
 //   FCM_SERVICE_ACCOUNT  JSON da conta de serviço do Firebase (Android)
 //   APNS_KEY_P8          conteúdo da chave .p8 da Apple; APNS_KEY_ID; APNS_TEAM_ID
-//   APNS_BUNDLE_ID       padrão br.com.klinova.app;  APNS_PRODUCTION "true" para App Store/TestFlight
+//   APNS_BUNDLE_ID       padrão br.com.kynovia.estetica;  APNS_PRODUCTION "true" para App Store/TestFlight
 
 export type PushMessage = { title: string; body: string; url?: string };
 export type PushResult = "sent" | "invalid_token" | "not_configured" | "error";
@@ -91,7 +91,7 @@ async function sendIos(token: string, msg: PushMessage): Promise<PushResult> {
     method: "POST",
     headers: {
       authorization: `bearer ${jwt}`,
-      "apns-topic": Deno.env.get("APNS_BUNDLE_ID") || "br.com.klinova.app",
+      "apns-topic": Deno.env.get("APNS_BUNDLE_ID") || "br.com.kynovia.estetica",
       "apns-push-type": "alert",
       "apns-priority": "10",
     },

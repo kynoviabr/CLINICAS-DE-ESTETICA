@@ -1,4 +1,4 @@
-package br.com.klinova.app;
+package br.com.kynovia.estetica;
 
 import com.getcapacitor.BridgeActivity;
 

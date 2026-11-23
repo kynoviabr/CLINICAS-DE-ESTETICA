@@ -5,7 +5,7 @@
 // Veja Config/Local.xcconfig.example.
 
 // Sufixo anexado ao bundle ID apenas na configuração Debug do target App.
-// Vazio = bundle ID oficial (br.com.klinova.app).
+// Vazio = bundle ID oficial (br.com.kynovia.estetica).
 BUNDLE_ID_SUFFIX =
 
 #include? "Local.xcconfig"

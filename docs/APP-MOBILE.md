@@ -1,7 +1,7 @@
 # App Klinova para iOS e Android (Capacitor)
 
 O app usa o mesmo código do site, empacotado com o Capacitor. Pastas: `ios/` e `android/`.
-Configuração: `capacitor.config.ts` (identificador `br.com.klinova.app`, que não muda depois de publicado).
+Configuração: `capacitor.config.ts` (identificador `br.com.kynovia.estetica`, que não muda depois de publicado).
 
 ## Android: testar no celular (sem conta Google)
 1. GitHub > **Actions** > **App Android (teste)** > execução mais recente.
@@ -46,7 +46,7 @@ Funciona assim: tabela `push_devices` (aparelhos) → gatilho em `notifications`
 
 ### 1. Firebase (grátis; entrega no Android)
 1. Acesse https://console.firebase.google.com com a conta Google da empresa > **Adicionar projeto** (ex.: "Klinova").
-2. No projeto: **Adicionar app** > Android > nome do pacote `br.com.klinova.app` > baixe o **google-services.json**.
+2. No projeto: **Adicionar app** > Android > nome do pacote `br.com.kynovia.estetica` > baixe o **google-services.json**.
 3. GitHub do repositório > Settings > Secrets and variables > Actions > **New repository secret**:
    nome `GOOGLE_SERVICES_JSON`, valor = todo o conteúdo do arquivo. O próximo .apk já sai com notificações.
 4. Firebase > Configurações do projeto > **Contas de serviço** > **Gerar nova chave privada** (baixa um .json).
