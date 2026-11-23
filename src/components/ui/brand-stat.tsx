@@ -15,6 +15,7 @@ interface BrandStatProps {
 export function BrandStat({ label, value, icon: Icon, trend, className }: BrandStatProps) {
   return (
     <div
+      title={label}
       className={cn(
         'rounded-card border border-border bg-card p-5 shadow-stripe-sm transition-all duration-200 ease-stripe',
         'hover:-translate-y-0.5 hover:shadow-stripe-md',

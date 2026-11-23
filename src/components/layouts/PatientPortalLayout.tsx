@@ -1,3 +1,5 @@
+import { Suspense } from 'react';
+import { PageLoader } from '@/components/PageLoader';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   Home, FileText, CreditCard, CalendarDays, Activity, Camera, MessageSquare, LogOut
@@ -52,7 +54,9 @@ export default function PatientPortalLayout() {
       </header>
 
       <div className="flex-1 max-w-lg mx-auto w-full px-4 py-6 pb-24">
-        <Outlet />
+        <Suspense fallback={<PageLoader />}>
+          <Outlet />
+        </Suspense>
       </div>
 
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border shadow-stripe-md">

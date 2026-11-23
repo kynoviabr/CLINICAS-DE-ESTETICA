@@ -24,6 +24,7 @@ interface Props {
 const sourceOptions = [
   { value: 'digital', label: 'Digital' },
   { value: 'portal', label: 'Portal do paciente' },
+  { value: 'patient_link', label: 'Link enviado à paciente' },
   { value: 'manual_upload', label: 'Upload manual' },
   { value: 'internal_manual', label: 'Preenchimento interno' },
 ];

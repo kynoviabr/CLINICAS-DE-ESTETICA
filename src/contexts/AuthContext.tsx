@@ -1,6 +1,8 @@
+import { publicOrigin } from '@/lib/publicOrigin';
 import { createContext, useContext, useCallback, useEffect, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { unregisterPush } from '@/lib/push';
 
 interface AuthContextType {
   session: Session | null;
@@ -36,7 +38,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       error,
     } = await supabase.auth.getUser();
 
-    setUser(error ? null : user);
+    // Mantém a mesma referência se for o mesmo usuário, evitando re-renders/recargas
+    // em cascata quando o Supabase revalida a sessão ao voltar para a aba.
+    setUser((current) => (error ? null : current && user && current.id === user.id ? current : user));
   }, []);
 
   useEffect(() => {
@@ -77,25 +81,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, metadata?: Record<string, unknown>) => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: metadata, emailRedirectTo: `${window.location.origin}/onboarding` },
+      options: { data: metadata, emailRedirectTo: `${publicOrigin()}/onboarding` },
     });
     if (error) throw error;
+    // E-mail já cadastrado: o Supabase responde "ok" sem enviar nada e sem identidades.
+    if (data.user && (data.user.identities?.length ?? 0) === 0) {
+      throw new Error('Este e-mail já tem conta. Entre com ele (ou use "Esqueci a senha") ou cadastre outro e-mail.');
+    }
   };
 
   const signInWithSocial = async (provider: 'google' | 'facebook') => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/login`,
+        redirectTo: `${publicOrigin()}/login`,
       },
     });
     if (error) throw error;
   };
 
   const signOut = async () => {
+    await unregisterPush().catch(() => {});
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   };

@@ -57,7 +57,10 @@ const DUMMY_DATA = {
     condition: 'Parcelado',
     methods: 'Cartão de Crédito',
     installments: 3,
-    due_dates: '24/09, 24/10, 24/11'
+    due_dates: '24/09, 24/10, 24/11',
+    advance: 'R$ 100,00',
+    advance_details: 'Adiantamento (sinal pago via Pix) de R$ 100,00 em 20/09/2026, por Maria Lima, recibo nº RS-2026-0001',
+    amount_due: 'R$ 1.400,00'
   },
   proposal: {
     number: 'PROP-001'
@@ -269,7 +272,7 @@ export default function ContractTemplatesTab() {
                   <div className="space-y-2">
                     <Label className="flex justify-between items-end">
                       Conteúdo HTML
-                      <span className="text-xs text-muted-foreground font-normal">Use placeholders como {'{{patient.name}}'}</span>
+                      <span className="text-xs text-muted-foreground font-normal">Use placeholders como {'{{patient.name}}'}. Sinal: {'{{payment.advance}}'}, {'{{payment.advance_details}}'} e {'{{payment.amount_due}}'}.</span>
                     </Label>
                     <Textarea 
                       className="font-mono text-sm min-h-[400px]" 

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { compressImage } from '@/lib/photos/compress';
 import { useAuth } from '@/contexts/AuthContext';
 import { BrandButton } from '@/components/ui/brand-button';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +10,8 @@ import { Upload, Eye, FileText, ClipboardEdit, AlertTriangle } from 'lucide-reac
 import { format, addDays, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import AnamnesisFormModal from './AnamnesisFormModal';
+import { openStoredFile } from '@/lib/storedFile';
+import { toast as sonnerToast } from 'sonner';
 
 interface AnamneseSectionProps {
   patientId: string;
@@ -113,31 +116,29 @@ export default function AnamneseSection({ patientId, clinicId }: AnamneseSection
       toast({ title: 'Tipo de arquivo inválido', description: 'Envie PDF ou imagem (JPG, PNG, WebP)', variant: 'destructive' });
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast({ title: 'Arquivo muito grande', description: 'Máximo 10MB', variant: 'destructive' });
-      return;
-    }
-
     setUploading(true);
     try {
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+      const img = await compressImage(file, 2000, { quality: 0.85 });
+      if (img.blob.size > 10 * 1024 * 1024) {
+        toast({ title: 'Arquivo muito grande', description: 'Máximo 10MB', variant: 'destructive' });
+        return;
+      }
       const timestamp = Date.now();
-      const filePath = `${clinicId}/${patientId}/docs/anamnese_${timestamp}.${ext}`;
+      const filePath = `${clinicId}/${patientId}/docs/anamnese_${timestamp}.${img.ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from('patient-files')
-        .upload(filePath, file, { contentType: file.type });
+        .upload(filePath, img.blob, { contentType: img.type });
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage.from('patient-files').getPublicUrl(filePath);
 
       const validUntil = addDays(new Date(), validityDays);
 
       const { error: insertError } = await supabase.from('patient_anamneses').insert({
-        anamnese_number: `AN-${Date.now()}`,
+        anamnese_number: '', // o banco gera o número (trigger)
         clinic_id: clinicId,
         patient_id: patientId,
-        file_url: publicUrl,
+        file_url: filePath,
         uploaded_at: new Date().toISOString(),
         uploaded_by: user?.id,
         valid_until: validUntil.toISOString().split('T')[0],
@@ -180,7 +181,7 @@ export default function AnamneseSection({ patientId, clinicId }: AnamneseSection
 
       <div className="flex flex-wrap gap-2 mt-2">
         <BrandButton variant="outline" size="sm" onClick={() => setFormOpen(true)}>
-          <ClipboardEdit className="w-3 h-3" /> Preencher digitalmente
+          <ClipboardEdit className="w-3 h-3" /> Preencher anamnese
         </BrandButton>
         <input
           ref={fileInputRef}
@@ -193,7 +194,7 @@ export default function AnamneseSection({ patientId, clinicId }: AnamneseSection
           <Upload className="w-3 h-3" /> {uploading ? 'Enviando...' : 'Upload de documento'}
         </BrandButton>
         {anamnese?.file_url && (
-          <BrandButton variant="outline" size="sm" onClick={() => window.open(anamnese.file_url, '_blank')}>
+          <BrandButton variant="outline" size="sm" onClick={() => openStoredFile(anamnese.file_url, 'patient-files').catch((e: Error) => sonnerToast.error(e.message))}>
             <Eye className="w-3 h-3" /> Visualizar documento
           </BrandButton>
         )}

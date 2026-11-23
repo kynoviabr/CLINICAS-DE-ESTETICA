@@ -32,3 +32,8 @@ tmp-settings.png
 # Local env (use .env.example as template)
 .env
 .env.e2e.local
+.env*.local
+
+# Arquivo do Firebase (vem do segredo GOOGLE_SERVICES_JSON no build)
+android/app/google-services.json
+ios/App/App/GoogleService-Info.plist

@@ -6,12 +6,15 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { FileText, Eye, CheckCircle, Archive, Calendar, Hash, Clock, User as UserIcon, Paperclip, Pencil } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
+import { openStoredFile } from '@/lib/storedFile';
+import { toast as sonnerToast } from 'sonner';
 
 type AnamneseRow = Database['public']['Tables']['patient_anamneses']['Row'];
 
 const sourceLabels: Record<string, string> = {
   digital: 'Digital',
   portal: 'Portal',
+  patient_link: 'Link da paciente',
   manual_upload: 'Upload manual',
   internal_manual: 'Interno',
 };
@@ -23,6 +26,8 @@ interface Props {
   onArchive: (id: string) => void;
   onEdit?: (anamnese: AnamneseRow) => void;
   onView?: (anamnese: AnamneseRow) => void;
+  /** Título do cartão (padrão: "Anamnese Vigente"). */
+  title?: string;
   validating?: boolean;
   archiving?: boolean;
 }
@@ -37,7 +42,7 @@ function fmtDateShort(d: string | null) {
   return format(new Date(d), 'dd/MM/yyyy', { locale: ptBR });
 }
 
-export default function CurrentAnamneseCard({ anamnese, patientId, onValidate, onArchive, onEdit, onView, validating, archiving }: Props) {
+export default function CurrentAnamneseCard({ anamnese, patientId, onValidate, onArchive, onEdit, onView, validating, archiving, title = 'Anamnese Vigente' }: Props) {
   const a = anamnese;
 
   return (
@@ -46,7 +51,7 @@ export default function CurrentAnamneseCard({ anamnese, patientId, onValidate, o
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <FileText className="w-4 h-4 text-primary" />
-            Anamnese Vigente
+            {title}
           </CardTitle>
           <AnamneseStatusBadge status={a.status} />
         </div>
@@ -83,7 +88,7 @@ export default function CurrentAnamneseCard({ anamnese, patientId, onValidate, o
           <div className="flex items-center gap-2 p-2 rounded-lg bg-secondary/50 text-sm">
             <Paperclip className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
             <span className="truncate flex-1 text-foreground">{a.document_name || 'Documento'}</span>
-            <BrandButton size="sm" variant="outline" onClick={() => window.open(a.document_url, '_blank')}>
+            <BrandButton size="sm" variant="outline" onClick={() => openStoredFile(a.document_url, 'patient-anamneses').catch((e: Error) => sonnerToast.error(e.message))}>
               <Eye className="w-3 h-3" /> Ver
             </BrandButton>
           </div>

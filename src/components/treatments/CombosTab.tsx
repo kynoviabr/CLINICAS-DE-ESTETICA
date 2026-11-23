@@ -55,6 +55,7 @@ export default function CombosTab({ readOnly = false }: CombosTabProps = {}) {
     },
     enabled: !!clinicId,
   });
+  type Combo = (typeof combos)[number];
 
   const { data: treatments = [] } = useQuery({
     queryKey: ['treatments-active', clinicId],
@@ -81,7 +82,7 @@ export default function CombosTab({ readOnly = false }: CombosTabProps = {}) {
     enabled: !!clinicId && treatments.length > 0,
   });
 
-  const getTreatment = (id: string) => treatments.find((t: unknown) => t.id === id);
+  const getTreatment = (id: string) => treatments.find((t) => t.id === id);
 
   const totalDefault = form.items.reduce((s, item) => {
     const t = getTreatment(item.treatment_id);
@@ -152,16 +153,16 @@ export default function CombosTab({ readOnly = false }: CombosTabProps = {}) {
       setForm(emptyForm);
       toast({ title: editingId ? 'Combo atualizado!' : 'Combo criado!' });
     },
-    onError: (err: unknown) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
-  const openEdit = (combo: unknown) => {
+  const openEdit = (combo: Combo) => {
     setEditingId(combo.id);
     setForm({
       name: combo.name,
       promotional_price: combo.promotional_price ? String(combo.promotional_price) : '',
-      active: combo.active,
-      items: (combo.treatment_combo_items || []).map((ci: unknown) => ({
+      active: combo.active ?? true,
+      items: (combo.treatment_combo_items || []).map((ci) => ({
         treatment_id: ci.treatment_id,
         quantity: ci.quantity || 1,
       })),
@@ -169,13 +170,13 @@ export default function CombosTab({ readOnly = false }: CombosTabProps = {}) {
     setDialogOpen(true);
   };
 
-  const openDuplicate = (combo: unknown) => {
+  const openDuplicate = (combo: Combo) => {
     setEditingId(null);
     setForm({
       name: combo.name ? `${combo.name} (Cópia)` : 'Novo combo (Cópia)',
       promotional_price: combo.promotional_price ? String(combo.promotional_price) : '',
       active: true,
-      items: (combo.treatment_combo_items || []).map((ci: unknown) => ({
+      items: (combo.treatment_combo_items || []).map((ci) => ({
         treatment_id: ci.treatment_id,
         quantity: ci.quantity || 1,
       })),
@@ -227,15 +228,15 @@ export default function CombosTab({ readOnly = false }: CombosTabProps = {}) {
                 </tr>
               </thead>
               <tbody>
-                {combos.map((combo: unknown) => {
+                {combos.map((combo) => {
                   const comboItems = combo.treatment_combo_items || [];
-                  const totalPrice = comboItems.reduce((s: number, ci: unknown) => s + Number(ci.treatments?.default_price || ci.treatments?.price || 0) * (ci.quantity || 1), 0);
-                  const totalMin = comboItems.reduce((s: number, ci: unknown) => s + Number(ci.treatments?.min_price || 0) * (ci.quantity || 1), 0);
+                  const totalPrice = comboItems.reduce((s: number, ci) => s + Number(ci.treatments?.default_price || ci.treatments?.price || 0) * (ci.quantity || 1), 0);
+                  const totalMin = comboItems.reduce((s: number, ci) => s + Number(ci.treatments?.min_price || 0) * (ci.quantity || 1), 0);
                   return (
                     <tr key={combo.id} className="border-b last:border-0 hover:bg-secondary/30 transition-colors">
                       <td className="px-4 py-3 text-sm font-medium text-foreground">{combo.name}</td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">
-                        {comboItems.map((ci: unknown) => `${ci.treatments?.name} (x${ci.quantity})`).join(', ') || '—'}
+                        {comboItems.map((ci) => `${ci.treatments?.name} (x${ci.quantity})`).join(', ') || '—'}
                       </td>
                       <td className="px-4 py-3 text-sm text-foreground text-right">R$ {totalPrice.toFixed(2)}</td>
                       <td className="px-4 py-3 text-sm text-muted-foreground text-right">R$ {totalMin.toFixed(2)}</td>
@@ -296,7 +297,7 @@ export default function CombosTab({ readOnly = false }: CombosTabProps = {}) {
                       }}>
                         <SelectTrigger className="flex-1"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                         <SelectContent>
-                          {treatments.map((t: unknown) => (
+                          {treatments.map((t) => (
                             <SelectItem key={t.id} value={t.id}>{t.name} (R$ {Number(t.default_price || t.price).toFixed(2)})</SelectItem>
                           ))}
                         </SelectContent>

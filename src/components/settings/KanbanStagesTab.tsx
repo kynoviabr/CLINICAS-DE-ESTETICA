@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ArrowUp, Lock, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, Lock, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { CLOSED_STAGES, FINAL_COLUMN_KEY, effectiveHidden } from '@/lib/crm/boardColumns';
+import { upsertClinicSetting } from '@/lib/setup/clinicSetup';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +16,7 @@ type StageDefinition = {
   label: string;
   description: string;
   isSystem?: boolean;
+  hidden?: boolean;
 };
 
 const defaultStages: StageDefinition[] = [
@@ -60,11 +64,12 @@ export default function KanbanStagesTab() {
       try {
         const parsed = JSON.parse(data.value);
         if (!Array.isArray(parsed) || parsed.length === 0) return defaultStages;
-        return parsed.map((stage: { code?: string; label?: string; description?: string }) => ({
+        return parsed.map((stage: { code?: string; label?: string; description?: string; hidden?: boolean }) => ({
           code: normalizeStageCode(stage.code),
           label: stage.label || stage.code || 'Etapa',
           description: stage.description || '',
           isSystem: !!defaultStages.find((item) => item.code === normalizeStageCode(stage.code)),
+          hidden: !!stage.hidden,
         }));
       } catch {
         return defaultStages;
@@ -103,6 +108,7 @@ export default function KanbanStagesTab() {
           code: stage.code,
           label: stage.label,
           description: stage.description,
+          ...(stage.hidden ? { hidden: true } : {}),
         }))
       );
 
@@ -137,6 +143,52 @@ export default function KanbanStagesTab() {
   });
 
   const canEdit = role === 'admin';
+  const [editing, setEditing] = useState<{ code: string; label: string } | null>(null);
+  const isClosed = (code: string) => (CLOSED_STAGES as readonly string[]).includes(code);
+  const hiddenNow = effectiveHidden(stages);
+  const visibleOpenCount = stages.filter((stage) => !isClosed(stage.code) && !hiddenNow.has(stage.code)).length;
+
+  const toggleStage = (stageCode: string, use: boolean) => {
+    if (!canEdit) return;
+    if (!use && visibleOpenCount <= 1) {
+      toast({ title: 'Mantenha ao menos uma etapa em uso', variant: 'destructive' });
+      return;
+    }
+    saveStagesMutation.mutate(stages.map((stage) => stage.code === stageCode ? { ...stage, hidden: !use } : stage));
+  };
+
+  const renameStage = () => {
+    if (!canEdit || !editing) return;
+    const label = editing.label.trim();
+    if (!label) return;
+    saveStagesMutation.mutate(stages.map((stage) => stage.code === editing.code ? { ...stage, label } : stage));
+    setEditing(null);
+  };
+
+  // Fechado e Perdido numa coluna só ("Finalizado"), com etiqueta em cada card.
+  const finalColumnQuery = useQuery({
+    queryKey: ['crm-final-column', clinicId],
+    queryFn: async () => {
+      const { data } = await supabase.from('clinic_settings').select('value')
+        .eq('clinic_id', clinicId!).eq('key', FINAL_COLUMN_KEY).maybeSingle();
+      return data?.value?.trim() || null;
+    },
+    enabled: !!clinicId,
+  });
+  const finalColumn = finalColumnQuery.data ?? null;
+  const [finalDraft, setFinalDraft] = useState<string | null>(null);
+  const saveFinalColumn = useMutation({
+    mutationFn: async (value: string) => {
+      if (!clinicId) return;
+      await upsertClinicSetting(clinicId, FINAL_COLUMN_KEY, value);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['crm-final-column'] });
+      setFinalDraft(null);
+      toast({ title: 'Quadro do CRM atualizado' });
+    },
+    onError: (error: Error) => toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' }),
+  });
 
   const addStage = () => {
     if (!canEdit) return;
@@ -208,6 +260,9 @@ export default function KanbanStagesTab() {
           <p className="mt-1 text-xs text-slate-500">
             Novo Lead · Contato Iniciado · Agendado · Proposta · Fechado · Perdido
           </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Quer algo mais simples? Desligue as etapas que não usa, renomeie (ex.: Proposta → Em negociação) e junte Fechado e Perdido em "Finalizado".
+          </p>
           <p className="mt-2 text-xs text-slate-500">
             Leads atualmente distribuídos nas etapas: <span className="font-semibold text-slate-700">{totalLeadsInPipeline}</span>
           </p>
@@ -218,7 +273,19 @@ export default function KanbanStagesTab() {
             <div key={stage.code} className="flex items-center gap-2 rounded-xl border px-3 py-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-slate-900">{stage.label}</p>
+                  {editing?.code === stage.code ? (
+                    <form className="flex items-center gap-1" onSubmit={(event) => { event.preventDefault(); renameStage(); }}>
+                      <Input autoFocus className="h-8 w-48" value={editing.label} onChange={(event) => setEditing({ code: stage.code, label: event.target.value })} />
+                      <Button type="submit" size="sm" variant="outline" className="h-8 px-2"><Check className="h-3.5 w-3.5" /></Button>
+                    </form>
+                  ) : (
+                    <p className={`text-sm font-medium ${hiddenNow.has(stage.code) ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{stage.label}</p>
+                  )}
+                  {canEdit && editing?.code !== stage.code && (
+                    <button type="button" className="text-slate-400 hover:text-slate-700" title="Renomear" onClick={() => setEditing({ code: stage.code, label: stage.label })}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                   {stage.isSystem && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
                       <Lock className="h-3 w-3" /> padrão
@@ -231,6 +298,16 @@ export default function KanbanStagesTab() {
                 <p className="text-xs text-slate-500">{stage.description || 'Sem descrição.'}</p>
               </div>
               <div className="flex items-center gap-1">
+                {!isClosed(stage.code) && (
+                  <label className="mr-2 flex items-center gap-1.5 text-xs text-slate-500">
+                    <Switch
+                      checked={!hiddenNow.has(stage.code)}
+                      onCheckedChange={(use) => toggleStage(stage.code, use)}
+                      disabled={!canEdit || saveStagesMutation.isPending}
+                    />
+                    {hiddenNow.has(stage.code) ? 'Oculta' : 'Em uso'}
+                  </label>
+                )}
                 <Button size="sm" variant="outline" className="h-8 px-2" onClick={() => moveStage(stage.code, -1)} disabled={!canEdit || index === 0 || saveStagesMutation.isPending}>
                   <ArrowUp className="h-3.5 w-3.5" />
                 </Button>
@@ -245,6 +322,29 @@ export default function KanbanStagesTab() {
               </div>
             </div>
           ))}
+        </div>
+
+        <p className="text-xs text-slate-500">
+          Etapa oculta não aparece no quadro: os leads dela ficam na próxima etapa em uso. As automações continuam iguais
+          (ex.: lead novo entra em "Novo Lead"; se ela estiver oculta, aparece na etapa seguinte).
+        </p>
+
+        <div className="rounded-xl border p-4 space-y-3">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-900">
+            <Switch
+              checked={!!finalColumn}
+              onCheckedChange={(on) => saveFinalColumn.mutate(on ? (finalDraft?.trim() || 'Finalizado') : '')}
+              disabled={!canEdit || saveFinalColumn.isPending}
+            />
+            Juntar Fechado e Perdido numa coluna só
+          </label>
+          <p className="text-xs text-slate-500">Cada card mostra a etiqueta Fechado ou Perdido. Ao soltar um lead nessa coluna, o sistema pergunta qual dos dois.</p>
+          {finalColumn && (
+            <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); if (finalDraft?.trim()) saveFinalColumn.mutate(finalDraft.trim()); }}>
+              <Input className="max-w-xs" value={finalDraft ?? finalColumn} onChange={(event) => setFinalDraft(event.target.value)} placeholder="Finalizado" disabled={!canEdit} />
+              <Button type="submit" variant="outline" disabled={!canEdit || !finalDraft?.trim() || saveFinalColumn.isPending}>Salvar nome</Button>
+            </form>
+          )}
         </div>
 
         <div className="rounded-xl border p-4">

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useUrlState } from '@/hooks/useUrlState';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -12,13 +13,20 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, MoreHorizontal, Phone, Mail, Edit, Eye } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Phone, Mail, Edit, Eye, CalendarRange } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { MobileFilters } from '@/components/ui/mobile-filters';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { AnamneseBadge, getAnamneseStatus, type AnamneseStatus } from '@/components/patient/AnamneseSection';
 import PayerSection, { type PayerData } from '@/components/patient/PayerSection';
 import { formatCep, lookupCepAddress } from '@/lib/cep';
+import { flattenContractTreatments, type ContractTreatmentRow } from '@/lib/patients/contractTreatments';
+import type { Tables, Enums } from '@/integrations/supabase/types';
+import { formatCpf, formatPhone, onlyDigits, patientSaveErrorMessage, validatePatientFields, type PatientFieldErrors } from '@/lib/patients/validation';
+import { PatientDuplicateAlert } from '@/components/patient/PatientDuplicateAlert';
+import { usePatientDuplicateCheck } from '@/hooks/usePatientDuplicateCheck';
 
 interface PatientForm {
   full_name: string;
@@ -29,6 +37,8 @@ interface PatientForm {
   gender: string;
   zip_code: string;
   address: string;
+  address_number: string;
+  address_complement: string;
   city: string;
   state: string;
   notes: string;
@@ -36,7 +46,7 @@ interface PatientForm {
 
 const emptyForm: PatientForm = {
   full_name: '', email: '', phone: '', cpf: '',
-  date_of_birth: '', gender: '', zip_code: '', address: '', city: '', state: '', notes: '',
+  date_of_birth: '', gender: '', zip_code: '', address: '', address_number: '', address_complement: '', city: '', state: '', notes: '',
 };
 
 const defaultPayerData: PayerData = {
@@ -61,17 +71,19 @@ const anamneseStatusHint: Record<AnamneseStatus, string> = {
 export default function PatientsPage() {
   const { clinicId } = useBranding();
   const { toast } = useToast();
+  const [fieldErrors, setFieldErrors] = useState<PatientFieldErrors>({});
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [anamneseFilter, setAnamneseFilter] = useState<string>(searchParams.get('anamnese') || 'all');
+  const [anamneseFilter, setAnamneseFilter] = useUrlState<'all' | AnamneseStatus>('anamnese', 'all', ['all', 'none', 'valid', 'expiring', 'expired']);
   const [treatmentFilter, setTreatmentFilter] = useState<string>('all');
   const [contractDateStart, setContractDateStart] = useState('');
   const [contractDateEnd, setContractDateEnd] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const duplicates = usePatientDuplicateCheck(clinicId, editingId);
   const [form, setForm] = useState<PatientForm>(emptyForm);
   const [payerData, setPayerData] = useState<PayerData>(defaultPayerData);
   const { data: patients = [], isLoading } = useQuery({
@@ -85,7 +97,7 @@ export default function PatientsPage() {
         .order('created_at', { ascending: false });
 
       if (statusFilter !== 'all') {
-        q = q.eq('status', statusFilter);
+        q = q.eq('status', statusFilter as Enums<'patient_status'>);
       }
 
       const { data, error } = await q.limit(100);
@@ -99,12 +111,13 @@ export default function PatientsPage() {
     queryKey: ['patient-contracts-filter-map', clinicId],
     queryFn: async () => {
       if (!clinicId) return [];
+      // Tratamentos do contrato vêm dos itens da proposta que originou o contrato.
       const { data, error } = await supabase
-        .from('contract_items')
-        .select('treatment_id, treatments(name), contracts!inner(patient_id, created_at, clinic_id)')
-        .eq('contracts.clinic_id', clinicId);
+        .from('contracts')
+        .select('patient_id, created_at, proposals(proposal_items(treatment_id, treatments(name)))')
+        .eq('clinic_id', clinicId);
       if (error) throw error;
-      return data || [];
+      return flattenContractTreatments(data || []);
     },
     enabled: !!clinicId,
   });
@@ -140,7 +153,7 @@ export default function PatientsPage() {
 
   // Build anamnese map (latest per patient)
   const anamneseMap: Record<string, string> = {};
-  anamneses.forEach((a: unknown) => {
+  anamneses.forEach((a) => {
     if (!anamneseMap[a.patient_id]) anamneseMap[a.patient_id] = a.uploaded_at;
   });
 
@@ -178,7 +191,7 @@ export default function PatientsPage() {
   const normalizedSearch = search.trim().toLowerCase();
   const normalizedSearchDigits = normalizeDigits(search);
 
-  const patientContractMeta = patientContracts.reduce<Record<string, { treatments: Set<string>; contractDates: string[] }>>((acc, row: unknown) => {
+  const patientContractMeta = patientContracts.reduce<Record<string, { treatments: Set<string>; contractDates: string[] }>>((acc, row: ContractTreatmentRow) => {
     const patientId = row?.contracts?.patient_id;
     if (!patientId) return acc;
     if (!acc[patientId]) {
@@ -190,7 +203,8 @@ export default function PatientsPage() {
     return acc;
   }, {});
 
-  const filteredPatients = patients.filter(p => {
+  // Todos os filtros, menos o de anamnese (os cards contam sobre esta lista).
+  const patientsBeforeAnamnese = patients.filter(p => {
     const fullName = (p.full_name || '').toLowerCase();
     const email = (p.email || '').toLowerCase();
     const phone = normalizeDigits(p.phone);
@@ -203,10 +217,6 @@ export default function PatientsPage() {
       cpf.includes(normalizedSearchDigits);
 
     if (!matchSearch) return false;
-    if (anamneseFilter !== 'all') {
-      const s = getPatientAnamneseStatus(p.id);
-      if (s !== anamneseFilter) return false;
-    }
 
     const contractMeta = patientContractMeta[p.id];
     if (treatmentFilter !== 'all') {
@@ -228,14 +238,19 @@ export default function PatientsPage() {
     return true;
   });
 
-  const treatmentOptions = patientContracts.reduce<Array<{ id: string; name: string }>>((acc, row: unknown) => {
+  const filteredPatients = anamneseFilter === 'all'
+    ? patientsBeforeAnamnese
+    : patientsBeforeAnamnese.filter((p) => getPatientAnamneseStatus(p.id) === anamneseFilter);
+
+
+  const treatmentOptions = patientContracts.reduce<Array<{ id: string; name: string }>>((acc, row: ContractTreatmentRow) => {
     if (!row?.treatment_id || !row?.treatments?.name) return acc;
     if (acc.some((item) => item.id === row.treatment_id)) return acc;
     acc.push({ id: row.treatment_id, name: row.treatments.name });
     return acc;
   }, []).sort((a, b) => a.name.localeCompare(b.name));
 
-  const anamneseCounts = filteredPatients.reduce<Record<AnamneseStatus, number>>((acc, patient) => {
+  const anamneseCounts = patientsBeforeAnamnese.reduce<Record<AnamneseStatus, number>>((acc, patient) => {
     const status = getPatientAnamneseStatus(patient.id);
     acc[status] += 1;
     return acc;
@@ -273,11 +288,13 @@ export default function PatientsPage() {
         clinic_id: clinicId,
         date_of_birth: data.date_of_birth || null,
         email: data.email || null,
-        phone: data.phone || null,
-        cpf: data.cpf || null,
+        phone: data.phone.trim() || null,
+        cpf: onlyDigits(data.cpf) || null,
         gender: data.gender || null,
         zip_code: data.zip_code || null,
         address: data.address || null,
+        address_number: data.address_number.trim() || null,
+        address_complement: data.address_complement.trim() || null,
         city: data.city || null,
         state: data.state || null,
         notes: data.notes || null,
@@ -296,7 +313,7 @@ export default function PatientsPage() {
             .insert({
               clinic_id: clinicId,
               name: data.full_name.trim(),
-              cpf: data.cpf?.trim() || null,
+              cpf: onlyDigits(data.cpf) || null,
               email: data.email?.trim() || null,
               phone: data.phone?.trim() || null,
               birth_date: data.date_of_birth || null,
@@ -319,12 +336,12 @@ export default function PatientsPage() {
       setPayerData(defaultPayerData);
       toast({ title: editingId ? 'Paciente atualizado!' : 'Paciente criado!' });
     },
-    onError: (err: unknown) => {
-      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    onError: (err: Error) => {
+      toast({ title: 'Erro ao salvar', description: patientSaveErrorMessage(err), variant: 'destructive' });
     },
   });
 
-  const openEdit = (patient: unknown) => {
+  const openEdit = (patient: Tables<'patients'>) => {
     setEditingId(patient.id);
     setForm({
       full_name: patient.full_name || '',
@@ -335,10 +352,14 @@ export default function PatientsPage() {
       gender: patient.gender || '',
       zip_code: patient.zip_code || '',
       address: patient.address || '',
+      address_number: patient.address_number || '',
+      address_complement: patient.address_complement || '',
       city: patient.city || '',
       state: patient.state || '',
       notes: patient.notes || '',
     });
+    setFieldErrors({});
+    duplicates.reset();
     setPayerData({
       is_self_payer: patient.is_self_payer ?? true,
       payer_id: patient.payer_id || null,
@@ -350,16 +371,37 @@ export default function PatientsPage() {
     setEditingId(null);
     setForm(emptyForm);
     setPayerData(defaultPayerData);
+    setFieldErrors({});
+    duplicates.reset();
     setDialogOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.full_name.trim()) {
       toast({ title: 'Nome é obrigatório', variant: 'destructive' });
       return;
     }
+    const errors = validatePatientFields(form);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast({ title: 'Confira os campos destacados', description: Object.values(errors).join(' '), variant: 'destructive' });
+      return;
+    }
+    try {
+      setCheckingDuplicates(true);
+      if (!(await duplicates.canSave(form.cpf, form.phone))) return;
+    } catch (err) {
+      toast({ title: 'Não foi possível checar duplicidade', description: patientSaveErrorMessage(err), variant: 'destructive' });
+      return;
+    } finally {
+      setCheckingDuplicates(false);
+    }
     saveMutation.mutate(form);
+  };
+
+  const checkDuplicatesOnBlur = () => {
+    duplicates.check(form.cpf, form.phone).catch(() => undefined);
   };
 
   const handleCepChange = async (value: string) => {
@@ -402,19 +444,20 @@ export default function PatientsPage() {
         </BrandButton>
       </PageHeader>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+      {/* Filtros: busca + seletores + período do contrato */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-0 flex-1 sm:min-w-[240px]">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome, e-mail, telefone ou CPF..."
-            className="pl-10"
+            placeholder="Buscar por nome, e-mail, telefone ou CPF"
+            className="h-10 pl-10"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        <MobileFilters activeCount={(statusFilter !== 'all' ? 1 : 0) + (treatmentFilter !== 'all' ? 1 : 0) + (contractDateStart || contractDateEnd ? 1 : 0)}>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-40">
+          <SelectTrigger className="w-full sm:w-36 h-10">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -425,20 +468,8 @@ export default function PatientsPage() {
             <SelectItem value="pending">Pendentes</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={anamneseFilter} onValueChange={setAnamneseFilter}>
-          <SelectTrigger className="w-full sm:w-48">
-            <SelectValue placeholder="Anamnese" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas anamneses</SelectItem>
-            <SelectItem value="none">Sem anamnese</SelectItem>
-            <SelectItem value="valid">Válida</SelectItem>
-            <SelectItem value="expiring">Próxima do vencimento</SelectItem>
-            <SelectItem value="expired">Vencida</SelectItem>
-          </SelectContent>
-        </Select>
         <Select value={treatmentFilter} onValueChange={setTreatmentFilter}>
-          <SelectTrigger className="w-full sm:w-52">
+          <SelectTrigger className="w-full sm:w-52 h-10">
             <SelectValue placeholder="Tratamento" />
           </SelectTrigger>
           <SelectContent>
@@ -448,47 +479,68 @@ export default function PatientsPage() {
             ))}
           </SelectContent>
         </Select>
-        <Input
-          type="date"
-          value={contractDateStart}
-          onChange={(event) => setContractDateStart(event.target.value)}
-          className="w-full sm:w-44"
-        />
-        <Input
-          type="date"
-          value={contractDateEnd}
-          onChange={(event) => setContractDateEnd(event.target.value)}
-          className="w-full sm:w-44"
-        />
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={`flex h-10 w-full items-center gap-2 rounded-md border px-3 text-sm sm:w-auto ${contractDateStart || contractDateEnd ? 'border-primary/50 bg-primary/5 text-foreground' : 'border-input bg-background text-muted-foreground'}`}
+            >
+              <CalendarRange className="h-4 w-4" />
+              {contractDateStart || contractDateEnd
+                ? `Contrato: ${contractDateStart ? contractDateStart.split('-').reverse().join('/') : '…'} – ${contractDateEnd ? contractDateEnd.split('-').reverse().join('/') : '…'}`
+                : 'Período do contrato'}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-72 space-y-3">
+            <p className="text-sm font-medium">Contrato assinado entre</p>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="space-y-1 text-xs text-muted-foreground">De
+                <Input type="date" value={contractDateStart} onChange={(e) => setContractDateStart(e.target.value)} />
+              </label>
+              <label className="space-y-1 text-xs text-muted-foreground">Até
+                <Input type="date" value={contractDateEnd} onChange={(e) => setContractDateEnd(e.target.value)} />
+              </label>
+            </div>
+            {(contractDateStart || contractDateEnd) && (
+              <button type="button" className="text-xs font-medium text-primary hover:underline" onClick={() => { setContractDateStart(''); setContractDateEnd(''); }}>
+                Limpar período
+              </button>
+            )}
+          </PopoverContent>
+        </Popover>
+        </MobileFilters>
       </div>
 
+      {/* Anamnese: abas compactas com contagem (substituem os cartões grandes) */}
       {!isLoading && patients.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-2 xl:grid-cols-4">
-          {(['none', 'valid', 'expiring', 'expired'] as AnamneseStatus[]).map((status) => (
-            <div
-              key={status}
-              className={`rounded-2xl border p-4 shadow-card ${
-                status === 'expired'
-                  ? 'border-destructive/40 bg-destructive/5'
-                  : status === 'expiring' || status === 'none'
-                    ? 'border-warning/40 bg-warning/10'
-                    : 'bg-card'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {anamneseStatusLabel[status]}
-                  </p>
-                  <p className="text-2xl font-semibold text-foreground">{anamneseCounts[status]}</p>
-                </div>
-                <AnamneseBadge status={status} />
-              </div>
-              <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                {anamneseStatusHint[status]}
-              </p>
-            </div>
-          ))}
+        <div className="-mx-4 mb-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <div role="tablist" aria-label="Filtrar por anamnese" className="inline-flex min-w-max gap-1.5">
+            {(['all', 'none', 'valid', 'expiring', 'expired'] as const).map((status) => {
+              const active = anamneseFilter === status;
+              const count = status === 'all' ? patientsBeforeAnamnese.length : anamneseCounts[status];
+              const dot = { all: 'bg-muted-foreground/40', none: 'bg-slate-400', valid: 'bg-emerald-500', expiring: 'bg-amber-500', expired: 'bg-rose-500' }[status];
+              const alert = (status === 'expired' || status === 'none' || status === 'expiring') && count > 0;
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  title={status === 'all' ? 'Todos os pacientes' : anamneseStatusHint[status]}
+                  onClick={() => setAnamneseFilter(status)}
+                  className={`inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                    active ? 'border-primary bg-primary text-primary-foreground shadow-sm' : 'border-border bg-card text-foreground hover:border-primary/40'
+                  }`}
+                >
+                  {!active && <span className={`h-2 w-2 rounded-full ${dot}`} />}
+                  {status === 'all' ? 'Todos' : anamneseStatusLabel[status]}
+                  <span className={`rounded-full px-1.5 text-xs tabular-nums ${active ? 'bg-white/20' : alert ? (status === 'expired' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800') : 'bg-muted text-muted-foreground'}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -646,20 +698,39 @@ export default function PatientsPage() {
                 <Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label>Telefone</Label>
-                <Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="(11) 99999-9999" />
+                <Label>Telefone *</Label>
+                <Input
+                  value={form.phone}
+                  onChange={e => setForm({ ...form, phone: formatPhone(e.target.value) })}
+                  onBlur={checkDuplicatesOnBlur}
+                  placeholder="(11) 99999-9999"
+                  inputMode="tel"
+                  aria-invalid={!!fieldErrors.phone}
+                  className={fieldErrors.phone ? 'border-destructive' : undefined}
+                />
+                {fieldErrors.phone && <p className="text-xs text-destructive">{fieldErrors.phone}</p>}
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>CPF</Label>
-                <Input value={form.cpf} onChange={e => setForm({ ...form, cpf: e.target.value })} placeholder="000.000.000-00" />
+                <Label>CPF *</Label>
+                <Input
+                  value={formatCpf(form.cpf)}
+                  onChange={e => setForm({ ...form, cpf: formatCpf(e.target.value) })}
+                  onBlur={checkDuplicatesOnBlur}
+                  placeholder="000.000.000-00"
+                  inputMode="numeric"
+                  aria-invalid={!!fieldErrors.cpf}
+                  className={fieldErrors.cpf ? 'border-destructive' : undefined}
+                />
+                {fieldErrors.cpf && <p className="text-xs text-destructive">{fieldErrors.cpf}</p>}
               </div>
               <div className="space-y-2">
                 <Label>Data de nascimento</Label>
                 <Input type="date" value={form.date_of_birth} onChange={e => setForm({ ...form, date_of_birth: e.target.value })} />
               </div>
             </div>
+            <PatientDuplicateAlert cpfMatch={duplicates.cpfMatch} phoneMatches={duplicates.phoneMatches} />
             <div className="space-y-2">
               <Label>Gênero</Label>
               <Select value={form.gender} onValueChange={v => setForm({ ...form, gender: v })}>
@@ -683,8 +754,25 @@ export default function PatientsPage() {
                   <Input value={form.zip_code} onChange={e => handleCepChange(e.target.value)} placeholder="00000-000" />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
-                  <Label>Endereço completo</Label>
-                  <Input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="Rua, número, complemento e bairro" />
+                  <Label>Rua e bairro</Label>
+                  <Input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="Rua, bairro" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Número{form.address.trim() ? ' *' : ''}</Label>
+                  <Input
+                    value={form.address_number}
+                    onChange={e => setForm({ ...form, address_number: e.target.value })}
+                    placeholder="123 ou S/N"
+                    aria-invalid={!!fieldErrors.address_number}
+                    className={fieldErrors.address_number ? 'border-destructive' : undefined}
+                  />
+                  {fieldErrors.address_number && <p className="text-xs text-destructive">{fieldErrors.address_number}</p>}
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Complemento</Label>
+                  <Input value={form.address_complement} onChange={e => setForm({ ...form, address_complement: e.target.value })} placeholder="Apto, bloco, casa..." />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -706,8 +794,8 @@ export default function PatientsPage() {
               <BrandButton type="button" variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">
                 Cancelar
               </BrandButton>
-              <BrandButton type="submit" className="flex-1" disabled={saveMutation.isPending}>
-                {saveMutation.isPending ? 'Salvando...' : editingId ? 'Atualizar' : 'Cadastrar'}
+              <BrandButton type="submit" className="flex-1" disabled={saveMutation.isPending || checkingDuplicates}>
+                {saveMutation.isPending ? 'Salvando...' : checkingDuplicates ? 'Verificando...' : editingId ? 'Atualizar' : 'Cadastrar'}
               </BrandButton>
             </div>
           </form>

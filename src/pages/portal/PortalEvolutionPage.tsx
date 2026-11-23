@@ -8,6 +8,10 @@ import { Activity } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+import type { Tables } from '@/integrations/supabase/types';
+
+type Metric = Tables<'patient_metrics'>;
+
 const METRIC_TYPES = [
   { value: 'weight', label: 'Peso', unit: 'kg' },
   { value: 'waist', label: 'Cintura', unit: 'cm' },
@@ -19,7 +23,7 @@ const METRIC_TYPES = [
 
 export default function PortalEvolutionPage() {
   const { user } = useAuth();
-  const [metrics, setMetrics] = useState<unknown[]>([]);
+  const [metrics, setMetrics] = useState<Metric[]>([]);
   const [selectedMetric, setSelectedMetric] = useState('weight');
   const [loading, setLoading] = useState(true);
 

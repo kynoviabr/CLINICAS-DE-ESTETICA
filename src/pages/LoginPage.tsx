@@ -1,3 +1,4 @@
+import { publicOrigin } from '@/lib/publicOrigin';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,8 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Stethoscope, Eye, EyeOff, Mail, Sparkles, Shield, Activity } from 'lucide-react';
+import { Eye, EyeOff, Mail, Sparkles, Shield, Activity } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { PASSWORD_HINT, PASSWORD_MIN_LENGTH, passwordProblem } from '@/lib/auth/password';
+import { BrandIcon } from '@/components/brand/BrandIcon';
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Tente novamente em alguns instantes.';
@@ -31,29 +34,17 @@ export default function LoginPage() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
-  const { signIn, signInWithSocial, signUp, signOut, user } = useAuth();
+  const { signIn, signInWithSocial, signUp, user } = useAuth();
   const { role, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [socialLoading, setSocialLoading] = useState<'google' | 'facebook' | null>(null);
-  const [accessBlockedMessage, setAccessBlockedMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (user && !roleLoading) {
       if (role === 'patient') navigate('/portal', { replace: true });
       else if (role) navigate('/clinic', { replace: true });
-      else {
-        const provider = (user.app_metadata?.provider || '').toLowerCase();
-        if (provider === 'facebook') {
-          setAccessBlockedMessage(
-            'Login com Facebook está liberado para pacientes com acesso ativo. Contate a clínica para ativar seu vínculo.',
-          );
-        } else {
-          setAccessBlockedMessage(
-            'Seu acesso ainda não foi liberado. Apenas usuários convidados por um administrador da clínica podem entrar.',
-          );
-        }
-      }
+      else navigate('/sem-acesso', { replace: true });
     }
   }, [user, role, roleLoading, navigate]);
 
@@ -71,6 +62,11 @@ export default function LoginPage() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    const problem = passwordProblem(signupPassword);
+    if (problem) {
+      toast({ title: 'Senha fraca', description: problem, variant: 'destructive' });
+      return;
+    }
     setLoading(true);
     try {
       await signUp(signupEmail, signupPassword, { full_name: signupName });
@@ -91,7 +87,7 @@ export default function LoginPage() {
     setForgotLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${publicOrigin()}/reset-password`,
       });
       if (error) throw error;
       setForgotSent(true);
@@ -113,17 +109,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleBlockedSignOut = async () => {
-    try {
-      await signOut();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Erro ao sair';
-      toast({ title: 'Erro ao sair', description: message, variant: 'destructive' });
-    } finally {
-      setAccessBlockedMessage(null);
-    }
-  };
-
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[1.05fr_1fr] bg-bg-page">
       {/* ============ HERO LEFT (Stripe navy) ============ */}
@@ -141,10 +126,8 @@ export default function LoginPage() {
         />
 
         <div className="relative flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-btn bg-primary flex items-center justify-center shadow-glow">
-            <Stethoscope className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <span className="font-heading font-semibold text-[17px] tracking-tight">Kynovia</span>
+          <BrandIcon />
+          <span className="font-heading font-semibold text-[17px] tracking-tight">Kynovia Estética</span>
         </div>
 
         <div className="relative max-w-md">
@@ -176,7 +159,7 @@ export default function LoginPage() {
         </div>
 
         <p className="relative text-xs text-white/40">
-          © 2026 Kynovia. Todos os direitos reservados.
+          © 2026 Kynovia Estética. Todos os direitos reservados.
         </p>
       </aside>
 
@@ -186,16 +169,14 @@ export default function LoginPage() {
           {/* Mobile-only logo */}
           <div className="lg:hidden text-center mb-6">
             <div className="inline-flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-btn bg-primary flex items-center justify-center shadow-glow">
-                <Stethoscope className="w-5 h-5 text-primary-foreground" />
-              </div>
+              <BrandIcon className="h-10 w-10" />
               <span className="font-heading font-semibold text-lg tracking-tight text-foreground">
-                Kynovia
+                Kynovia Estética
               </span>
             </div>
           </div>
 
-          <div className="mb-8">
+          <div className="mb-8 text-center lg:text-left">
             <h1 className="font-heading text-3xl font-bold tracking-tight text-foreground">
               Bem-vindo de volta
             </h1>
@@ -315,11 +296,11 @@ export default function LoginPage() {
                   <Input
                     id="signup-password"
                     type="password"
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder={PASSWORD_HINT}
                     value={signupPassword}
                     onChange={(e) => setSignupPassword(e.target.value)}
                     required
-                    minLength={6}
+                    minLength={PASSWORD_MIN_LENGTH}
                   />
                 </div>
                 <Button type="submit" className="w-full" size="lg" disabled={loading}>
@@ -333,24 +314,10 @@ export default function LoginPage() {
           </Tabs>
 
           <p className="lg:hidden text-center text-xs text-[hsl(var(--text-muted))] mt-8">
-            © 2026 Kynovia
+            © 2026 Kynovia Estética
           </p>
         </div>
       </main>
-
-      <Dialog open={!!accessBlockedMessage} onOpenChange={(open) => { if (!open) setAccessBlockedMessage(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Acesso não liberado</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-[hsl(var(--text-secondary))]">{accessBlockedMessage}</p>
-          <div className="mt-2 flex justify-end">
-            <Button type="button" onClick={handleBlockedSignOut}>
-              Sair
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Forgot Password Dialog */}
       <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>

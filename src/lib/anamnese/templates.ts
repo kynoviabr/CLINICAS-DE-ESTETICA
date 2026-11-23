@@ -1,0 +1,225 @@
+// Modelos de anamnese por categoria de tratamento (usados em Configurações e na implantação).
+
+export type TreatmentCategory = {
+  id: string;
+  name: string;
+  description?: string | null;
+};
+
+/** Pergunta da anamnese do tratamento: Sim/Não (com detalhe quando "Sim") ou resposta livre. */
+export type TemplateQuestion = {
+  text: string;
+  type: 'yes_no' | 'text';
+};
+
+export type AnamneseTemplate = {
+  id: string;
+  name: string;
+  category_id: string;
+  category_name: string;
+  active: boolean;
+  basic_questions: string[];
+  /** Texto das perguntas (formato antigo; mantido em sincronia com `questions`). */
+  specific_questions: string[];
+  /** Perguntas com tipo. Modelos antigos não têm: use `templateQuestions()`. */
+  questions?: TemplateQuestion[];
+  /** Texto de ciência dos riscos que a paciente confirma ao responder. */
+  risk_terms?: string;
+  notes: string;
+};
+
+/** Resposta de uma pergunta do tratamento. */
+export type TreatmentAnswer = { value: boolean | null; detail: string } | string;
+
+
+export const ANAMNESE_TEMPLATES_KEY = 'anamnese_templates';
+
+export const BASIC_HEALTH_QUESTIONS = [
+  'Possui alergias? Se sim, quais?',
+  'Possui doença crônica ou condição de saúde relevante?',
+  'Faz uso contínuo de medicamentos?',
+  'Usa suplementos, hormônios ou fitoterápicos?',
+  'Já realizou cirurgias ou procedimentos recentes?',
+  'Está gestante ou amamentando?',
+  'Possui marca-passo, implantes metálicos ou próteses?',
+  'Teve reação adversa a anestésicos, cosméticos, ácidos ou procedimentos estéticos?',
+  'Possui histórico de queloide, cicatrização difícil ou infecções recorrentes?',
+  'Qual é o principal objetivo com o tratamento?',
+];
+
+export function questionsForCategory(categoryName: string) {
+  const normalized = categoryName.toLowerCase();
+  if (normalized.includes('emagrec') || normalized.includes('nutri')) {
+    return [
+      'Qual peso atual, altura e objetivo de peso ou medidas?',
+      'Há histórico de efeito sanfona, compulsão alimentar ou transtorno alimentar?',
+      'Como é a rotina alimentar durante semana e fim de semana?',
+      'Qual frequência de atividade física?',
+      'Há alteração hormonal, tireoide, resistência à insulina ou uso de medicação para emagrecimento?',
+      'Quais regiões ou medidas mais incomodam?',
+      'Como está sono, ingestão de água e funcionamento intestinal?',
+    ];
+  }
+  if (normalized.includes('facial') || normalized.includes('rejuven')) {
+    return [
+      'Qual é a principal queixa facial: manchas, acne, flacidez, rugas, textura ou poros?',
+      'Qual rotina atual de skincare e uso de protetor solar?',
+      'Usa ácidos, retinoides, clareadores ou medicações dermatológicas?',
+      'Teve exposição solar intensa nos últimos 15 dias?',
+      'Possui rosácea, melasma, dermatite, acne ativa ou sensibilidade cutânea?',
+      'Já realizou procedimentos faciais anteriores? Quando e quais?',
+      'Qual expectativa de resultado e prazo desejado?',
+    ];
+  }
+  if (normalized.includes('sobrancel') || normalized.includes('cílio') || normalized.includes('cilio') || normalized.includes('micropigment')) {
+    return [
+      'Tem alergia a henna, tintas, pigmentos, cola ou esmalte?',
+      'Usa lentes de contato ou tem irritação, conjuntivite ou cirurgia recente nos olhos?',
+      'Já fez micropigmentação, extensão ou lifting antes? Teve alguma reação?',
+      'Usa ácidos, retinoides ou isotretinoína na região?',
+      'Tem queloide, herpes labial recorrente ou cicatrização difícil?',
+      'Qual resultado espera (formato, cor, volume, curvatura)?',
+      'Consegue seguir os cuidados pós (não molhar, não coçar, retorno de retoque)?',
+    ];
+  }
+  if (normalized.includes('corporal') || normalized.includes('gordura') || normalized.includes('celulite') || normalized.includes('flacidez') || normalized.includes('massag') || normalized.includes('drenag')) {
+    return [
+      'Quais áreas corporais serão tratadas?',
+      'Possui varizes, alterações circulatórias, linfedema ou retenção de líquidos?',
+      'Há dor, sensibilidade, flacidez, celulite ou gordura localizada na região?',
+      'Já realizou tratamentos corporais anteriores? Quais e quando?',
+      'Há alteração recente de peso ou medidas?',
+      'Pratica atividade física e segue plano alimentar?',
+      'Possui contraindicação para calor, frio, pressão ou estímulos mecânicos?',
+    ];
+  }
+  if (normalized.includes('injet')) {
+    return [
+      'Possui alergia conhecida a anestésicos, medicamentos ou substâncias injetáveis?',
+      'Usa anticoagulantes, anti-inflamatórios ou medicação que aumente risco de sangramento?',
+      'Possui doença autoimune, infecção ativa ou imunossupressão?',
+      'Teve preenchimento, toxina botulínica, bioestimulador ou injetável recente?',
+      'Há histórico de herpes, queloide, nódulos, assimetrias ou reações tardias?',
+      'Qual área será tratada e qual resultado espera?',
+      'Foi orientado sobre riscos, cuidados pós-procedimento e tempo de recuperação?',
+    ];
+  }
+  if (normalized.includes('peeling')) {
+    return [
+      'Qual fototipo, sensibilidade e histórico de manchas?',
+      'Usa ácidos, retinoides, isotretinoína ou clareadores?',
+      'Teve exposição solar recente ou bronzeamento artificial?',
+      'Possui herpes, feridas, dermatite, rosácea intensa ou acne inflamada?',
+      'Já fez peeling antes? Qual tipo e qual reação teve?',
+      'Consegue cumprir fotoproteção e cuidados pós-peeling?',
+      'Qual objetivo principal: manchas, acne, textura, poros ou rejuvenescimento?',
+    ];
+  }
+  if (normalized.includes('laser') || normalized.includes('tecnolog')) {
+    return [
+      'Qual equipamento ou tecnologia será utilizada?',
+      'Possui marca-passo, implantes metálicos, próteses ou dispositivos eletrônicos implantados?',
+      'Teve exposição solar ou bronzeamento recente?',
+      'Usa medicação fotossensibilizante ou isotretinoína?',
+      'Possui alterações de sensibilidade, cicatrização ou histórico de queimadura?',
+      'Qual área será tratada e qual objetivo principal?',
+      'Foi orientado sobre preparo, intervalos e cuidados pós-procedimento?',
+    ];
+  }
+  if (normalized.includes('capilar') || normalized.includes('tricologia')) {
+    return [
+      'Há quanto tempo percebe queda, afinamento ou falhas capilares?',
+      'Existe histórico familiar de alopecia?',
+      'Teve estresse, cirurgia, parto, dieta restritiva ou doença recente?',
+      'Usa medicações, vitaminas ou tratamentos tópicos para cabelo?',
+      'Possui descamação, coceira, oleosidade excessiva ou dor no couro cabeludo?',
+      'Já realizou exames laboratoriais recentes?',
+      'Qual frequência de lavagem e quais produtos utiliza?',
+    ];
+  }
+  return [
+    'Qual região ou queixa principal será tratada?',
+    'Já realizou esse tipo de tratamento antes?',
+    'Houve intercorrência ou reação em tratamentos anteriores?',
+    'Quais resultados espera e em qual prazo?',
+    'Existe alguma limitação de rotina para seguir cuidados pós-procedimento?',
+    'Foi orientado sobre riscos, contraindicações e cuidados necessários?',
+  ];
+}
+
+// Perguntas que começam assim são de Sim/Não ("Possui...?", "Usa...?"); as demais pedem resposta livre.
+const YES_NO_START = /^(possui|tem|usa|teve|há|ha|já|ja|está|esta|foi|consegue|existe|fuma|pratica|faz)\b/i;
+
+/** Tipo sugerido para uma pergunta escrita em texto. */
+export function guessQuestionType(text: string): TemplateQuestion['type'] {
+  return YES_NO_START.test(text.trim()) ? 'yes_no' : 'text';
+}
+
+/** Perguntas do modelo com tipo (converte modelos antigos, que só tinham o texto). */
+export function templateQuestions(template: Pick<AnamneseTemplate, 'questions' | 'specific_questions'>): TemplateQuestion[] {
+  if (Array.isArray(template.questions) && template.questions.length > 0) {
+    return template.questions.filter((q) => q && typeof q.text === 'string' && q.text.trim());
+  }
+  return (template.specific_questions || []).filter(Boolean).map((text) => ({ text, type: guessQuestionType(text) }));
+}
+
+/** Texto padrão de ciência de riscos de uma categoria. */
+export function defaultRiskTerms(categoryName: string) {
+  return `Declaro que fui informada sobre como funciona o tratamento de ${categoryName}, seus riscos, possíveis efeitos colaterais, contraindicações e cuidados antes e depois, e que pude tirar minhas dúvidas com a profissional.`;
+}
+
+/** Texto de riscos do modelo (ou o padrão da categoria). */
+export function templateRiskTerms(template: Pick<AnamneseTemplate, 'risk_terms' | 'category_name'>) {
+  return template.risk_terms?.trim() || defaultRiskTerms(template.category_name);
+}
+
+export function buildAnamneseTemplate(category: TreatmentCategory): AnamneseTemplate {
+  const specific = questionsForCategory(category.name);
+  return {
+    id: `template-${category.id}`,
+    name: `Anamnese ${category.name}`,
+    category_id: category.id,
+    category_name: category.name,
+    active: true,
+    basic_questions: BASIC_HEALTH_QUESTIONS,
+    specific_questions: specific,
+    questions: specific.map((text) => ({ text, type: guessQuestionType(text) })),
+    risk_terms: defaultRiskTerms(category.name),
+    notes: 'Dados básicos de saúde são comuns; perguntas específicas devem ser revisadas conforme o protocolo e profissional responsável.',
+  };
+}
+
+/** A resposta está preenchida? (Sim/Não precisa de escolha; texto precisa de conteúdo.) */
+export function isAnswered(question: TemplateQuestion, answer: TreatmentAnswer | undefined) {
+  if (question.type === 'yes_no') return typeof answer === 'object' && answer !== null && answer.value !== null;
+  return typeof answer === 'string' && answer.trim().length > 0;
+}
+
+/** Parte da área no form_data da anamnese: modelo usado e respostas por pergunta. */
+export function buildAreaSection(template: AnamneseTemplate | null, answers: Record<string, string>) {
+  if (!template) return {};
+  return {
+    template_id: template.id,
+    template: { name: template.name, category: template.category_name },
+    area_questions: Object.fromEntries(template.specific_questions.map((q) => [q, (answers[q] || '').trim()])),
+  };
+}
+
+/** form_data de uma anamnese de tratamento (mesmo formato que o banco grava no envio por link). */
+export function buildTreatmentFormData(
+  template: AnamneseTemplate,
+  answers: Record<string, TreatmentAnswer>,
+  consent: { signature_name?: string; signature_date?: string },
+) {
+  return {
+    template: { name: template.name, category: template.category_name },
+    treatment_answers: answers,
+    risk: { terms: templateRiskTerms(template), acknowledged: true },
+    consent: { signature_name: consent.signature_name || null, signature_date: consent.signature_date || null },
+  };
+}
+
+/** Perguntas Sim/Não do modelo ainda sem resposta. */
+export function unansweredQuestions(template: AnamneseTemplate, answers: Record<string, TreatmentAnswer> | undefined) {
+  return templateQuestions(template).filter((q) => q.type === 'yes_no' && !isAnswered(q, answers?.[q.text]));
+}

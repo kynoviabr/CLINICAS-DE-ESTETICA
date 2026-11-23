@@ -1,4 +1,5 @@
-project_id = "tunoirtswleljvyohdxp"
+# Nome do projeto local (supabase start). O projeto remoto vem do workflow de publicação (supabase link --project-ref).
+project_id = "klinova-local"
 
 [api]
 port = 55321
@@ -21,5 +22,27 @@ port = 55327
 [db.pooler]
 port = 55329
 
-[functions.whatsapp-ai-agent]
+
+[functions.aura-webhook]
+verify_jwt = false
+
+[functions.aura-api]
+verify_jwt = false
+
+[functions.agendamento-paciente]
+verify_jwt = false
+
+[functions.automacoes]
+verify_jwt = false
+
+[functions.portal-acesso]
+verify_jwt = false
+
+[functions.agendamento-online]
+verify_jwt = false
+
+[functions.mfa-reset]
+verify_jwt = false
+
+[functions.push]
 verify_jwt = false

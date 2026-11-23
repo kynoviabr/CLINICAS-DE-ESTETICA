@@ -1,43 +1,68 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { BiometricLock } from "@/components/BiometricLock";
+import { PushRegistrar } from "@/components/PushRegistrar";
 import { BrandingProvider } from "@/contexts/BrandingContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-
 import LoginPage from "./pages/LoginPage";
-import ResetPasswordPage from "./pages/ResetPasswordPage";
-import OnboardingPage from "./pages/OnboardingPage";
 import ClinicLayout from "./components/layouts/ClinicLayout";
 import PatientPortalLayout from "./components/layouts/PatientPortalLayout";
-import ClinicDashboard from "./pages/clinic/DashboardPage";
-import CrmPage from "./pages/clinic/CrmPage";
-import PatientsPage from "./pages/clinic/PatientsPage";
-import PatientDetailPage from "./pages/clinic/PatientDetailPage";
-import TreatmentsPage from "./pages/clinic/TreatmentsPage";
-import ProposalsPage from "./pages/clinic/ProposalsPage";
-import ContractsPage from "./pages/clinic/ContractsPage";
-import PaymentsPage from "./pages/clinic/PaymentsPage";
-import FinanceContractsPage from "./pages/clinic/FinanceContractsPage";
-import AppointmentsPage from "./pages/clinic/AppointmentsPage";
-import SessionsPage from "./pages/clinic/SessionsPage";
-import FeedbackPage from "./pages/clinic/FeedbackPage";
-import EvolutionPage from "./pages/clinic/EvolutionPage";
-import PhotosPage from "./pages/clinic/PhotosPage";
-import ReportsPage from "./pages/clinic/ReportsPage";
-import SettingsPage from "./pages/clinic/SettingsPage";
-import WhatsAppAiPage from "./pages/clinic/WhatsAppAiPage";
-import GoalsTrackingPage from "./pages/clinic/GoalsTrackingPage";
-import PortalHomePage from "./pages/portal/PortalHomePage";
-import PortalContractPage from "./pages/portal/PortalContractPage";
-import PortalPaymentsPage from "./pages/portal/PortalPaymentsPage";
-import PortalSessionsPage from "./pages/portal/PortalSessionsPage";
-import PortalEvolutionPage from "./pages/portal/PortalEvolutionPage";
-import PortalPhotosPage from "./pages/portal/PortalPhotosPage";
-import PortalFeedbackPage from "./pages/portal/PortalFeedbackPage";
 import NotFound from "./pages/NotFound";
+import { PageLoader } from "./components/PageLoader";
+
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
+const PublicAnamnesePage = lazy(() => import("./pages/PublicAnamnesePage"));
+const PublicLeadSignupPage = lazy(() => import("./pages/PublicLeadSignupPage"));
+const PublicDepositPage = lazy(() => import("./pages/PublicDepositPage"));
+const PublicVerifyPage = lazy(() => import("./pages/PublicVerifyPage"));
+const PublicAppointmentPage = lazy(() => import("./pages/PublicAppointmentPage"));
+const PublicContractPage = lazy(() => import("./pages/PublicContractPage"));
+const PortalEntryPage = lazy(() => import("./pages/PortalEntryPage"));
+const MfaPage = lazy(() => import("./pages/MfaPage"));
+const PublicBookingPage = lazy(() => import("./pages/PublicBookingPage"));
+const PublicReferralPage = lazy(() => import("./pages/PublicReferralPage"));
+const PortalBookingPage = lazy(() => import("./pages/portal/PortalBookingPage"));
+const PublicProposalPage = lazy(() => import("./pages/PublicProposalPage"));
+const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
+const NoAccessPage = lazy(() => import("./pages/NoAccessPage"));
+const ClinicHome = lazy(() => import("./pages/clinic/HomePage"));
+const MeuDiaPage = lazy(() => import("./pages/clinic/MeuDiaPage"));
+const RetentionPage = lazy(() => import("./pages/clinic/RetentionPage"));
+const CrmPage = lazy(() => import("./pages/clinic/CrmPage"));
+const ConversationsPage = lazy(() => import("./pages/clinic/ConversationsPage"));
+const PatientsPage = lazy(() => import("./pages/clinic/PatientsPage"));
+const PatientDetailPage = lazy(() => import("./pages/clinic/PatientDetailPage"));
+const TreatmentsPage = lazy(() => import("./pages/clinic/TreatmentsPage"));
+const SetupPage = lazy(() => import("./pages/clinic/SetupPage"));
+const NewSalePage = lazy(() => import("./pages/clinic/NewSalePage"));
+const SimpleFinancePage = lazy(() => import("./pages/clinic/SimpleFinancePage"));
+const StockPage = lazy(() => import("./pages/clinic/StockPage"));
+const ExpensesPage = lazy(() => import("./pages/clinic/ExpensesPage"));
+const DrePage = lazy(() => import("./pages/clinic/DrePage"));
+const ReceiptsByMethodPage = lazy(() => import("./pages/clinic/ReceiptsByMethodPage"));
+const ProposalsPage = lazy(() => import("./pages/clinic/ProposalsPage"));
+const ContractsPage = lazy(() => import("./pages/clinic/ContractsPage"));
+const FinanceContractsPage = lazy(() => import("./pages/clinic/FinanceContractsPage"));
+const AppointmentsPage = lazy(() => import("./pages/clinic/AppointmentsPage"));
+const SessionsPage = lazy(() => import("./pages/clinic/SessionsPage"));
+const FeedbackPage = lazy(() => import("./pages/clinic/FeedbackPage"));
+const EvolutionPage = lazy(() => import("./pages/clinic/EvolutionPage"));
+const PhotosPage = lazy(() => import("./pages/clinic/PhotosPage"));
+const ReportsPage = lazy(() => import("./pages/clinic/ReportsPage"));
+const SettingsPage = lazy(() => import("./pages/clinic/SettingsPage"));
+const GoalsTrackingPage = lazy(() => import("./pages/clinic/GoalsTrackingPage"));
+const PortalHomePage = lazy(() => import("./pages/portal/PortalHomePage"));
+const PortalContractPage = lazy(() => import("./pages/portal/PortalContractPage"));
+const PortalPaymentsPage = lazy(() => import("./pages/portal/PortalPaymentsPage"));
+const PortalSessionsPage = lazy(() => import("./pages/portal/PortalSessionsPage"));
+const PortalEvolutionPage = lazy(() => import("./pages/portal/PortalEvolutionPage"));
+const PortalPhotosPage = lazy(() => import("./pages/portal/PortalPhotosPage"));
+const PortalFeedbackPage = lazy(() => import("./pages/portal/PortalFeedbackPage"));
 
 const queryClient = new QueryClient();
 
@@ -49,10 +74,31 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <BrandingProvider>
+            <BiometricLock />
+            <PushRegistrar />
+            <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<Navigate to="/login" replace />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/anamnese/:token" element={<PublicAnamnesePage />} />
+              <Route path="/cadastro/:token" element={<PublicLeadSignupPage />} />
+              <Route path="/sinal/:token" element={<PublicDepositPage />} />
+              <Route path="/verificar" element={<PublicVerifyPage />} />
+              <Route path="/verificar/:code" element={<PublicVerifyPage />} />
+              <Route path="/agendamento/:token" element={<PublicAppointmentPage />} />
+              <Route path="/contrato/:token" element={<PublicContractPage />} />
+              <Route path="/portal/entrar/:token" element={<PortalEntryPage />} />
+              <Route path="/duas-etapas" element={<MfaPage />} />
+              <Route path="/agendar/:slug" element={<PublicBookingPage />} />
+              <Route path="/indicar/:code" element={<PublicReferralPage />} />
+              <Route path="/proposta/:id" element={<PublicProposalPage />} />
+              <Route path="/p/:id" element={<PublicProposalPage />} />
+              <Route path="/sem-acesso" element={
+                <ProtectedRoute>
+                  <NoAccessPage />
+                </ProtectedRoute>
+              } />
               <Route path="/onboarding" element={
                 <ProtectedRoute>
                   <OnboardingPage />
@@ -65,15 +111,25 @@ const App = () => (
                   <ClinicLayout />
                 </ProtectedRoute>
               }>
-                <Route index element={<ClinicDashboard />} />
+                <Route index element={<ClinicHome />} />
+                <Route path="meu-dia" element={<MeuDiaPage />} />
+                <Route path="implantacao" element={<SetupPage />} />
                 <Route path="crm" element={<CrmPage />} />
-                <Route path="whatsapp-ai" element={<WhatsAppAiPage />} />
+                <Route path="retorno" element={<RetentionPage />} />
+                <Route path="conversas" element={<ConversationsPage />} />
                 <Route path="patients" element={<PatientsPage />} />
                 <Route path="patients/:id" element={<PatientDetailPage />} />
                 <Route path="treatments" element={<TreatmentsPage readOnly />} />
+                <Route path="vendas/nova" element={<Navigate to="/clinic/proposals?openNew=1" replace />} />
+                <Route path="vendas" element={<Navigate to="/clinic/proposals" replace />} />
                 <Route path="proposals" element={<ProposalsPage />} />
                 <Route path="contracts" element={<ContractsPage />} />
-                <Route path="payments" element={<PaymentsPage />} />
+                <Route path="payments" element={<Navigate to="/clinic/finance/contracts" replace />} />
+                <Route path="financeiro" element={<SimpleFinancePage />} />
+                <Route path="estoque" element={<StockPage />} />
+                <Route path="despesas" element={<ExpensesPage />} />
+                <Route path="financeiro/dre" element={<DrePage />} />
+                <Route path="financeiro/recebimentos" element={<ReceiptsByMethodPage />} />
                 <Route path="finance/contracts" element={<FinanceContractsPage />} />
                 <Route path="appointments" element={<AppointmentsPage />} />
                 <Route path="sessions" element={<SessionsPage />} />
@@ -82,6 +138,7 @@ const App = () => (
                 <Route path="feedback" element={<FeedbackPage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="automacoes" element={<Navigate to="/clinic/settings?aba=automations" replace />} />
                 <Route path="metas/acompanhamento" element={<GoalsTrackingPage />} />
                 <Route path="metas/minha-meta" element={<GoalsTrackingPage />} />
                 <Route path="metas/equipe" element={<GoalsTrackingPage />} />
@@ -94,6 +151,7 @@ const App = () => (
                 </ProtectedRoute>
               }>
                 <Route index element={<PortalHomePage />} />
+                <Route path="agendar" element={<PortalBookingPage />} />
                 <Route path="contract" element={<PortalContractPage />} />
                 <Route path="payments" element={<PortalPaymentsPage />} />
                 <Route path="sessions" element={<PortalSessionsPage />} />
@@ -104,6 +162,7 @@ const App = () => (
 
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
           </BrandingProvider>
         </AuthProvider>
       </BrowserRouter>

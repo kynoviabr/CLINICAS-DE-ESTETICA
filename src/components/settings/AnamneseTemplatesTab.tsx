@@ -11,24 +11,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { ClipboardList, Edit, Plus, Save, Sparkles } from 'lucide-react';
-
-type TreatmentCategory = {
-  id: string;
-  name: string;
-  description?: string | null;
-};
-
-type AnamneseTemplate = {
-  id: string;
-  name: string;
-  category_id: string;
-  category_name: string;
-  active: boolean;
-  basic_questions: string[];
-  specific_questions: string[];
-  notes: string;
-};
+import { ClipboardList, Edit, Plus, Save, Sparkles, Trash2 } from 'lucide-react';
+import {
+  ANAMNESE_TEMPLATES_KEY,
+  BASIC_HEALTH_QUESTIONS,
+  buildAnamneseTemplate,
+  defaultRiskTerms,
+  guessQuestionType,
+  questionsForCategory,
+  templateQuestions,
+  templateRiskTerms,
+  type AnamneseTemplate,
+  type TemplateQuestion,
+  type TreatmentCategory,
+} from '@/lib/anamnese/templates';
 
 type TemplateForm = {
   id: string | null;
@@ -36,126 +32,22 @@ type TemplateForm = {
   category_id: string;
   active: boolean;
   basic_questions: string;
-  specific_questions: string;
+  questions: TemplateQuestion[];
+  risk_terms: string;
   notes: string;
 };
 
-const SETTINGS_KEY = 'anamnese_templates';
+const QUESTION_TYPE_LABEL: Record<TemplateQuestion['type'], string> = {
+  yes_no: 'Sim / Não',
+  text: 'Resposta livre',
+};
 
-const BASIC_HEALTH_QUESTIONS = [
-  'Possui alergias? Se sim, quais?',
-  'Possui doença crônica ou condição de saúde relevante?',
-  'Faz uso contínuo de medicamentos?',
-  'Usa suplementos, hormônios ou fitoterápicos?',
-  'Já realizou cirurgias ou procedimentos recentes?',
-  'Está gestante ou amamentando?',
-  'Possui marca-passo, implantes metálicos ou próteses?',
-  'Teve reação adversa a anestésicos, cosméticos, ácidos ou procedimentos estéticos?',
-  'Possui histórico de queloide, cicatrização difícil ou infecções recorrentes?',
-  'Qual é o principal objetivo com o tratamento?',
-];
-
-function questionsForCategory(categoryName: string) {
-  const normalized = categoryName.toLowerCase();
-  if (normalized.includes('emagrec') || normalized.includes('nutri')) {
-    return [
-      'Qual peso atual, altura e objetivo de peso ou medidas?',
-      'Há histórico de efeito sanfona, compulsão alimentar ou transtorno alimentar?',
-      'Como é a rotina alimentar durante semana e fim de semana?',
-      'Qual frequência de atividade física?',
-      'Há alteração hormonal, tireoide, resistência à insulina ou uso de medicação para emagrecimento?',
-      'Quais regiões ou medidas mais incomodam?',
-      'Como está sono, ingestão de água e funcionamento intestinal?',
-    ];
-  }
-  if (normalized.includes('facial') || normalized.includes('rejuven')) {
-    return [
-      'Qual é a principal queixa facial: manchas, acne, flacidez, rugas, textura ou poros?',
-      'Qual rotina atual de skincare e uso de protetor solar?',
-      'Usa ácidos, retinoides, clareadores ou medicações dermatológicas?',
-      'Teve exposição solar intensa nos últimos 15 dias?',
-      'Possui rosácea, melasma, dermatite, acne ativa ou sensibilidade cutânea?',
-      'Já realizou procedimentos faciais anteriores? Quando e quais?',
-      'Qual expectativa de resultado e prazo desejado?',
-    ];
-  }
-  if (normalized.includes('corporal') || normalized.includes('gordura')) {
-    return [
-      'Quais áreas corporais serão tratadas?',
-      'Possui varizes, alterações circulatórias, linfedema ou retenção de líquidos?',
-      'Há dor, sensibilidade, flacidez, celulite ou gordura localizada na região?',
-      'Já realizou tratamentos corporais anteriores? Quais e quando?',
-      'Há alteração recente de peso ou medidas?',
-      'Pratica atividade física e segue plano alimentar?',
-      'Possui contraindicação para calor, frio, pressão ou estímulos mecânicos?',
-    ];
-  }
-  if (normalized.includes('injet')) {
-    return [
-      'Possui alergia conhecida a anestésicos, medicamentos ou substâncias injetáveis?',
-      'Usa anticoagulantes, anti-inflamatórios ou medicação que aumente risco de sangramento?',
-      'Possui doença autoimune, infecção ativa ou imunossupressão?',
-      'Teve preenchimento, toxina botulínica, bioestimulador ou injetável recente?',
-      'Há histórico de herpes, queloide, nódulos, assimetrias ou reações tardias?',
-      'Qual área será tratada e qual resultado espera?',
-      'Foi orientado sobre riscos, cuidados pós-procedimento e tempo de recuperação?',
-    ];
-  }
-  if (normalized.includes('peeling')) {
-    return [
-      'Qual fototipo, sensibilidade e histórico de manchas?',
-      'Usa ácidos, retinoides, isotretinoína ou clareadores?',
-      'Teve exposição solar recente ou bronzeamento artificial?',
-      'Possui herpes, feridas, dermatite, rosácea intensa ou acne inflamada?',
-      'Já fez peeling antes? Qual tipo e qual reação teve?',
-      'Consegue cumprir fotoproteção e cuidados pós-peeling?',
-      'Qual objetivo principal: manchas, acne, textura, poros ou rejuvenescimento?',
-    ];
-  }
-  if (normalized.includes('laser') || normalized.includes('tecnolog')) {
-    return [
-      'Qual equipamento ou tecnologia será utilizada?',
-      'Possui marca-passo, implantes metálicos, próteses ou dispositivos eletrônicos implantados?',
-      'Teve exposição solar ou bronzeamento recente?',
-      'Usa medicação fotossensibilizante ou isotretinoína?',
-      'Possui alterações de sensibilidade, cicatrização ou histórico de queimadura?',
-      'Qual área será tratada e qual objetivo principal?',
-      'Foi orientado sobre preparo, intervalos e cuidados pós-procedimento?',
-    ];
-  }
-  if (normalized.includes('capilar') || normalized.includes('tricologia')) {
-    return [
-      'Há quanto tempo percebe queda, afinamento ou falhas capilares?',
-      'Existe histórico familiar de alopecia?',
-      'Teve estresse, cirurgia, parto, dieta restritiva ou doença recente?',
-      'Usa medicações, vitaminas ou tratamentos tópicos para cabelo?',
-      'Possui descamação, coceira, oleosidade excessiva ou dor no couro cabeludo?',
-      'Já realizou exames laboratoriais recentes?',
-      'Qual frequência de lavagem e quais produtos utiliza?',
-    ];
-  }
-  return [
-    'Qual região ou queixa principal será tratada?',
-    'Já realizou esse tipo de tratamento antes?',
-    'Houve intercorrência ou reação em tratamentos anteriores?',
-    'Quais resultados espera e em qual prazo?',
-    'Existe alguma limitação de rotina para seguir cuidados pós-procedimento?',
-    'Foi orientado sobre riscos, contraindicações e cuidados necessários?',
-  ];
+function categoryQuestions(categoryName: string): TemplateQuestion[] {
+  return questionsForCategory(categoryName).map((text) => ({ text, type: guessQuestionType(text) }));
 }
 
-function buildTemplate(category: TreatmentCategory): AnamneseTemplate {
-  return {
-    id: `template-${category.id}`,
-    name: `Anamnese ${category.name}`,
-    category_id: category.id,
-    category_name: category.name,
-    active: true,
-    basic_questions: BASIC_HEALTH_QUESTIONS,
-    specific_questions: questionsForCategory(category.name),
-    notes: 'Dados básicos de saúde são comuns; perguntas específicas devem ser revisadas conforme o protocolo e profissional responsável.',
-  };
-}
+const SETTINGS_KEY = ANAMNESE_TEMPLATES_KEY;
+const buildTemplate = buildAnamneseTemplate;
 
 function splitLines(value: string) {
   return value.split('\n').map((line) => line.trim()).filter(Boolean);
@@ -178,7 +70,8 @@ export default function AnamneseTemplatesTab() {
     category_id: '',
     active: true,
     basic_questions: joinLines(BASIC_HEALTH_QUESTIONS),
-    specific_questions: '',
+    questions: [],
+    risk_terms: '',
     notes: '',
   });
 
@@ -289,7 +182,8 @@ export default function AnamneseTemplatesTab() {
       category_id: firstCategory?.id || '',
       active: true,
       basic_questions: joinLines(BASIC_HEALTH_QUESTIONS),
-      specific_questions: firstCategory ? joinLines(questionsForCategory(firstCategory.name)) : '',
+      questions: firstCategory ? categoryQuestions(firstCategory.name) : [],
+      risk_terms: firstCategory ? defaultRiskTerms(firstCategory.name) : '',
       notes: '',
     });
     setDialogOpen(true);
@@ -302,7 +196,8 @@ export default function AnamneseTemplatesTab() {
       category_id: template.category_id,
       active: template.active,
       basic_questions: joinLines(template.basic_questions),
-      specific_questions: joinLines(template.specific_questions),
+      questions: templateQuestions(template),
+      risk_terms: templateRiskTerms(template),
       notes: template.notes || '',
     });
     setDialogOpen(true);
@@ -314,7 +209,8 @@ export default function AnamneseTemplatesTab() {
       ...current,
       category_id: categoryId,
       name: current.name || (category ? `Anamnese ${category.name}` : ''),
-      specific_questions: current.specific_questions || (category ? joinLines(questionsForCategory(category.name)) : ''),
+      questions: current.questions.length ? current.questions : (category ? categoryQuestions(category.name) : []),
+      risk_terms: current.risk_terms || (category ? defaultRiskTerms(category.name) : ''),
     }));
   };
 
@@ -329,6 +225,11 @@ export default function AnamneseTemplatesTab() {
       toast({ title: 'Nome obrigatório', description: 'Informe o nome do modelo.', variant: 'destructive' });
       return;
     }
+    const questions = form.questions.map((q) => ({ ...q, text: q.text.trim() })).filter((q) => q.text);
+    if (questions.length === 0) {
+      toast({ title: 'Inclua perguntas', description: 'A anamnese do tratamento precisa de pelo menos uma pergunta.', variant: 'destructive' });
+      return;
+    }
     const nextTemplate: AnamneseTemplate = {
       id: form.id || `template-${category.id}-${Date.now()}`,
       name: form.name.trim(),
@@ -336,7 +237,9 @@ export default function AnamneseTemplatesTab() {
       category_name: category.name,
       active: form.active,
       basic_questions: splitLines(form.basic_questions),
-      specific_questions: splitLines(form.specific_questions),
+      specific_questions: questions.map((q) => q.text),
+      questions,
+      risk_terms: form.risk_terms.trim() || defaultRiskTerms(category.name),
       notes: form.notes.trim(),
     };
     const withoutCurrent = templates.filter((template) => template.id !== nextTemplate.id);
@@ -371,7 +274,7 @@ export default function AnamneseTemplatesTab() {
       <CardContent className="space-y-5">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_260px]">
           <div className="rounded-lg border bg-secondary/30 p-4 text-sm text-muted-foreground">
-            Os dados básicos de saúde ficam iguais em todos os modelos. As perguntas específicas variam por tipo de tratamento.
+            Cada tipo de tratamento tem a sua anamnese, com perguntas sobre os princípios e riscos daquele tratamento e um texto de ciência dos riscos que a paciente confirma. Na hora de enviar, a Dra escolhe quais a paciente responde.
           </div>
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
             <SelectTrigger>
@@ -419,19 +322,17 @@ export default function AnamneseTemplatesTab() {
                   </div>
                   <Badge variant={template.active ? 'default' : 'outline'}>{template.active ? 'Ativo' : 'Inativo'}</Badge>
                 </div>
-                <div className="grid gap-3 text-sm md:grid-cols-2">
+                <div className="text-sm">
                   <div className="rounded-lg bg-secondary/30 p-3">
-                    <p className="font-medium text-foreground">Dados básicos</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{template.basic_questions.length} perguntas comuns</p>
-                  </div>
-                  <div className="rounded-lg bg-secondary/30 p-3">
-                    <p className="font-medium text-foreground">Específicas</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{template.specific_questions.length} perguntas do tratamento</p>
+                    <p className="font-medium text-foreground">Do tratamento</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{templateQuestions(template).length} perguntas + ciência de riscos</p>
                   </div>
                 </div>
-                {template.specific_questions.length > 0 && (
+                {templateQuestions(template).length > 0 && (
                   <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
-                    {template.specific_questions.slice(0, 3).map((question) => <li key={question}>- {question}</li>)}
+                    {templateQuestions(template).slice(0, 3).map((question) => (
+                      <li key={question.text}>- {question.text} <span className="text-muted-foreground/70">({QUESTION_TYPE_LABEL[question.type]})</span></li>
+                    ))}
                   </ul>
                 )}
                 <div className="mt-4 flex flex-wrap justify-end gap-2 border-t pt-3">
@@ -483,25 +384,66 @@ export default function AnamneseTemplatesTab() {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Dados básicos de saúde</Label>
-                  <Textarea
-                    value={form.basic_questions}
-                    onChange={(event) => setForm({ ...form, basic_questions: event.target.value })}
-                    rows={12}
-                  />
-                  <p className="text-xs text-muted-foreground">Uma pergunta por linha. Este bloco normalmente se repete em todos os modelos.</p>
+              <div className="space-y-3 rounded-xl border p-4">
+                <div>
+                  <Label>Perguntas do tratamento</Label>
+                  <p className="text-xs text-muted-foreground">Foque nos princípios e riscos deste tratamento. Em "Sim / Não", a paciente detalha quando responde Sim.</p>
                 </div>
-                <div className="space-y-2">
-                  <Label>Perguntas específicas do tratamento</Label>
-                  <Textarea
-                    value={form.specific_questions}
-                    onChange={(event) => setForm({ ...form, specific_questions: event.target.value })}
-                    rows={12}
-                  />
-                  <p className="text-xs text-muted-foreground">Uma pergunta por linha. Ajuste conforme protocolo e categoria.</p>
-                </div>
+                {form.questions.map((question, index) => (
+                  <div key={index} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Input
+                      aria-label={`Pergunta ${index + 1}`}
+                      value={question.text}
+                      onChange={(event) => setForm((current) => ({
+                        ...current,
+                        questions: current.questions.map((q, i) => i === index ? { ...q, text: event.target.value } : q),
+                      }))}
+                      placeholder="Ex: Usa ácidos ou retinoides?"
+                    />
+                    <div className="flex gap-2">
+                      <Select
+                        value={question.type}
+                        onValueChange={(value) => setForm((current) => ({
+                          ...current,
+                          questions: current.questions.map((q, i) => i === index ? { ...q, type: value as TemplateQuestion['type'] } : q),
+                        }))}
+                      >
+                        <SelectTrigger className="w-40" aria-label={`Tipo da pergunta ${index + 1}`}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="yes_no">{QUESTION_TYPE_LABEL.yes_no}</SelectItem>
+                          <SelectItem value="text">{QUESTION_TYPE_LABEL.text}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <BrandButton
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Remover pergunta ${index + 1}`}
+                        onClick={() => setForm((current) => ({ ...current, questions: current.questions.filter((_, i) => i !== index) }))}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </BrandButton>
+                    </div>
+                  </div>
+                ))}
+                <BrandButton
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setForm((current) => ({ ...current, questions: [...current.questions, { text: '', type: 'yes_no' }] }))}
+                >
+                  <Plus className="w-4 h-4" /> Adicionar pergunta
+                </BrandButton>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Ciência dos riscos</Label>
+                <Textarea
+                  value={form.risk_terms}
+                  onChange={(event) => setForm({ ...form, risk_terms: event.target.value })}
+                  rows={4}
+                />
+                <p className="text-xs text-muted-foreground">A paciente marca que leu e concorda com este texto no fim da anamnese do tratamento.</p>
               </div>
 
               <div className="space-y-2">

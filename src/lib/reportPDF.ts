@@ -1,5 +1,10 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+/** Posição Y do fim da última tabela desenhada pelo autoTable. */
+function lastTableEnd(doc: jsPDF): number | undefined {
+  return (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY;
+}
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -245,7 +250,8 @@ export function generateCostPDF(
   });
 
   // Detail: cost composition per treatment
-  let currentY = (doc).lastAutoTable?.finalY + 15 || 120;
+  const firstEnd = lastTableEnd(doc);
+  let currentY = firstEnd != null ? firstEnd + 15 : 120;
 
   for (const row of rows) {
     if (row.costItems.length === 0) continue;
@@ -276,7 +282,8 @@ export function generateCostPDF(
       margin: { left: 20 },
     });
 
-    currentY = (doc).lastAutoTable?.finalY + 10 || currentY + 30;
+    const tableEnd = lastTableEnd(doc);
+    currentY = tableEnd != null ? tableEnd + 10 : currentY + 30;
   }
 
   doc.save(`relatorio-custos-margem-${format(new Date(), 'yyyy-MM-dd')}.pdf`);

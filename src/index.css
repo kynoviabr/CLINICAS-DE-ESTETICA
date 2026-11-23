@@ -30,6 +30,7 @@
     --primary: 243 100% 68%;          /* #635bff */
     --primary-foreground: 0 0% 100%;
     --primary-dark: 243 75% 59%;      /* #4f46e5 */
+    --primary-text: 243 75% 55%;      /* texto/links na cor primária */
     --primary-light: 243 100% 95%;    /* #e8e7ff */
 
     --color-purple: 243 100% 68%;
@@ -260,4 +261,38 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* App iOS/Android: respeita a barra de status e o recorte da tela. */
+.native-app body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/*
+ * Telas de toque: o iOS dá zoom automático ao focar um campo com fonte
+ * menor que 16px, e a tela fica ampliada e "presa". 16px evita isso.
+ */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/*
+ * Campos de data e hora no iOS: o WebKit impõe largura mínima e centraliza
+ * o valor, o que estoura grids estreitos. Deixa o campo se ajustar à coluna.
+ */
+input[type='date'],
+input[type='time'],
+input[type='datetime-local'] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+}
+input::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.5em;
 }

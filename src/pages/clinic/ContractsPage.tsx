@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { buildLetterhead, documentFooter } from '@/lib/documents/letterhead';
+import { loadClinicLetterhead } from '@/hooks/useClinicLetterhead';
+import { describeDueDates, describePaymentMethods } from '@/lib/documents/contractPayment';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -9,7 +12,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { AlertTriangle, CheckCircle2, Eye, ExternalLink, FileSignature, Filter, Plus, Search, Upload } from 'lucide-react';
+import { AlertTriangle, CalendarRange, CheckCircle2, Eye, ExternalLink, FileSignature, Filter, Plus, Search, Upload, UserCheck } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { MobileFilters } from '@/components/ui/mobile-filters';
 import { format } from 'date-fns';
 import { getSignedContractUrl } from '@/lib/storageHelper';
 import { generateContractPDF } from '@/lib/contractPDF';
@@ -21,6 +26,7 @@ import { ContractViewDialog } from '@/components/contracts/ContractViewDialog';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { parseProposalNotesPayload } from '@/lib/proposals/paymentPreset';
 import type { Database, Json } from '@/integrations/supabase/types';
 import PayerSection, { type PayerData } from '@/components/patient/PayerSection';
 import {
@@ -28,9 +34,12 @@ import {
   paymentConditionLabels,
   type PaymentCondition,
   type PaymentConfig,
-  type PaymentMethod,
-} from '@/components/contracts/ContractPaymentConfigurator';
+  type PaymentMethod, isInstallmentMethod } from '@/components/contracts/ContractPaymentConfigurator';
 import { buildContractPaymentNotes, upsertContractFinancialForecast } from '@/lib/contractFinance';
+import { usePatientDepositCredit } from '@/hooks/usePatientDepositCredit';
+import { advanceDetailsText, withAdvance } from '@/lib/finance/deposit';
+import { ContractAdvanceSummary } from '@/components/deposits/ContractAdvanceSummary';
+import { formatCpf, formatPatientAddress } from '@/lib/patients/validation';
 
 type ContractRow = Database['public']['Tables']['contracts']['Row'];
 type ContractStatus = Database['public']['Enums']['contract_status'];
@@ -54,6 +63,12 @@ type ApprovedProposal = {
     date_of_birth?: string | null;
     payer_id?: string | null;
     is_self_payer?: boolean | null;
+    address?: string | null;
+    address_number?: string | null;
+    address_complement?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip_code?: string | null;
   } | null;
 };
 type ProposalItemLite = { quantity: number; treatments?: { name?: string | null; num_sessions?: number | null } | null };
@@ -102,6 +117,7 @@ export default function ContractsPage() {
     payerIdForContract: string | null;
     paymentTermsText: string;
     proposal: ApprovedProposal;
+    depositIds: string[];
   } | null>(null);
   const [confirmingEmission, setConfirmingEmission] = useState(false);
   const [generatingPreview, setGeneratingPreview] = useState(false);
@@ -124,6 +140,9 @@ export default function ContractsPage() {
   const returnTo = searchParams.get('returnTo');
   const returnLeadId = searchParams.get('returnLeadId');
   const crmReturnUrl = returnTo === 'crm' && returnLeadId ? `/clinic/crm?leadId=${returnLeadId}` : null;
+  // Vindo de Propostas: ?emitir=<id da proposta> abre a emissão já com ela escolhida.
+  const emitirProposalId = searchParams.get('emitir');
+  const proposalsReturnUrl = returnTo === 'proposals' ? '/clinic/proposals' : null;
 
   const { data: contracts = [], isLoading } = useQuery({
     queryKey: ['contracts', clinicId, filterStatus, search],
@@ -142,6 +161,17 @@ export default function ContractsPage() {
     enabled: !!clinicId,
   });
 
+  // Contagem por status (independe do filtro escolhido, para as abas mostrarem sempre o total de cada uma).
+  const { data: statusRows = [] } = useQuery({
+    queryKey: ['contracts', clinicId, 'status-counts'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('contracts').select('process_status').eq('clinic_id', clinicId!);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!clinicId,
+  });
+
   const { data: proposalItemsFilterMap = [] } = useQuery({
     queryKey: ['proposal-items-filter-map', clinicId],
     queryFn: async () => {
@@ -155,7 +185,7 @@ export default function ContractsPage() {
     enabled: !!clinicId,
   });
 
-  const { data: approvedProposals = [] } = useQuery({
+  const { data: approvedProposals = [], isFetched: approvedProposalsFetched } = useQuery({
     queryKey: ['approved-proposals-no-contract', clinicId],
     queryFn: async () => {
       const { data: allContracts, error: contractsError } = await supabase
@@ -168,7 +198,7 @@ export default function ContractsPage() {
       const linkedIds = (allContracts || []).map((contract) => contract.proposal_id).filter(Boolean);
       let query = supabase
         .from('proposals')
-        .select('id, proposal_number, patient_id, final_amount, patients(full_name, cpf, date_of_birth, payer_id, is_self_payer)')
+        .select('id, proposal_number, patient_id, final_amount, patients(full_name, cpf, date_of_birth, payer_id, is_self_payer, address, address_number, address_complement, city, state, zip_code)')
         .eq('clinic_id', clinicId!)
         .eq('status', 'accepted' as ProposalStatus);
 
@@ -182,6 +212,10 @@ export default function ContractsPage() {
   });
 
   const selectedProposalData = approvedProposals.find((proposal) => proposal.id === selectedProposal) || null;
+  // Sinais pagos da cliente (crédito): entram como entrada já paga e reduzem o que falta pagar.
+  const [applyDeposits, setApplyDeposits] = useState(true);
+  const patientDeposits = usePatientDepositCredit(clinicId, selectedProposalData?.patient_id);
+  const depositCredit = applyDeposits ? patientDeposits.reduce((sum, d) => sum + Number(d.amount), 0) : 0;
   const linkedPayerId = selectedProposalData?.patients?.payer_id || null;
   const { data: linkedPayerOption } = useQuery({
     queryKey: ['contract-linked-payer', clinicId, linkedPayerId],
@@ -199,14 +233,11 @@ export default function ContractsPage() {
     enabled: !!clinicId && !!linkedPayerId && createDialog,
   });
 
-  const summary = useMemo(() => {
-    return {
-      generated: contracts.filter((contract) => contract.process_status === 'pending_upload').length,
-      signedReceived: contracts.filter((contract) => contract.process_status === 'pending_confirmation').length,
-      active: contracts.filter((contract) => contract.process_status === 'confirmed').length,
-      needsReview: contracts.filter((contract) => contract.process_status === 'overdue').length,
-    };
-  }, [contracts]);
+  const statusCounts = useMemo(() => {
+    const acc: Record<string, number> = { all: statusRows.length };
+    for (const row of statusRows) acc[row.process_status] = (acc[row.process_status] || 0) + 1;
+    return acc;
+  }, [statusRows]);
 
   const visibleContracts = useMemo(() => {
     const today = format(new Date(), 'yyyy-MM-dd');
@@ -269,26 +300,30 @@ export default function ContractsPage() {
       const proposal = approvedProposals.find((item) => item.id === selectedProposal);
       if (!proposal) throw new Error('Selecione uma proposta');
       if (selectedPaymentMethods.length === 0) throw new Error('Selecione ao menos uma forma de pagamento.');
-      const proposalAmount = Number(proposal.final_amount || 0);
+      const proposalAmount = Math.max(0, Number(proposal.final_amount || 0) - depositCredit);
 
       const amounts = selectedPaymentMethods.map((method) => Number(paymentConfig[method]?.amount || 0));
       const hasInvalidAmount = amounts.some((value) => !Number.isFinite(value) || value <= 0);
       if (hasInvalidAmount) throw new Error('Informe um valor válido para cada forma selecionada.');
 
-      const requiresInstallments = selectedPaymentMethods.filter((method) => method === 'card' || method === 'boleto');
+      const requiresInstallments = selectedPaymentMethods.filter((method) => isInstallmentMethod(method));
       const hasInvalidInstallments = requiresInstallments.some((method) => Number(paymentConfig[method]?.installments || 0) <= 0);
       if (hasInvalidInstallments) throw new Error('Cartão e boleto exigem quantidade de parcelas maior que zero.');
       const totalInformed = amounts.reduce((sum, value) => sum + value, 0);
       if (totalInformed + 0.0001 < proposalAmount) {
-        throw new Error(`A soma das formas de pagamento (R$ ${totalInformed.toFixed(2)}) deve ser igual ou maior ao valor da proposta (R$ ${proposalAmount.toFixed(2)}).`);
+        throw new Error(`A soma das formas de pagamento (R$ ${totalInformed.toFixed(2)}) deve ser igual ou maior ao valor ${depositCredit > 0 ? 'que falta pagar' : 'da proposta'} (R$ ${proposalAmount.toFixed(2)}).`);
       }
 
-      const paymentTermsText = buildContractPaymentNotes(
-        selectedPaymentMethods,
-        paymentConfig,
-        paymentDetails,
-        paymentConditionLabels[paymentCondition]
-      );
+      const usedDeposits = applyDeposits ? patientDeposits : [];
+      const paymentTermsText = [
+        buildContractPaymentNotes(
+          selectedPaymentMethods,
+          paymentConfig,
+          paymentDetails,
+          paymentConditionLabels[paymentCondition]
+        ),
+        ...(usedDeposits.length ? [`${advanceDetailsText(usedDeposits)}. Abatido do valor total.`] : []),
+      ].join('\n');
 
       const patient = proposal.patients;
       let payerIdForContract = null;
@@ -341,9 +376,9 @@ export default function ContractsPage() {
         },
         patient: {
           name: patient?.full_name || '',
-          cpf: patient.cpf || '',
+          cpf: patient.cpf ? formatCpf(patient.cpf) : '',
           birth_date: patient?.date_of_birth || '',
-          address: ''
+          address: formatPatientAddress(patient ?? {})
         },
         payer: !payerData.is_self_payer && payerRaw ? {
           name: payerRaw.name || '',
@@ -360,13 +395,13 @@ export default function ContractsPage() {
           summary: treatmentNames || 'Tratamento estético',
           total_sessions: totalSessions
         },
-        payment: {
+        payment: withAdvance({
           total_value: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(proposal.final_amount)),
           condition: paymentConditionLabels[paymentCondition],
-          methods: selectedPaymentMethods.join(', '),
+          methods: describePaymentMethods(selectedPaymentMethods, paymentConfig),
           installments: selectedPaymentMethods.reduce((acc: number, m: PaymentMethod) => acc + (Number(paymentConfig[m]?.installments) || 1), 0),
-          due_dates: ''
-        },
+          due_dates: describeDueDates(selectedPaymentMethods, paymentConfig, formattedDate)
+        }, Number(proposal.final_amount || 0), usedDeposits, templateDataRaw.content_html || ''),
         proposal: {
           number: proposal.proposal_number
         },
@@ -384,9 +419,14 @@ export default function ContractsPage() {
       const pdfPath = `${clinicId}/${proposal.patient_id}/${contractNumber}.pdf`;
       const issuanceKey = `proposal:${proposal.id}`;
 
+      // Papel timbrado da clínica (logo, CNPJ, endereço) no topo; o texto vem do modelo.
+      const letterhead = await loadClinicLetterhead(clinicId!);
+      const documentHtml = buildLetterhead(letterhead) + rendered.html
+        + documentFooter(`${letterhead.name} · Contrato ${contractNumber} · Modelo v${templateDataRaw.version}`);
+
       // Open the preview modal
       setPreviewContract({
-        html: rendered.html,
+        html: documentHtml,
         pdfPath,
         renderData,
         templateId: templateDataRaw.id,
@@ -395,7 +435,8 @@ export default function ContractsPage() {
         issuanceKey,
         payerIdForContract,
         paymentTermsText,
-        proposal
+        proposal,
+        depositIds: usedDeposits.map((d) => d.id),
       });
 
       } finally {
@@ -462,6 +503,11 @@ export default function ContractsPage() {
       if (insertError) throw insertError;
 
       await upsertContractFinancialForecast(contract.id);
+      if (previewContract.depositIds.length) {
+        const { error: depError } = await supabase.rpc('deposit_apply_to_contract', { p_contract_id: contract.id, p_deposit_ids: previewContract.depositIds });
+        if (depError) toast({ title: 'Contrato emitido, mas o sinal não foi abatido', description: depError.message, variant: 'destructive' });
+        qc.invalidateQueries({ queryKey: ['deposits'] });
+      }
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['contracts'] }),
         qc.invalidateQueries({ queryKey: ['patients'] }),
@@ -532,14 +578,6 @@ export default function ContractsPage() {
   const togglePaymentMethod = (method: PaymentMethod, checked: boolean) => {
     if (checked) {
       if (selectedPaymentMethods.includes(method)) return;
-      if (selectedPaymentMethods.length >= 2) {
-        toast({
-          title: 'Limite de formas de pagamento',
-          description: 'Você pode selecionar no máximo 2 formas de pagamento.',
-          variant: 'destructive',
-        });
-        return;
-      }
       setSelectedPaymentMethods((current) => [...current, method]);
       return;
     }
@@ -557,7 +595,7 @@ export default function ContractsPage() {
       });
     };
 
-  const selectedProposalAmount = Number(selectedProposalData?.final_amount || 0);
+  const selectedProposalAmount = Math.max(0, Number(selectedProposalData?.final_amount || 0) - depositCredit);
   const selectedAmountSum = selectedPaymentMethods.reduce(
     (sum, method) => sum + Number(paymentConfig[method]?.amount || 0),
     0
@@ -568,7 +606,7 @@ export default function ContractsPage() {
     selectedPaymentMethods.length > 0 &&
     selectedPaymentMethods.every((method) => Number(paymentConfig[method]?.amount || 0) > 0) &&
     selectedPaymentMethods
-      .filter((method) => method === 'card' || method === 'boleto')
+      .filter((method) => isInstallmentMethod(method))
       .every((method) => Number(paymentConfig[method]?.installments || 0) > 0) &&
     selectedAmountSum + 0.0001 >= selectedProposalAmount;
 
@@ -586,9 +624,51 @@ export default function ContractsPage() {
     });
   }, [selectedProposalData]);
 
+  useEffect(() => {
+    if (emitirProposalId) setCreateDialog(true);
+  }, [emitirProposalId]);
+
+  useEffect(() => {
+    if (!emitirProposalId || !createDialog || !approvedProposalsFetched) return;
+    const clearParam = () => {
+      const next = new URLSearchParams(searchParams);
+      next.delete('emitir');
+      setSearchParams(next, { replace: true });
+    };
+    const target = approvedProposals.find((proposal) => proposal.id === emitirProposalId);
+    if (!target) {
+      clearParam();
+      setCreateDialog(false);
+      const existing = contracts.find((contract) => contract.proposal_id === emitirProposalId);
+      if (existing) {
+        setViewContract(existing);
+        toast({ title: 'Esta proposta já tem contrato', description: existing.contract_number || undefined });
+      } else {
+        toast({ title: 'Proposta indisponível', description: 'Para emitir, a proposta precisa estar aprovada e sem contrato.', variant: 'destructive' });
+      }
+      return;
+    }
+    setSelectedProposal(target.id);
+    clearParam();
+    // Traz a forma de pagamento combinada na proposta.
+    supabase.from('proposals').select('notes').eq('id', target.id).maybeSingle().then(({ data }) => {
+      const preset = parseProposalNotesPayload(data?.notes).paymentPreset;
+      if (!preset) return;
+      setPaymentCondition(preset.condition);
+      setSelectedPaymentMethods(preset.methods);
+      setPaymentDetails(preset.details);
+      setPaymentConfig(preset.config);
+    });
+  }, [emitirProposalId, createDialog, approvedProposalsFetched, approvedProposals, contracts, searchParams, setSearchParams, toast]);
+
   return (
     <div>
       <PageHeader title="Contratos" description="Formalize a venda e acompanhe o ciclo do contrato">
+        {proposalsReturnUrl && (
+          <BrandButton variant="outline" onClick={() => navigate(proposalsReturnUrl)}>
+            Voltar para Propostas
+          </BrandButton>
+        )}
         {crmReturnUrl && (
           <BrandButton variant="outline" onClick={() => navigate(crmReturnUrl)}>
             Voltar ao CRM
@@ -600,63 +680,20 @@ export default function ContractsPage() {
         </BrandButton>
       </PageHeader>
 
-      <div className="grid gap-3 md:grid-cols-4 mb-6">
-        <Card className="shadow-card animate-fade-in">
-          <CardContent className="p-4">
-            <FileSignature className="w-5 h-5 text-primary mb-2" />
-            <p className="text-2xl font-bold text-foreground">{summary.generated}</p>
-            <p className="text-xs text-muted-foreground">Gerados</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card animate-fade-in">
-          <CardContent className="p-4">
-            <Upload className="w-5 h-5 text-warning mb-2" />
-            <p className="text-2xl font-bold text-foreground">{summary.signedReceived}</p>
-            <p className="text-xs text-muted-foreground">Assinados recebidos</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card animate-fade-in">
-          <CardContent className="p-4">
-            <CheckCircle2 className="w-5 h-5 text-success mb-2" />
-            <p className="text-2xl font-bold text-foreground">{summary.active}</p>
-            <p className="text-xs text-muted-foreground">Ativos</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card animate-fade-in">
-          <CardContent className="p-4">
-            <AlertTriangle className="w-5 h-5 text-destructive mb-2" />
-            <p className="text-2xl font-bold text-foreground">{summary.needsReview}</p>
-            <p className="text-xs text-muted-foreground">Precisam de revisão</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+      {/* Filtros: busca + tratamento + período + "meus de hoje" */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-0 flex-1 sm:min-w-[240px]">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por contrato, paciente ou CPF..."
-            className="pl-10"
+            placeholder="Buscar por contrato, paciente ou CPF"
+            className="h-10 pl-10"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[220px]">
-            <Filter className="w-4 h-4 mr-2" />
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="pending_upload">Gerados</SelectItem>
-            <SelectItem value="pending_confirmation">Assinado recebido</SelectItem>
-            <SelectItem value="confirmed">Ativos</SelectItem>
-            <SelectItem value="overdue">Revisar documento</SelectItem>
-            <SelectItem value="cancelled">Cancelados</SelectItem>
-          </SelectContent>
-        </Select>
+        <MobileFilters activeCount={(treatmentFilter !== 'all' ? 1 : 0) + (dateStart || dateEnd ? 1 : 0) + (quickFilter === 'mine_today' ? 1 : 0)}>
         <Select value={treatmentFilter} onValueChange={setTreatmentFilter}>
-          <SelectTrigger className="w-[220px]">
+          <SelectTrigger className="h-10 w-full sm:w-52">
             <SelectValue placeholder="Tratamento" />
           </SelectTrigger>
           <SelectContent>
@@ -666,23 +703,79 @@ export default function ContractsPage() {
             ))}
           </SelectContent>
         </Select>
-        <Input type="date" value={dateStart} onChange={(event) => setDateStart(event.target.value)} className="w-[170px]" />
-        <Input type="date" value={dateEnd} onChange={(event) => setDateEnd(event.target.value)} className="w-[170px]" />
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={`flex h-10 w-full items-center gap-2 rounded-md border px-3 text-sm sm:w-auto ${dateStart || dateEnd ? 'border-primary/50 bg-primary/5 text-foreground' : 'border-input bg-background text-muted-foreground'}`}
+            >
+              <CalendarRange className="h-4 w-4" />
+              {dateStart || dateEnd
+                ? `${dateStart ? dateStart.split('-').reverse().join('/') : '…'} – ${dateEnd ? dateEnd.split('-').reverse().join('/') : '…'}`
+                : 'Período'}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-72 space-y-3">
+            <p className="text-sm font-medium">Contratos gerados entre</p>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="space-y-1 text-xs text-muted-foreground">De
+                <Input type="date" value={dateStart} onChange={(event) => setDateStart(event.target.value)} />
+              </label>
+              <label className="space-y-1 text-xs text-muted-foreground">Até
+                <Input type="date" value={dateEnd} onChange={(event) => setDateEnd(event.target.value)} />
+              </label>
+            </div>
+            {(dateStart || dateEnd) && (
+              <button type="button" className="text-xs font-medium text-primary hover:underline" onClick={() => { setDateStart(''); setDateEnd(''); }}>
+                Limpar período
+              </button>
+            )}
+          </PopoverContent>
+        </Popover>
+        <button
+          type="button"
+          aria-pressed={quickFilter === 'mine_today'}
+          onClick={() => setQuickFilter(quickFilter === 'mine_today' ? 'all' : 'mine_today')}
+          className={`flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-medium ${quickFilter === 'mine_today' ? 'border-primary bg-primary/10 text-primary' : 'border-input bg-background text-muted-foreground hover:text-foreground'}`}
+        >
+          <UserCheck className="h-4 w-4" /> Meus de hoje
+        </button>
+        </MobileFilters>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <BrandButton size="sm" variant={quickFilter === 'all' ? 'primary' : 'outline'} onClick={() => setQuickFilter('all')}>
-          Todos
-        </BrandButton>
-        <BrandButton size="sm" variant={quickFilter === 'mine_today' ? 'primary' : 'outline'} onClick={() => setQuickFilter('mine_today')}>
-          Meus hoje
-        </BrandButton>
-        <BrandButton size="sm" variant={quickFilter === 'pending_signature' ? 'primary' : 'outline'} onClick={() => setQuickFilter('pending_signature')}>
-          Assinatura pendente
-        </BrandButton>
-        <BrandButton size="sm" variant={quickFilter === 'overdue' ? 'primary' : 'outline'} onClick={() => setQuickFilter('overdue')}>
-          Vencidos
-        </BrandButton>
+      {/* Status: abas compactas com contagem (substituem os cartões grandes) */}
+      <div className="-mx-4 mb-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <div role="tablist" aria-label="Filtrar por status" className="inline-flex min-w-max gap-1.5">
+          {([
+            { value: 'all', label: 'Todos', dot: 'bg-muted-foreground/40', alert: '' },
+            { value: 'pending_upload', label: 'Gerados', dot: 'bg-sky-500', alert: '' },
+            { value: 'pending_confirmation', label: 'Assinatura recebida', dot: 'bg-amber-500', alert: 'bg-amber-100 text-amber-800' },
+            { value: 'confirmed', label: 'Ativos', dot: 'bg-emerald-500', alert: '' },
+            { value: 'overdue', label: 'Precisam de revisão', dot: 'bg-rose-500', alert: 'bg-rose-100 text-rose-700' },
+            { value: 'cancelled', label: 'Cancelados', dot: 'bg-slate-400', alert: '' },
+          ]).map((tab) => {
+            const active = filterStatus === tab.value && (quickFilter === 'all' || quickFilter === 'mine_today');
+            const count = statusCounts[tab.value] || 0;
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => { setFilterStatus(tab.value); if (quickFilter !== 'mine_today') setQuickFilter('all'); }}
+                className={`inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                  active ? 'border-primary bg-primary text-primary-foreground shadow-sm' : 'border-border bg-card text-foreground hover:border-primary/40'
+                }`}
+              >
+                {!active && <span className={`h-2 w-2 rounded-full ${tab.dot}`} />}
+                {tab.label}
+                <span className={`rounded-full px-1.5 text-xs tabular-nums ${active ? 'bg-white/20' : tab.alert && count > 0 ? tab.alert : 'bg-muted text-muted-foreground'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {selectedContractIds.length > 0 && (
@@ -839,7 +932,13 @@ export default function ContractsPage() {
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">Selecione uma proposta aprovada para gerar a minuta:</p>
               {approvedProposals.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma proposta aprovada disponível</p>
+                <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed px-4 py-8 text-center">
+                  <p className="font-medium text-foreground">Nenhuma proposta aprovada ainda</p>
+                  <p className="max-w-md text-sm text-muted-foreground">O contrato sai de uma proposta aprovada. Monte a proposta da cliente, aprove e volte aqui para gerar o contrato.</p>
+                  <BrandButton className="mt-2" onClick={() => { setCreateDialog(false); navigate('/clinic/proposals?openNew=1'); }}>
+                    <Plus className="h-4 w-4" /> Criar proposta
+                  </BrandButton>
+                </div>
               ) : (
                 <Select value={selectedProposal} onValueChange={setSelectedProposal}>
                   <SelectTrigger>
@@ -854,8 +953,21 @@ export default function ContractsPage() {
                   </SelectContent>
                 </Select>
               )}
+              {approvedProposals.length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  A cliente ainda não tem proposta?{' '}
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
+                    onClick={() => { setCreateDialog(false); navigate('/clinic/proposals?openNew=1'); }}
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Criar proposta
+                  </button>
+                </p>
+              )}
             </div>
 
+            {approvedProposals.length > 0 && (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
               <ContractPaymentConfigurator
                 paymentCondition={paymentCondition}
@@ -877,19 +989,18 @@ export default function ContractsPage() {
                     payerOptionsOverride={linkedPayerOption ? [linkedPayerOption] : []}
                   />
                 )}
-                {selectedProposal && (
-                  <div className="rounded-md border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
-                    Valor da proposta: <span className="font-semibold text-foreground">R$ {selectedProposalAmount.toFixed(2)}</span> ·
-                    Soma informada: <span className="font-semibold text-foreground">R$ {selectedAmountSum.toFixed(2)}</span>
-                    {selectedAmountSum + 0.0001 < selectedProposalAmount && (
-                      <span className="block text-destructive mt-1">
-                        A soma deve ser igual ou maior ao valor da proposta para liberar o contrato.
-                      </span>
-                    )}
-                  </div>
+                {selectedProposal && selectedProposalData && (
+                  <ContractAdvanceSummary
+                    total={Number(selectedProposalData.final_amount || 0)}
+                    deposits={patientDeposits}
+                    apply={applyDeposits}
+                    onApplyChange={setApplyDeposits}
+                    informed={selectedAmountSum}
+                  />
                 )}
               </div>
             </div>
+            )}
 
             <div className="flex gap-3">
               <BrandButton variant="outline" onClick={() => setCreateDialog(false)} className="flex-1">

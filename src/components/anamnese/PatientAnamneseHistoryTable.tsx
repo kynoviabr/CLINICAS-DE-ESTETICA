@@ -6,6 +6,8 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Eye, CheckCircle, Archive, Pencil } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
+import { openStoredFile } from '@/lib/storedFile';
+import { toast as sonnerToast } from 'sonner';
 
 type AnamneseRow = Database['public']['Tables']['patient_anamneses']['Row'];
 
@@ -51,7 +53,10 @@ export default function PatientAnamneseHistoryTable({ anamneses, patientId, onVa
         <TableBody>
           {anamneses.map((a) => (
             <TableRow key={a.id} className={a.is_current ? 'bg-primary/[0.03]' : ''}>
-              <TableCell className="text-xs font-mono font-medium">{a.anamnese_number}</TableCell>
+              <TableCell className="text-xs font-medium">
+                <span className="font-mono">{a.anamnese_number}</span>
+                <span className="block text-[11px] font-normal text-muted-foreground">{a.kind === 'treatment' ? (a.template_name || 'Tratamento') : 'Inicial'}</span>
+              </TableCell>
               <TableCell className="text-xs">{fmtShort(a.created_at)}</TableCell>
               <TableCell className="text-xs">{fmtShort(a.filled_at)}</TableCell>
               <TableCell className="text-xs">{fmtShort(a.expires_at)}</TableCell>
@@ -59,7 +64,7 @@ export default function PatientAnamneseHistoryTable({ anamneses, patientId, onVa
               <TableCell className="text-xs">{sourceLabels[a.source_type] || a.source_type}</TableCell>
               <TableCell>
                 {a.document_url ? (
-                  <BrandButton size="sm" variant="outline" className="h-7 px-2" onClick={() => window.open(a.document_url, '_blank')}>
+                  <BrandButton size="sm" variant="outline" className="h-7 px-2" onClick={() => openStoredFile(a.document_url, 'patient-anamneses').catch((e: Error) => sonnerToast.error(e.message))}>
                     <Eye className="w-3 h-3" />
                   </BrandButton>
                 ) : (

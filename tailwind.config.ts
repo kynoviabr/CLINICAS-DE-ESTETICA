@@ -19,6 +19,10 @@ export default {
         heading: ['"DM Sans"', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
         mono: ['"SF Mono"', 'Menlo', 'Consolas', 'monospace'],
       },
+      // Texto na cor da clínica usa um tom mais escuro (legível mesmo quando a cor é clara, ex.: rosa).
+      textColor: {
+        primary: { DEFAULT: "hsl(var(--primary-text))" },
+      },
       colors: {
         border: "hsl(var(--border))",
         "border-hover": "hsl(var(--border-hover))",

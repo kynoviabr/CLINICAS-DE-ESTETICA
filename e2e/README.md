@@ -28,7 +28,7 @@ export E2E_AGENDA_LEAD_NAME="E2E Agenda Seed"
 
 ## 1.1) Seed técnico da Agenda (recomendado)
 
-Execute o SQL em [seed_e2e_agenda.sql](/Users/dempas/Documents/remix-of-clinic-journey/supabase/seed_e2e_agenda.sql) para garantir uma avaliação `scheduled` específica do E2E.
+Execute o SQL em [seed_e2e_agenda.sql](../supabase/seed_e2e_agenda.sql) para garantir uma avaliação `scheduled` específica do E2E.
 
 ## 2) Rodar testes
 

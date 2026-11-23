@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '@/components/ui/drawer';
 import { AnamneseStatusBadge } from './AnamneseStatusBadge';
 import { Badge } from '@/components/ui/badge';
@@ -6,107 +7,25 @@ import { Separator } from '@/components/ui/separator';
 import { BrandButton } from '@/components/ui/brand-button';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Eye, Hash, Calendar, Clock, User as UserIcon, FileText, Paperclip } from 'lucide-react';
+import { Eye, Hash, Calendar, Clock, User as UserIcon, FileText, Paperclip, ChevronsDownUp, ChevronsUpDown, PenLine, ShieldCheck } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import type { Database } from '@/integrations/supabase/types';
+import { openStoredFile } from '@/lib/storedFile';
+import { toast as sonnerToast } from 'sonner';
+import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
+import { loadClinicLetterhead } from '@/hooks/useClinicLetterhead';
+import { supabase } from '@/integrations/supabase/client';
+import { loadAcceptancesSafe } from '@/lib/documents/acceptances';
+import { InPersonSignDialog } from '@/components/signing/InPersonSignDialog';
+import { buildAnamneseHtml, fieldLabels, formatValue, highlightedBooleanFields, isYesAnswer, sectionLabels, sourceLabels, visibleSections } from '@/lib/anamnese/document';
 
 type AnamneseRow = Database['public']['Tables']['patient_anamneses']['Row'];
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  anamnese: AnamneseRow;
+  anamnese: AnamneseRow | null;
 }
-
-const sourceLabels: Record<string, string> = {
-  digital: 'Digital',
-  portal: 'Portal do paciente',
-  manual_upload: 'Upload manual',
-  internal_manual: 'Preenchimento interno',
-};
-
-const sectionLabels: Record<string, string> = {
-  identification: 'Identificação',
-  health_history: 'Histórico de Saúde',
-  medications: 'Medicamentos',
-  allergies: 'Alergias',
-  aesthetic_history: 'Histórico Estético',
-  objectives: 'Objetivos',
-  habits: 'Hábitos de Vida',
-  consent: 'Consentimento',
-};
-
-const fieldLabels: Record<string, string> = {
-  occupation: 'Profissão',
-  marital_status: 'Estado civil',
-  emergency_contact: 'Contato de emergência',
-  emergency_phone: 'Telefone de emergência',
-  has_chronic_disease: 'Doença crônica',
-  chronic_diseases: 'Doenças crônicas',
-  has_previous_surgery: 'Cirurgias anteriores',
-  surgeries: 'Cirurgias',
-  has_skin_conditions: 'Condições de pele',
-  skin_conditions: 'Condições',
-  is_pregnant: 'Gestante',
-  is_breastfeeding: 'Amamentando',
-  has_pacemaker: 'Marca-passo',
-  has_metal_implants: 'Implantes metálicos',
-  additional_info: 'Informações adicionais',
-  takes_medication: 'Toma medicamentos',
-  medications_list: 'Medicamentos',
-  takes_supplements: 'Usa suplementos',
-  supplements_list: 'Suplementos',
-  has_allergies: 'Possui alergias',
-  allergies_list: 'Alergias',
-  has_product_sensitivity: 'Sensibilidade a produtos',
-  sensitivities: 'Sensibilidades',
-  previous_treatments: 'Tratamentos anteriores',
-  has_active_treatment: 'Tratamento ativo',
-  active_treatment_details: 'Detalhes do tratamento ativo',
-  uses_acids_retinoids: 'Usa ácidos/retinóides',
-  acids_details: 'Ácidos em uso',
-  recent_sun_exposure: 'Exposição solar recente',
-  skin_type: 'Tipo de pele',
-  main_concern: 'Principal queixa',
-  body_areas: 'Áreas do corpo',
-  expectations: 'Expectativas',
-  timeline: 'Prazo desejado',
-  smoking: 'Fumante',
-  alcohol_frequency: 'Consumo de álcool',
-  exercise_frequency: 'Atividade física',
-  water_intake: 'Ingestão de água',
-  sleep_quality: 'Qualidade do sono',
-  diet_description: 'Alimentação',
-  sun_protection: 'Protetor solar',
-  agrees_terms: 'Termos aceitos',
-  agrees_photos: 'Fotos autorizadas',
-  agrees_data_usage: 'Uso de dados autorizado',
-  signature_date: 'Data de assinatura',
-};
-
-const detailDependencies: Record<string, string> = {
-  chronic_diseases: 'has_chronic_disease',
-  surgeries: 'has_previous_surgery',
-  skin_conditions: 'has_skin_conditions',
-  medications_list: 'takes_medication',
-  supplements_list: 'takes_supplements',
-  allergies_list: 'has_allergies',
-  sensitivities: 'has_product_sensitivity',
-  active_treatment_details: 'has_active_treatment',
-  acids_details: 'uses_acids_retinoids',
-};
-
-const highlightedBooleanFields = new Set([
-  'has_allergies',
-  'has_product_sensitivity',
-  'has_chronic_disease',
-  'takes_medication',
-  'has_previous_surgery',
-  'is_pregnant',
-  'is_breastfeeding',
-  'has_pacemaker',
-  'has_metal_implants',
-]);
 
 function fmtDate(d: string | null) {
   if (!d) return '—';
@@ -118,17 +37,57 @@ function fmtDateShort(d: string | null) {
   return format(new Date(d), 'dd/MM/yyyy', { locale: ptBR });
 }
 
-function formatValue(value: unknown): string {
-  if (value === true) return 'Sim';
-  if (value === false) return 'Não';
-  if (value === null || value === undefined || value === '') return '—';
-  return String(value);
-}
-
 export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: Props) {
+  const [expanded, setExpanded] = useState<string[]>([]);
+  // Cada anamnese aberta começa com as seções fechadas.
+  useEffect(() => { setExpanded([]); }, [anamnese?.id]);
+
+  // Aceite da cliente no registro único (para mostrar "Assinar na clínica" quando falta).
+  const [signState, setSignState] = useState<{ code: string | null; patientName: string | null } | null>(null);
+  const [signOpen, setSignOpen] = useState(false);
+  const loadSignState = async (id: string, patientId: string) => {
+    const [acc, p] = await Promise.all([
+      loadAcceptancesSafe('anamnese', id),
+      supabase.from('patients').select('full_name').eq('id', patientId).maybeSingle(),
+    ]);
+    setSignState({ code: acc?.records[0]?.verificationCode ?? (acc?.records.length ? '' : null), patientName: p.data?.full_name ?? null });
+  };
+  useEffect(() => {
+    setSignState(null);
+    if (open && anamnese?.id && anamnese.patient_id) loadSignState(anamnese.id, anamnese.patient_id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, anamnese?.id]);
+
   if (!anamnese) return null;
   const a = anamnese;
   const formData = a.form_data as Record<string, Record<string, unknown>> | null;
+  const sections = visibleSections(formData);
+  const allExpanded = sections.length > 0 && expanded.length === sections.length;
+
+  const anamneseDocument = async () => {
+    const [letterhead, patientRes, acceptances] = await Promise.all([
+      loadClinicLetterhead(a.clinic_id),
+      supabase.from('patients').select('full_name').eq('id', a.patient_id).maybeSingle(),
+      loadAcceptancesSafe('anamnese', a.id),
+    ]);
+    return {
+      html: buildAnamneseHtml({
+        clinic: letterhead,
+        patientName: patientRes.data?.full_name || '—',
+        number: a.anamnese_number,
+        title: a.title,
+        createdAt: a.created_at ?? new Date().toISOString(),
+        filledAt: a.filled_at,
+        validatedAt: a.validated_at,
+        expiresAt: a.expires_at,
+        source: a.source_type,
+        formData,
+        acceptances,
+      }),
+      title: `Anamnese ${a.anamnese_number}`,
+      filename: `Anamnese-${a.anamnese_number}`,
+    };
+  };
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -144,6 +103,28 @@ export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: P
           <DrawerDescription>
             {a.title || 'Detalhes completos da anamnese'}
           </DrawerDescription>
+          {sections.length > 0 && <DocumentOutputButtons className="flex flex-wrap gap-2 pt-2" getDocument={anamneseDocument} />}
+          {signState && signState.code !== null && (
+            <p className="flex items-center gap-1.5 pt-1 text-xs text-emerald-700">
+              <ShieldCheck className="h-3.5 w-3.5" /> Aceite da cliente registrado{signState.code ? ` · código ${signState.code}` : ''}
+            </p>
+          )}
+          {signState && signState.code === null && a.source_type !== 'patient_link' && sections.length > 0 && (
+            <div className="pt-1">
+              <BrandButton size="sm" variant="outline" onClick={() => setSignOpen(true)}>
+                <PenLine className="h-4 w-4" /> Assinatura da cliente na clínica
+              </BrandButton>
+            </div>
+          )}
+          <InPersonSignDialog
+            open={signOpen}
+            onOpenChange={setSignOpen}
+            kind="anamnese"
+            documentId={a.id}
+            documentLabel={`Anamnese ${a.anamnese_number}`}
+            patientName={signState?.patientName}
+            onSigned={() => loadSignState(a.id, a.patient_id)}
+          />
         </DrawerHeader>
 
         <ScrollArea className="flex-1 px-4 pb-6 max-h-[65vh]">
@@ -206,7 +187,7 @@ export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: P
             <div className="flex items-center gap-2 p-2 rounded-lg bg-secondary/50 text-sm mb-4">
               <Paperclip className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
               <span className="truncate flex-1">{a.document_name || 'Documento'}</span>
-              <BrandButton size="sm" variant="outline" onClick={() => window.open(a.document_url, '_blank')}>
+              <BrandButton size="sm" variant="outline" onClick={() => openStoredFile(a.document_url, 'patient-anamneses').catch((e: Error) => sonnerToast.error(e.message))}>
                 <Eye className="w-3 h-3" /> Ver
               </BrandButton>
             </div>
@@ -215,19 +196,22 @@ export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: P
           <Separator className="my-4" />
 
           {/* Form data sections */}
-          {formData && Object.keys(formData).length > 0 ? (
+          {sections.length > 0 ? (
             <div>
-              <h4 className="text-sm font-semibold text-foreground mb-3">Dados do Formulário</h4>
-              <Accordion type="multiple" className="space-y-1">
-                {Object.entries(formData).map(([sectionKey, sectionData]) => {
-                  if (!sectionData || typeof sectionData !== 'object') return null;
-                  const entries = Object.entries(sectionData).filter(([field, value]) => {
-                    if (value === '' || value === null || value === undefined) return false;
-                    const dependency = detailDependencies[field];
-                    if (dependency && sectionData[dependency] !== true) return false;
-                    return true;
-                  });
-                  if (entries.length === 0) return null;
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h4 className="text-sm font-semibold text-foreground">Dados do Formulário</h4>
+                <BrandButton
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setExpanded(allExpanded ? [] : sections.map((s) => s.key))}
+                >
+                  {allExpanded
+                    ? <><ChevronsDownUp className="w-3.5 h-3.5" /> Recolher todos</>
+                    : <><ChevronsUpDown className="w-3.5 h-3.5" /> Expandir todos</>}
+                </BrandButton>
+              </div>
+              <Accordion type="multiple" value={expanded} onValueChange={setExpanded} className="space-y-1">
+                {sections.map(({ key: sectionKey, entries }) => {
                   return (
                     <AccordionItem key={sectionKey} value={sectionKey} className="border rounded-lg px-3">
                       <AccordionTrigger className="text-sm font-medium py-2">
@@ -240,13 +224,13 @@ export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: P
                             <div
                               key={field}
                               className={
-                                highlightedBooleanFields.has(field) && value === true
+                                (highlightedBooleanFields.has(field) && value === true) || (sectionKey === 'treatment_answers' && isYesAnswer(value))
                                   ? 'rounded-lg border border-warning/30 bg-warning/10 px-3 py-2'
                                   : ''
                               }
                             >
                               <dt className="text-xs text-muted-foreground">{fieldLabels[field] || field}</dt>
-                              <dd className="font-medium">{formatValue(value)}</dd>
+                              <dd className="font-medium">{formatValue(value, field)}</dd>
                             </div>
                           ))}
                         </dl>

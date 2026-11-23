@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { compressImage } from '@/lib/photos/compress';
 import { useAuth } from '@/contexts/AuthContext';
 import { BrandButton } from '@/components/ui/brand-button';
 import { toast } from 'sonner';
@@ -29,23 +30,22 @@ export default function DocumentUploadAction({ anamneseId, patientId, size = 'sm
       toast.error('Tipo de arquivo não permitido. Use PDF, JPG ou PNG.');
       return;
     }
-    if (file.size > MAX_SIZE) {
-      toast.error('Arquivo excede o limite de 10MB.');
-      return;
-    }
     setUploading(true);
     try {
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
-      const path = `${patientId}/${anamneseId}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('patient-anamneses').upload(path, file, { contentType: file.type });
+      const img = await compressImage(file, 2000, { quality: 0.85 });
+      if (img.blob.size > MAX_SIZE) {
+        toast.error('Arquivo excede o limite de 10MB.');
+        return;
+      }
+      const path = `${patientId}/${anamneseId}/${Date.now()}.${img.ext}`;
+      const { error: upErr } = await supabase.storage.from('patient-anamneses').upload(path, img.blob, { contentType: img.type });
       if (upErr) throw upErr;
 
-      const { data: { publicUrl } } = supabase.storage.from('patient-anamneses').getPublicUrl(path);
 
       const { error: dbErr } = await supabase.from('patient_anamneses').update({
-        document_url: publicUrl,
-        document_name: file.name,
-        document_mime_type: file.type,
+        document_url: path,
+        document_name: img.name,
+        document_mime_type: img.type,
         document_uploaded_at: new Date().toISOString(),
         uploaded_by: user?.id,
       }).eq('id', anamneseId);
