@@ -125,10 +125,16 @@ export default function LoginPage() {
           style={{ background: 'radial-gradient(circle, hsl(190 100% 50%) 0%, transparent 70%)' }}
         />
 
-        <div className="relative flex items-center gap-2.5">
-          <BrandIcon />
-          <span className="font-heading font-semibold text-[17px] tracking-tight">Kynovia Estética</span>
-        </div>
+        {/* Logo horizontal (computador). O fundo escuro do logo some sobre o painel escuro (mix-blend-screen). */}
+        <img
+          src="/brand/kynovia-estetica-horizontal.jpg"
+          alt="Kynovia Estética"
+          className="relative -ml-6 h-24 w-auto self-start mix-blend-screen"
+          style={{
+            WebkitMaskImage: 'radial-gradient(ellipse 50% 50% at center, #000 74%, transparent 100%)',
+            maskImage: 'radial-gradient(ellipse 50% 50% at center, #000 74%, transparent 100%)',
+          }}
+        />
 
         <div className="relative max-w-md">
           <p className="text-[11px] uppercase tracking-[0.18em] font-semibold text-primary-light/90 mb-4">
