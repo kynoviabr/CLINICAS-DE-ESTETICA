@@ -21,6 +21,7 @@ import { useProposalsPage } from './proposals/useProposalsPage';
 import { SendProposalDialog } from './proposals/SendProposalDialog';
 import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
 import { InPersonSignDialog } from '@/components/signing/InPersonSignDialog';
+import { WhatsappAcceptanceButton } from '@/components/signing/WhatsappAcceptanceButton';
 import { createProposalLink } from '@/lib/proposals/publicLink';
 import { useState } from 'react';
 
@@ -685,6 +686,19 @@ export default function ProposalsPage() {
                     <BrandButton size="sm" variant="outline" onClick={() => setInPersonFor({ id: viewDialog.id, number: viewDialog.proposal_number, patientName: viewDialog.patients?.full_name ?? null })}>
                       <PenLine className="w-4 h-4" /> Assinar na clínica
                     </BrandButton>
+                  )}
+
+                  {(viewDialog.status === 'draft' || viewDialog.status === 'sent') && viewDialog.patient_id && (
+                    <WhatsappAcceptanceButton
+                      kind="proposal"
+                      documentId={viewDialog.id}
+                      createLink={() => createProposalLink(viewDialog.id)}
+                      onAccepted={() => {
+                        setViewDialog(null);
+                        qc.invalidateQueries({ queryKey: ['proposals'] });
+                        qc.invalidateQueries({ queryKey: ['crm-leads'] });
+                      }}
+                    />
                   )}
 
                   {(viewDialog.status === 'draft' || viewDialog.status === 'sent') && (

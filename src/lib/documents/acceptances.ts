@@ -15,7 +15,7 @@ const toResult = (rows: Row[]): AcceptanceSheetData => ({
 export async function loadAcceptances(kind: DocumentKind | DocumentKind[], documentId: string): Promise<AcceptanceSheetData> {
   const kinds = Array.isArray(kind) ? kind : [kind];
   const { data, error } = await supabase.from('document_acceptances')
-    .select('document_kind, signer_name, accepted_at, method, verified_by, ip, user_agent, phone, geo, verification_code, document_hash, signature_image, staff_user_id')
+    .select('document_kind, signer_name, accepted_at, method, verified_by, ip, user_agent, phone, geo, verification_code, document_hash, signature_image, staff_user_id, whatsapp_reply, whatsapp_message_id')
     .in('document_kind', kinds).eq('document_id', documentId).order('accepted_at');
   if (error) throw error;
   const rows = (data || []) as Array<Row & { staff_user_id?: string | null }>;

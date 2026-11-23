@@ -20,8 +20,12 @@ export type AcceptanceRecord = {
   documentKind?: string | null;
   /** Assinatura desenhada na tela da clínica (PNG em data URL). */
   signatureImage?: string | null;
-  /** Quem da equipe acompanhou a assinatura na clínica. */
+  /** Quem da equipe acompanhou a assinatura na clínica (ou enviou o pedido pelo WhatsApp). */
   staffName?: string | null;
+  /** Texto exato da resposta no WhatsApp (ex.: "DE ACORDO 4821"). */
+  whatsappReply?: string | null;
+  /** Número da mensagem no WhatsApp. */
+  whatsappMessageId?: string | null;
 };
 
 export type SignatureSheetInput = {
@@ -58,6 +62,7 @@ export const VERIFIED_LABELS: Record<string, string> = {
   cpf: 'Início do CPF conferido com o cadastro',
   none: 'Nome completo conferido com o cadastro',
   in_person_document: 'Documento de identidade conferido pela equipe na clínica',
+  whatsapp_phone: 'Resposta do número de WhatsApp do cadastro',
 };
 
 /** Só aceita PNG em base64 (vem do quadro de assinatura); qualquer outra coisa não entra no HTML. */
@@ -69,12 +74,13 @@ export function safeSignatureImage(src?: string | null): string | null {
 export function acceptanceFromRow(r: {
   signer_name: string; accepted_at: string; method?: string | null; verified_by?: string | null; ip?: string | null;
   user_agent?: string | null; phone?: string | null; geo?: unknown; verification_code?: string | null; document_kind?: string | null;
-  signature_image?: string | null; staff_name?: string | null;
+  signature_image?: string | null; staff_name?: string | null; whatsapp_reply?: string | null; whatsapp_message_id?: string | null;
 }): AcceptanceRecord {
   return {
     signerName: r.signer_name, acceptedAt: r.accepted_at, method: r.method, verifiedBy: r.verified_by, ip: r.ip,
     userAgent: r.user_agent, phone: r.phone, geo: (r.geo as AcceptanceRecord['geo']) ?? null, verificationCode: r.verification_code,
     documentKind: r.document_kind ?? null, signatureImage: r.signature_image ?? null, staffName: r.staff_name ?? null,
+    whatsappReply: r.whatsapp_reply ?? null, whatsappMessageId: r.whatsapp_message_id ?? null,
   };
 }
 
@@ -87,6 +93,7 @@ function row(label: string, value: string) {
 }
 
 function recordHtml(r: AcceptanceRecord, i: number) {
+  const whatsapp = r.method === 'whatsapp';
   const rows = [
     row('Nome', r.signerName),
     r.verifiedBy ? row('Identidade', VERIFIED_LABELS[r.verifiedBy] || r.verifiedBy) : '',
@@ -97,7 +104,10 @@ function recordHtml(r: AcceptanceRecord, i: number) {
     r.phone ? row('Telefone', r.phone) : '',
     r.geo?.lat != null && r.geo?.lng != null ? row('Localização aproximada', `${r.geo.lat.toFixed(4)}, ${r.geo.lng.toFixed(4)}${r.geo.accuracy ? ` (±${Math.round(r.geo.accuracy)} m)` : ''}`) : '',
     r.note ? row('Aceite', r.note) : '',
-    r.staffName ? row('Acompanhado por', `${r.staffName} (equipe da clínica)`) : '',
+    r.whatsappReply ? row('Resposta no WhatsApp', `“${r.whatsappReply}”`) : '',
+    r.whatsappMessageId ? row('Número da mensagem', r.whatsappMessageId) : '',
+    whatsapp ? row('Observação', 'O WhatsApp não informa endereço de rede (IP) nem aparelho.') : '',
+    r.staffName ? row(whatsapp ? 'Enviado por' : 'Acompanhado por', `${r.staffName} (equipe da clínica)`) : '',
     r.verificationCode ? row('Código de verificação', r.verificationCode) : '',
   ].join('');
   const img = safeSignatureImage(r.signatureImage);

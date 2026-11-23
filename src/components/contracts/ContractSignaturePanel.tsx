@@ -12,6 +12,7 @@ import { whatsappLink } from '@/lib/proposals/sale';
 import { contractLinkMessage, contractLinkUrl } from '@/lib/signing/acceptance';
 import { deviceLabel } from '@/lib/documents/device';
 import { InPersonSignDialog } from '@/components/signing/InPersonSignDialog';
+import { WhatsappAcceptanceButton } from '@/components/signing/WhatsappAcceptanceButton';
 
 /** Assinatura digital do contrato: enviar o link pelo WhatsApp e ver a prova da assinatura. */
 export default function ContractSignaturePanel({ contract }: {
@@ -65,8 +66,8 @@ export default function ContractSignaturePanel({ contract }: {
     return (
       <div className="space-y-1 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
         <p className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4" /> Assinado digitalmente pelo paciente</p>
-        <p>{s.signer_name} · {format(new Date(s.signed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })} · {s.verified_by === 'in_person_document' ? 'assinado na clínica, documento conferido pela equipe' : `identidade conferida por ${s.verified_by === 'birth_date' ? 'data de nascimento' : s.verified_by === 'cpf' ? 'CPF' : 'nome'}`}</p>
-        <p className="break-all text-xs text-emerald-800">Rede: {s.ip || '—'} · Aparelho: {deviceLabel(s.user_agent)}</p>
+        <p>{s.signer_name} · {format(new Date(s.signed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })} · {s.verified_by === 'in_person_document' ? 'assinado na clínica, documento conferido pela equipe' : s.verified_by === 'whatsapp_phone' ? 'respondeu DE ACORDO pelo WhatsApp do cadastro' : `identidade conferida por ${s.verified_by === 'birth_date' ? 'data de nascimento' : s.verified_by === 'cpf' ? 'CPF' : 'nome'}`}</p>
+        {s.verified_by !== 'whatsapp_phone' && <p className="break-all text-xs text-emerald-800">Rede: {s.ip || '—'} · Aparelho: {deviceLabel(s.user_agent)}</p>}
         <p className="break-all text-xs text-emerald-800">Código de integridade (SHA-256): {s.document_hash}</p>
       </div>
     );
@@ -83,7 +84,17 @@ export default function ContractSignaturePanel({ contract }: {
             : 'O paciente lê e assina pelo celular. Não precisa imprimir nem escanear.'}
         </p>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-start gap-2">
+        <WhatsappAcceptanceButton
+          kind="contract"
+          documentId={contract.id}
+          createLink={async () => {
+            const { data: r, error } = await supabase.rpc('create_contract_link', { p_contract_id: contract.id });
+            if (error) throw error;
+            return { url: contractLinkUrl(publicOrigin(), (r as { token: string }).token) };
+          }}
+          onAccepted={() => { qc.invalidateQueries({ queryKey: key }); qc.invalidateQueries({ queryKey: ['contracts'] }); }}
+        />
         <BrandButton size="sm" variant="outline" onClick={() => setInPerson(true)}>
           <PenLine className="h-4 w-4" /> Assinar na clínica
         </BrandButton>

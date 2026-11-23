@@ -50,6 +50,34 @@ async function syncContactRef(r: IngestResult) {
   }
 }
 
+/** Avisa a cliente que o "DE ACORDO" foi registrado. Falha aqui não derruba o aviso (o aceite já está gravado). */
+async function confirmAcceptance(admin: ReturnType<typeof createClient>, clinicId: string, messageId: string) {
+  try {
+    const { data: req } = await admin.from("whatsapp_acceptance_requests")
+      .select("conversation_id, document_label, acceptance_id, whatsapp_conversations(external_id)")
+      .eq("clinic_id", clinicId).eq("accepted_message_id", messageId).eq("status", "accepted").maybeSingle();
+    const conv = (req as { whatsapp_conversations?: { external_id?: string } } | null)?.whatsapp_conversations;
+    if (!req || !conv?.external_id) return;
+    const { data: acc } = await admin.from("document_acceptances").select("verification_code").eq("id", req.acceptance_id).maybeSingle();
+    const base = (Deno.env.get("AURA_API_URL") || "").replace(/\/$/, "");
+    const key = (Deno.env.get("AURA_API_KEY") || "").trim();
+    if (!base || !key) return;
+    const text = `Recebemos o seu DE ACORDO para ${req.document_label}. Ele ficou registrado como aceite eletrônico`
+      + (acc?.verification_code ? `, código de verificação ${acc.verification_code}.` : ".") + " Obrigado!";
+    const res = await fetch(`${base}/v1/conversations/${conv.external_id}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) { console.warn("aura confirm acceptance", res.status, (await res.text()).slice(0, 200)); return; }
+    const sent = await res.json().catch(() => ({})) as { message?: { id?: string } };
+    await admin.rpc("whatsapp_record_outgoing", { p_conversation_id: req.conversation_id, p_external_id: sent.message?.id || null, p_body: text, p_user: null });
+  } catch (e) {
+    console.warn("aura confirm acceptance", (e as Error).message);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ ok: false }, 405);
   const secret = (Deno.env.get("AURA_WEBHOOK_SECRET") || "").trim();
@@ -80,5 +108,7 @@ Deno.serve(async (req) => {
   if (event.type === "message.sent" && msg?.source === "ai" && msg.id && clinicId) {
     await admin.from("whatsapp_messages").update({ sent_by_ai: true }).eq("clinic_id", clinicId).eq("external_id", msg.id);
   }
+  // Resposta "DE ACORDO" registrada pelo banco: confirma para a cliente com o código de verificação.
+  if (event.type === "message.received" && msg?.id && clinicId) await confirmAcceptance(admin, clinicId, msg.id);
   return json({ ok: true });
 });

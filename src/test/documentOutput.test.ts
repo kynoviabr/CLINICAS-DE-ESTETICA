@@ -3,6 +3,7 @@ import { isIosBrowser, pdfFileName, printableDocument } from '@/lib/documents/ou
 import { buildAnamneseHtml } from '@/lib/anamnese/document';
 import { brasiliaDateTime, buildSignatureSheet, safeSignatureImage } from '@/lib/documents/signatureSheet';
 import { deviceLabel } from '@/lib/documents/device';
+import { whatsappAcceptanceStatusText } from '@/lib/signing/whatsappAcceptanceStatus';
 
 describe('saída de documentos', () => {
   it('nome de arquivo seguro', () => {
@@ -140,5 +141,35 @@ describe('assinatura na clínica', () => {
   it('aceite pelo QR Code sai como feito na clínica, no celular da cliente', () => {
     const html = buildSignatureSheet({ documentLabel: 'X', records: [{ signerName: 'A', acceptedAt: '2026-11-22T15:00:00.000Z', method: 'in_person_link' }] });
     expect(html).toContain('pelo celular da própria cliente');
+  });
+});
+
+describe('de acordo pelo WhatsApp', () => {
+  it('mostra a resposta exata, o número da mensagem e quem enviou, sem IP nem aparelho', () => {
+    const html = buildSignatureSheet({
+      documentLabel: 'Proposta P-1',
+      records: [{ signerName: 'Ana Lima', acceptedAt: '2026-11-22T15:00:00.000Z', method: 'whatsapp', verifiedBy: 'whatsapp_phone',
+        phone: '5511987654321', whatsappReply: 'Sim, de acordo 4821', whatsappMessageId: 'wamid.ABC', staffName: 'Dra. Paula', verificationCode: 'ABCDE-12345' }],
+    });
+    expect(html).toContain('Resposta &quot;DE ACORDO&quot; pelo WhatsApp');
+    expect(html).toContain('Sim, de acordo 4821');
+    expect(html).toContain('wamid.ABC');
+    expect(html).toContain('Resposta do número de WhatsApp do cadastro');
+    expect(html).toContain('não informa endereço de rede');
+    expect(html).toContain('Enviado por');
+    expect(html).not.toContain('Acompanhado por');
+  });
+
+  it('escapa o texto da resposta', () => {
+    const html = buildSignatureSheet({ documentLabel: 'X', records: [{ signerName: 'A', acceptedAt: '2026-11-22T15:00:00.000Z', method: 'whatsapp', whatsappReply: '<b>de acordo</b>' }] });
+    expect(html).not.toContain('<b>de acordo</b>');
+  });
+
+  it('frase da situação do pedido para a equipe', () => {
+    const base = { code: '4821', created_at: '2026-11-22T15:00:00.000Z', accepted_at: null, reply_text: null };
+    expect(whatsappAcceptanceStatusText({ ...base, status: 'pending' })).toContain('DE ACORDO 4821');
+    expect(whatsappAcceptanceStatusText({ ...base, status: 'changed' })).toContain('mudou depois do envio');
+    expect(whatsappAcceptanceStatusText({ ...base, status: 'cancelled' })).toBeNull();
+    expect(whatsappAcceptanceStatusText(null)).toBeNull();
   });
 });

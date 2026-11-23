@@ -1,6 +1,6 @@
 # Aceite eletrônico, PDF e impressão de documentos
 
-Status: etapas 1 (Baixar PDF e Imprimir), 2 (registro dos aceites e folha de assinatura) 3 (anamnese, sinal, recibo e cadastro no registro) e 4 (aceite na clínica) implementadas; etapas 5 e 6 pendentes.
+Status: etapas 1 (Baixar PDF e Imprimir), 2 (registro dos aceites e folha de assinatura), 3 (anamnese, sinal, recibo e cadastro no registro), 4 (aceite na clínica) e 5 (DE ACORDO pelo WhatsApp) implementadas; etapa 6 pendente.
 
 Etapa 1, onde está:
 - `src/lib/documents/output.ts`: PDF e impressão (quadro escondido no computador; PDF + menu de
@@ -40,6 +40,21 @@ Etapa 4, onde está:
   armazenamento de arquivos, para sair no PDF da clínica e no link da cliente sem acesso extra.
 - `src/components/signing/SignaturePad.tsx` e `InPersonSignDialog.tsx`; botões "Assinar na clínica" no
   contrato, na proposta e na anamnese preenchida pela clínica; QR Code no envio do link da anamnese.
+
+Etapa 5, onde está:
+- `supabase/migrations/20261227100000_aceite_whatsapp.sql`: `whatsapp_acceptance_requests` guarda cada pedido
+  (documento, código de integridade do que foi enviado, mensagem exata, código de 4 dígitos).
+  `create_whatsapp_acceptance` cria o pedido e devolve a mensagem; o app envia pela função `whatsapp`
+  (`send_text`). Um gatilho em `whatsapp_messages` reconhece a resposta ("DE ACORDO", "Estou de acordo",
+  "Sim, de acordo 1234", "Concordo"; "Não estou de acordo" não conta) e registra o aceite com telefone,
+  data e hora da mensagem, número da mensagem e texto exato (`document_acceptances.whatsapp_reply`).
+- Regras: a conversa precisa ser do telefone do cadastro; só dá para enviar dentro da janela de 24h do
+  WhatsApp (fora dela, a equipe manda antes um modelo aprovado); com o código, só vale o pedido daquele
+  código; sem código, só quando há um único pedido aberto na conversa; se o documento mudou depois do
+  envio, o aceite não é registrado e a equipe é avisada. Pedido vence em 15 dias.
+- Vale para proposta e contrato (a cliente lê o documento inteiro pelo link antes de responder).
+- `aura-webhook` responde à cliente confirmando o registro, com o código de verificação.
+- Botão "Pedir DE ACORDO no WhatsApp" no contrato e na proposta (`WhatsappAcceptanceButton.tsx`).
 
 ## Objetivo
 

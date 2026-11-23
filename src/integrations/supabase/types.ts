@@ -1716,6 +1716,7 @@ export type Database = {
           phone: string | null
           geo: Json | null
           whatsapp_message_id: string | null
+          whatsapp_reply: string | null
           signature_image: string | null
           signature_image_path: string | null
           document_hash: string
@@ -1741,6 +1742,7 @@ export type Database = {
           phone?: string | null
           geo?: Json | null
           whatsapp_message_id?: string | null
+          whatsapp_reply?: string | null
           signature_image?: string | null
           signature_image_path?: string | null
           document_hash: string
@@ -1766,6 +1768,7 @@ export type Database = {
           phone?: string | null
           geo?: Json | null
           whatsapp_message_id?: string | null
+          whatsapp_reply?: string | null
           signature_image?: string | null
           signature_image_path?: string | null
           document_hash?: string
@@ -4323,6 +4326,72 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_acceptance_requests: {
+        Row: {
+          accepted_at: string | null
+          accepted_message_id: string | null
+          acceptance_id: string | null
+          clinic_id: string
+          code: string
+          conversation_id: string
+          created_at: string
+          created_by: string | null
+          document_hash: string
+          document_id: string
+          document_kind: string
+          document_label: string
+          expires_at: string
+          id: string
+          link_url: string
+          message: string
+          patient_id: string | null
+          reply_text: string | null
+          status: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_message_id?: string | null
+          acceptance_id?: string | null
+          clinic_id: string
+          code: string
+          conversation_id: string
+          created_at?: string
+          created_by?: string | null
+          document_hash: string
+          document_id: string
+          document_kind: string
+          document_label: string
+          expires_at?: string
+          id?: string
+          link_url: string
+          message: string
+          patient_id?: string | null
+          reply_text?: string | null
+          status?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_message_id?: string | null
+          acceptance_id?: string | null
+          clinic_id?: string
+          code?: string
+          conversation_id?: string
+          created_at?: string
+          created_by?: string | null
+          document_hash?: string
+          document_id?: string
+          document_kind?: string
+          document_label?: string
+          expires_at?: string
+          id?: string
+          link_url?: string
+          message?: string
+          patient_id?: string | null
+          reply_text?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       whatsapp_conversations: {
         Row: {
           account_id: string | null
@@ -4599,6 +4668,14 @@ export type Database = {
       sign_in_person: {
         Args: { p_kind: string; p_document_id: string; p_signer_name: string; p_signature_image: string }
         Returns: Json
+      }
+      create_whatsapp_acceptance: {
+        Args: { p_kind: string; p_document_id: string; p_link_url: string }
+        Returns: Json
+      }
+      cancel_whatsapp_acceptance: {
+        Args: { p_request_id: string }
+        Returns: undefined
       }
       lead_signup_status: {
         Args: { p_token: string }
