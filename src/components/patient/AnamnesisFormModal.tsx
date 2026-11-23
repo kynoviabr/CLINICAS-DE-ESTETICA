@@ -21,6 +21,7 @@ import {
   type AnamneseTemplate, type TreatmentAnswer,
 } from '@/lib/anamnese/templates';
 import { isEmptySelection, type AnamneseSelection } from '@/lib/anamnese/selection';
+import { ANAMNESE_CHOICES } from '@/lib/anamnese/choices';
 import { useAnamneseOptions } from '@/hooks/useAnamneseOptions';
 import { AnamneseChooser } from '@/components/anamnese/AnamneseChooser';
 import type { Json } from '@/integrations/supabase/types';
@@ -420,11 +421,7 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
               <Select value={form.identification.marital_status} onValueChange={v => updateSection('identification', 'marital_status', v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="single">Solteiro(a)</SelectItem>
-                  <SelectItem value="married">Casado(a)</SelectItem>
-                  <SelectItem value="divorced">Divorciado(a)</SelectItem>
-                  <SelectItem value="widowed">Viúvo(a)</SelectItem>
-                  <SelectItem value="other">Outro</SelectItem>
+                  {ANAMNESE_CHOICES.marital_status.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -594,11 +591,7 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
               <Select value={form.aesthetic_history.skin_type} onValueChange={v => updateSection('aesthetic_history', 'skin_type', v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="oily">Oleosa</SelectItem>
-                  <SelectItem value="dry">Seca</SelectItem>
-                  <SelectItem value="combination">Mista</SelectItem>
-                  <SelectItem value="sensitive">Sensível</SelectItem>
+                  {ANAMNESE_CHOICES.skin_type.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -639,10 +632,7 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
                 <Select value={form.habits.alcohol_frequency} onValueChange={v => updateSection('habits', 'alcohol_frequency', v)}>
                   <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="never">Nunca</SelectItem>
-                    <SelectItem value="rarely">Raramente</SelectItem>
-                    <SelectItem value="weekly">Semanal</SelectItem>
-                    <SelectItem value="daily">Diário</SelectItem>
+                    {ANAMNESE_CHOICES.alcohol_frequency.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 </div>
@@ -651,10 +641,7 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
                 <Select value={form.habits.exercise_frequency} onValueChange={v => updateSection('habits', 'exercise_frequency', v)}>
                   <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Sedentário</SelectItem>
-                    <SelectItem value="1-2x">1-2x/semana</SelectItem>
-                    <SelectItem value="3-4x">3-4x/semana</SelectItem>
-                    <SelectItem value="5+">5+ vezes/semana</SelectItem>
+                    {ANAMNESE_CHOICES.exercise_frequency.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 </div>
@@ -672,10 +659,7 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
                 <Select value={form.habits.sleep_quality} onValueChange={v => updateSection('habits', 'sleep_quality', v)}>
                   <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="good">Boa</SelectItem>
-                    <SelectItem value="regular">Regular</SelectItem>
-                    <SelectItem value="poor">Ruim</SelectItem>
-                    <SelectItem value="insomnia">Insônia</SelectItem>
+                    {ANAMNESE_CHOICES.sleep_quality.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 </div>

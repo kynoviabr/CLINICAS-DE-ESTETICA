@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { choiceLabel } from '@/lib/anamnese/choices';
 import { ptBR } from 'date-fns/locale';
 import { buildLetterhead, documentFooter, escapeHtml, type ClinicLetterhead } from '@/lib/documents/letterhead';
 import { buildSignatureSheet, type AcceptanceRecord } from '@/lib/documents/signatureSheet';
@@ -111,7 +112,7 @@ export const highlightedBooleanFields = new Set([
   'has_metal_implants',
 ]);
 
-export function formatValue(value: unknown): string {
+export function formatValue(value: unknown, field?: string): string {
   if (value === true) return 'Sim';
   if (value === false) return 'Não';
   if (value === null || value === undefined || value === '') return '—';
@@ -122,7 +123,11 @@ export function formatValue(value: unknown): string {
     return v === true && detail?.trim() ? `${base}: ${detail.trim()}` : base;
   }
   if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
+  const text = String(value);
+  // Data guardada como 2026-11-21: mostra no formato brasileiro.
+  const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  if (date) return `${date[3]}/${date[2]}/${date[1]}`;
+  return field ? choiceLabel(field, text) : text;
 }
 
 /** Resposta "Sim" de uma pergunta de tratamento (para destacar, como os riscos da inicial). */
@@ -176,7 +181,7 @@ export function buildAnamneseHtml(a: AnamneseDocumentInput): string {
     const rows = entries.map(([field, value]) => {
       const alert = (highlightedBooleanFields.has(field) && value === true) || (key === 'treatment_answers' && isYesAnswer(value));
       const bg = alert ? 'background:#fffbeb;' : '';
-      return `<tr><td style="${cell};${bg}width:42%;color:#6b7280">${escapeHtml(fieldLabels[field] || field)}</td><td style="${cell};${bg}font-weight:600;white-space:pre-wrap">${escapeHtml(formatValue(value))}</td></tr>`;
+      return `<tr><td style="${cell};${bg}width:42%;color:#6b7280">${escapeHtml(fieldLabels[field] || field)}</td><td style="${cell};${bg}font-weight:600;white-space:pre-wrap">${escapeHtml(formatValue(value, field))}</td></tr>`;
     }).join('');
     return `<h3 style="margin:18px 0 6px;font-size:14px;color:#111827">${escapeHtml(sectionLabels[key] || key)}</h3><table style="width:100%;font-size:12px">${rows}</table>`;
   }).join('') || '<p style="color:#6b7280">Nenhuma resposta digital registrada.</p>';

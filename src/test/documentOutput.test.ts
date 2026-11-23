@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isIosBrowser, pdfFileName, printableDocument } from '@/lib/documents/output';
-import { buildAnamneseHtml } from '@/lib/anamnese/document';
+import { buildAnamneseHtml, formatValue } from '@/lib/anamnese/document';
 import { brasiliaDateTime, buildSignatureSheet, safeSignatureImage } from '@/lib/documents/signatureSheet';
 import { deviceLabel } from '@/lib/documents/device';
 import { whatsappAcceptanceStatusText } from '@/lib/signing/whatsappAcceptanceStatus';
@@ -196,5 +196,27 @@ describe('conferência de autenticidade', () => {
     expect(verifyTexts({ ...base, integrity: 'changed', hash_matches: null }).ok).toBe(false);
     expect(verifyTexts({ ...base, integrity: 'same', hash_matches: false }).hash).toContain('diferente');
     expect(verifyTexts({ found: false, reason: 'not_found' }).title).toBe('Código não encontrado');
+  });
+});
+
+describe('anamnese em português', () => {
+  it('mostra as respostas de escolha em português, nunca o código gravado', () => {
+    expect(formatValue('rarely', 'alcohol_frequency')).toBe('Raramente');
+    expect(formatValue('good', 'sleep_quality')).toBe('Boa');
+    expect(formatValue('none', 'exercise_frequency')).toBe('Sedentário');
+    expect(formatValue('combination', 'skin_type')).toBe('Mista');
+    expect(formatValue('married', 'marital_status')).toBe('Casado(a)');
+    expect(formatValue('2026-11-21', 'signature_date')).toBe('21/11/2026');
+    expect(formatValue('Advogada', 'occupation')).toBe('Advogada');
+  });
+
+  it('o PDF da anamnese não traz os códigos em inglês', () => {
+    const html = buildAnamneseHtml({
+      clinic: { name: 'Clínica' }, patientName: 'Ana', number: 'ANM-1', createdAt: '2026-11-21T12:00:00.000Z', source: 'patient_link',
+      formData: { habits: { alcohol_frequency: 'rarely', sleep_quality: 'good', exercise_frequency: 'none' }, identification: { marital_status: 'married' } },
+    } as unknown as Parameters<typeof buildAnamneseHtml>[0]);
+    expect(html).toContain('Raramente');
+    expect(html).toContain('Casado(a)');
+    expect(html).not.toMatch(/>(rarely|good|none|married)</);
   });
 });

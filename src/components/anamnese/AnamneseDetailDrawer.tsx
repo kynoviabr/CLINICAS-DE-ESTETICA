@@ -230,7 +230,7 @@ export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: P
                               }
                             >
                               <dt className="text-xs text-muted-foreground">{fieldLabels[field] || field}</dt>
-                              <dd className="font-medium">{formatValue(value)}</dd>
+                              <dd className="font-medium">{formatValue(value, field)}</dd>
                             </div>
                           ))}
                         </dl>
