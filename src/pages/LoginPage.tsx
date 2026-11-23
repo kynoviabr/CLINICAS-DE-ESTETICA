@@ -176,7 +176,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="mb-8">
+          <div className="mb-8 text-center lg:text-left">
             <h1 className="font-heading text-3xl font-bold tracking-tight text-foreground">
               Bem-vindo de volta
             </h1>
