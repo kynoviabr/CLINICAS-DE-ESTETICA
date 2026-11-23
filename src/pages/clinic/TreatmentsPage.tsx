@@ -350,7 +350,7 @@ export default function TreatmentsPage({ embedded = false, readOnly = false }: T
         </div>
       )}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="mb-6">
         <TabsList>
           <TabsTrigger value="treatments">Tratamentos</TabsTrigger>
           <TabsTrigger value="combos">Combos</TabsTrigger>

@@ -76,7 +76,7 @@ export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: P
         patientName: patientRes.data?.full_name || '—',
         number: a.anamnese_number,
         title: a.title,
-        createdAt: a.created_at,
+        createdAt: a.created_at ?? new Date().toISOString(),
         filledAt: a.filled_at,
         validatedAt: a.validated_at,
         expiresAt: a.expires_at,

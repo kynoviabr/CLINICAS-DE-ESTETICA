@@ -54,6 +54,7 @@ export async function depositReceiptDocument(depositId: string): Promise<Documen
   const { data: dep, error } = await supabase.from('appointment_deposits').select('*').eq('id', depositId).single();
   if (error) throw error;
   if (!dep.receipt_number || !dep.paid_at) throw new Error('Este sinal ainda não tem recibo.');
+  if (!dep.appointment_id) throw new Error('Este sinal não está ligado a um agendamento.');
   const { data: appt, error: apptError } = await supabase.from('appointments')
     .select('start_time, appointment_type, treatment_id, professional_id').eq('id', dep.appointment_id).single();
   if (apptError) throw apptError;
