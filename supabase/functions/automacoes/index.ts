@@ -8,6 +8,7 @@ import { canSendNow, reminderParams, reminderWindow, shortError } from "../_shar
 import { sha256Hex } from "../_shared/patient-link.ts";
 import { offsetFor } from "../_shared/agenda.ts";
 import { captureError } from "../_shared/monitoring.ts";
+import { appUrl } from "../_shared/app-url.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -54,7 +55,7 @@ async function createLink(db: SupabaseClient, clinicId: string, appointmentId: s
     clinic_id: clinicId, appointment_id: appointmentId, token_hash: await sha256Hex(token), expires_at: startIso, created_by: null,
   });
   if (error) throw error;
-  const origin = (Deno.env.get("APP_URL") || "https://klinova-homolog.vercel.app").replace(/\/$/, "");
+  const origin = appUrl();
   return `${origin}/agendamento/${token}`;
 }
 
@@ -157,7 +158,7 @@ Deno.serve(async (req) => {
       if (ch?.status !== "connected") return json({ ok: false, error: "Conecte o WhatsApp em Configurações antes de testar." }, 409);
       const { data: cfg } = await db.from("clinic_automations").select("*").eq("clinic_id", clinicId).maybeSingle();
       const { data: clinic } = await db.from("clinics").select("name, timezone").eq("id", clinicId).maybeSingle();
-      const origin = (Deno.env.get("APP_URL") || "https://klinova-homolog.vercel.app").replace(/\/$/, "");
+      const origin = appUrl();
       const sample = new Date(Date.now() + 26 * 3600_000).toISOString();
       const params = reminderParams(String(body.name || "Teste"), clinic?.name || "clínica", sample, `${origin}/agendamento/exemplo`, offsetFor(clinic?.timezone));
       try {

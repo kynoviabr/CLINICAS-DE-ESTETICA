@@ -6,9 +6,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Stethoscope, Building2, ArrowRight } from 'lucide-react';
+import { Building2, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { functionError } from '@/lib/errors';
+import { BrandIcon } from '@/components/brand/BrandIcon';
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Tente novamente em alguns instantes.';
@@ -45,7 +46,7 @@ export default function OnboardingPage() {
       if (error) throw await functionError(error);
       if (data?.error) throw new Error(data.error);
 
-      toast({ title: 'Clínica criada com sucesso!', description: 'Bem-vindo ao Kynovia.' });
+      toast({ title: 'Clínica criada com sucesso!', description: 'Bem-vindo ao Kynovia Estética.' });
       // Small delay to let role propagate
       setTimeout(() => navigate('/clinic/implantacao', { replace: true }), 500);
     } catch (err: unknown) {
@@ -60,9 +61,7 @@ export default function OnboardingPage() {
       <div className="w-full max-w-lg animate-fade-in">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-4 shadow-glow">
-            <Stethoscope className="w-8 h-8 text-primary-foreground" />
-          </div>
+          <BrandIcon className="mx-auto mb-4 h-16 w-16 rounded-2xl" />
           <h1 className="text-3xl font-bold text-foreground">Bem-vindo!</h1>
           <p className="text-muted-foreground mt-1">Vamos configurar sua clínica em poucos passos</p>
         </div>
@@ -124,9 +123,7 @@ export default function OnboardingPage() {
           {step === 2 && (
             <div className="space-y-6">
               <div className="text-center">
-                <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-3 shadow-glow">
-                  <Stethoscope className="w-8 h-8 text-primary-foreground" />
-                </div>
+                <BrandIcon className="mx-auto mb-3 h-16 w-16 rounded-2xl" />
                 <h2 className="text-xl font-bold text-foreground">Tudo pronto!</h2>
                 <p className="text-sm text-muted-foreground mt-1">Confirme os dados e crie sua clínica</p>
               </div>
@@ -165,7 +162,7 @@ export default function OnboardingPage() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          © 2026 Kynovia. Todos os direitos reservados.
+          © 2026 Kynovia Estética. Todos os direitos reservados.
         </p>
       </div>
     </div>

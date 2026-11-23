@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
       await requireStaff(admin, user.id, conv.clinic_id);
       if (action === "ai_pause") {
         const res = await aura(`/v1/conversations/${conv.external_id}/ai`, {
-          method: "POST", body: JSON.stringify({ paused: body.paused !== false, hours: 24, reason: "Pausada pela equipe no Clinova" }),
+          method: "POST", body: JSON.stringify({ paused: body.paused !== false, hours: 24, reason: "Pausada pela equipe no Kynovia Estética" }),
         }) as { ai?: { ai_paused_until?: string | null; ai_pause_reason?: string | null } };
         return reply({ pausedUntil: res.ai?.ai_paused_until || null, reason: res.ai?.ai_pause_reason || null });
       }

@@ -4,9 +4,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Stethoscope, Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PASSWORD_HINT, PASSWORD_MIN_LENGTH, passwordProblem } from '@/lib/auth/password';
+import { BrandIcon } from '@/components/brand/BrandIcon';
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Erro ao redefinir senha';
@@ -72,10 +73,8 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-md animate-fade-in">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-4 shadow-glow">
-            <Stethoscope className="w-8 h-8 text-primary-foreground" />
-          </div>
-          <h1 className="text-3xl font-bold text-foreground">Kynovia</h1>
+          <BrandIcon className="mx-auto mb-4 h-16 w-16 rounded-2xl" />
+          <h1 className="text-3xl font-bold text-foreground">Kynovia Estética</h1>
           <p className="text-muted-foreground mt-1">Defina sua senha de acesso</p>
         </div>
 
@@ -173,7 +172,7 @@ export default function ResetPasswordPage() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          © 2026 Kynovia. Todos os direitos reservados.
+          © 2026 Kynovia Estética. Todos os direitos reservados.
         </p>
       </div>
     </div>

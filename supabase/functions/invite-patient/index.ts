@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { captureError } from "../_shared/monitoring.ts";
+import { appUrl } from "../_shared/app-url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,7 +24,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const appUrl = Deno.env.get("APP_URL") || "https://clinicas-de-estetica.vercel.app";
+    const siteUrl = appUrl();
 
     // Verify caller
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -120,7 +121,7 @@ serve(async (req) => {
       authUserId = existingUser.id;
       if (forceResend && (existingPatientUser || existingAccess)) {
         await adminClient.auth.resetPasswordForEmail(email, {
-          redirectTo: `${appUrl}/reset-password`,
+          redirectTo: `${siteUrl}/reset-password`,
         });
         return new Response(JSON.stringify({
           message: "Convite reenviado com sucesso para o e-mail do paciente.",
@@ -134,7 +135,7 @@ serve(async (req) => {
       // Create auth account via invite — Supabase sends an invite email with a link to set password
       const { data: newUser, error: createError } = await adminClient.auth.admin.inviteUserByEmail(email, {
         data: { full_name: patient.full_name, role: "patient" },
-        redirectTo: `${appUrl}/reset-password`,
+        redirectTo: `${siteUrl}/reset-password`,
       });
 
       if (createError || !newUser.user) {
@@ -181,7 +182,7 @@ serve(async (req) => {
     // For existing users who didn't get an invite email, send a recovery email
     if (!accountCreated) {
       await adminClient.auth.resetPasswordForEmail(email, {
-        redirectTo: `${appUrl}/reset-password`,
+        redirectTo: `${siteUrl}/reset-password`,
       });
     }
 

@@ -13,6 +13,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { computeSlots, isSlotFree, localIso, addDays, localDate, setupIssues, type AgendaInput, type Pro } from "../_shared/agenda.ts";
 import { captureError } from "../_shared/monitoring.ts";
 import { BUSY, hm, loadAgenda, loadSettings as settings, type Settings } from "../_shared/clinic-agenda.ts";
+import { appUrl } from "../_shared/app-url.ts";
 
 const EVALUATION_ID = "evaluation";
 
@@ -301,7 +302,7 @@ async function signupLink(db: SupabaseClient, clinicId: string, body: { contact?
   const { data, error } = await db.rpc("aura_create_lead_signup_link", { p_clinic_id: clinicId, p_lead_id: leadId });
   if (error) throw error;
   const r = data as { token: string; expires_at: string };
-  const origin = (Deno.env.get("APP_URL") || "https://klinova-homolog.vercel.app").replace(/\/$/, "");
+  const origin = appUrl();
   return json({ status: "link_created", url: `${origin}/cadastro/${r.token}`, expiresAt: r.expires_at, validDays: 7 });
 }
 

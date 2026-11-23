@@ -4,12 +4,12 @@ import type { CapacitorConfig } from '@capacitor/cli';
 // O identificador (appId) não pode mudar depois de publicado nas lojas.
 const config: CapacitorConfig = {
   appId: 'br.com.kynovia.estetica',
-  appName: 'Klinova',
+  appName: 'Kynovia',
   webDir: 'dist',
   ios: { contentInset: 'automatic' },
   android: { allowMixedContent: false, adjustMarginsForEdgeToEdge: 'force' },
   plugins: {
-    SplashScreen: { launchShowDuration: 800, backgroundColor: '#0a2540', showSpinner: false },
+    SplashScreen: { launchShowDuration: 800, backgroundColor: '#000b29', showSpinner: false },
   },
 };
 

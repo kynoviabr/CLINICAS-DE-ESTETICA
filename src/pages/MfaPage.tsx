@@ -35,7 +35,7 @@ export default function MfaPage() {
       if (verified) { setFactorId(verified.id); setMode('challenge'); return; }
       // Remove cadastros pela metade e começa um novo.
       for (const f of data?.all || []) if (f.status !== 'verified') await supabase.auth.mfa.unenroll({ factorId: f.id });
-      const { data: enrolled, error: e } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: `Klinova ${new Date().toISOString().slice(0, 10)}` });
+      const { data: enrolled, error: e } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: `Kynovia Estética ${new Date().toISOString().slice(0, 10)}` });
       if (e || !enrolled) { setError(e?.message || 'Não foi possível iniciar o cadastro.'); return; }
       setFactorId(enrolled.id);
       setQr(enrolled.totp.qr_code);

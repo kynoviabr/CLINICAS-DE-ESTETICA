@@ -9,9 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Stethoscope, Eye, EyeOff, Mail, Sparkles, Shield, Activity } from 'lucide-react';
+import { Eye, EyeOff, Mail, Sparkles, Shield, Activity } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { PASSWORD_HINT, PASSWORD_MIN_LENGTH, passwordProblem } from '@/lib/auth/password';
+import { BrandIcon } from '@/components/brand/BrandIcon';
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Tente novamente em alguns instantes.';
@@ -125,10 +126,8 @@ export default function LoginPage() {
         />
 
         <div className="relative flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-btn bg-primary flex items-center justify-center shadow-glow">
-            <Stethoscope className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <span className="font-heading font-semibold text-[17px] tracking-tight">Kynovia</span>
+          <BrandIcon />
+          <span className="font-heading font-semibold text-[17px] tracking-tight">Kynovia Estética</span>
         </div>
 
         <div className="relative max-w-md">
@@ -160,7 +159,7 @@ export default function LoginPage() {
         </div>
 
         <p className="relative text-xs text-white/40">
-          © 2026 Kynovia. Todos os direitos reservados.
+          © 2026 Kynovia Estética. Todos os direitos reservados.
         </p>
       </aside>
 
@@ -170,11 +169,9 @@ export default function LoginPage() {
           {/* Mobile-only logo */}
           <div className="lg:hidden text-center mb-6">
             <div className="inline-flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-btn bg-primary flex items-center justify-center shadow-glow">
-                <Stethoscope className="w-5 h-5 text-primary-foreground" />
-              </div>
+              <BrandIcon className="h-10 w-10" />
               <span className="font-heading font-semibold text-lg tracking-tight text-foreground">
-                Kynovia
+                Kynovia Estética
               </span>
             </div>
           </div>
@@ -317,7 +314,7 @@ export default function LoginPage() {
           </Tabs>
 
           <p className="lg:hidden text-center text-xs text-[hsl(var(--text-muted))] mt-8">
-            © 2026 Kynovia
+            © 2026 Kynovia Estética
           </p>
         </div>
       </main>

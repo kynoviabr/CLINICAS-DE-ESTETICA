@@ -30,10 +30,10 @@ export async function authenticateBiometric(label: string): Promise<boolean> {
   const { BiometricAuth } = await import('@aparajita/capacitor-biometric-auth');
   try {
     await BiometricAuth.authenticate({
-      reason: 'Desbloquear o Klinova',
+      reason: 'Desbloquear o Kynovia Estética',
       cancelTitle: 'Cancelar',
       allowDeviceCredential: true, // se a biometria falhar, aceita o código do celular
-      androidTitle: 'Desbloquear o Klinova',
+      androidTitle: 'Desbloquear o Kynovia Estética',
       androidSubtitle: `Use ${label}`,
     });
     return true;

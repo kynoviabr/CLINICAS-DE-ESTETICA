@@ -70,7 +70,7 @@ export function BiometricLock() {
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-6 bg-[hsl(var(--sidebar-background,210_60%_15%))] p-8 text-center text-white">
           <div className="rounded-full bg-white/10 p-5"><LockKeyhole className="h-10 w-10" /></div>
           <div className="space-y-1">
-            <p className="text-xl font-semibold">Klinova bloqueado</p>
+            <p className="text-xl font-semibold">Kynovia Estética bloqueado</p>
             <p className="text-sm text-white/70">Use {bio.label} para continuar.</p>
           </div>
           <BrandButton size="lg" onClick={() => void unlock()}><Icon className="h-5 w-5" /> Desbloquear com {bio.label}</BrandButton>
@@ -85,7 +85,7 @@ export function BiometricLock() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Icon className="h-5 w-5 text-primary" /> Usar {bio.label}?</DialogTitle>
             <DialogDescription>
-              O Klinova guarda dados de saúde dos pacientes. Com {bio.label}, o app fica bloqueado quando você sai dele e abre só com você.
+              O Kynovia Estética guarda dados de saúde dos pacientes. Com {bio.label}, o app fica bloqueado quando você sai dele e abre só com você.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">

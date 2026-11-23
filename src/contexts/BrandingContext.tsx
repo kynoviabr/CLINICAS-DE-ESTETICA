@@ -17,7 +17,7 @@ interface BrandingData {
 
 const defaultBranding: BrandingData = {
   clinicId: null,
-  clinicName: 'Kynovia',
+  clinicName: 'Kynovia Estética',
   logoUrl: null,
   primaryColor: '#1a7a6d',
   secondaryColor: '#f5f0e8',

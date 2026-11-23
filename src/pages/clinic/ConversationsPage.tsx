@@ -56,7 +56,7 @@ export default function ConversationsPage() {
   if (!loadingChannel && channel?.status !== 'connected' && !(conversations || []).length) {
     return (
       <div>
-        <PageHeader title="Conversas" description="O WhatsApp da clínica dentro do Clinova." />
+        <PageHeader title="Conversas" description="O WhatsApp da clínica dentro do Kynovia Estética." />
         <Card className="shadow-card"><CardContent className="space-y-3 p-6 text-center">
           <MessageCircle className="mx-auto h-10 w-10 text-emerald-600" />
           <p className="font-medium">Conecte o WhatsApp da clínica</p>
