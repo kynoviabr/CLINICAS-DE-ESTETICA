@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isIosBrowser, pdfFileName, printableDocument } from '@/lib/documents/output';
 import { buildAnamneseHtml } from '@/lib/anamnese/document';
-import { brasiliaDateTime, buildSignatureSheet } from '@/lib/documents/signatureSheet';
+import { brasiliaDateTime, buildSignatureSheet, safeSignatureImage } from '@/lib/documents/signatureSheet';
 import { deviceLabel } from '@/lib/documents/device';
 
 describe('saída de documentos', () => {
@@ -111,5 +111,34 @@ describe('anamnese em PDF', () => {
 
   it('sem respostas avisa no documento', () => {
     expect(buildAnamneseHtml({ ...base, formData: null })).toContain('Nenhuma resposta digital');
+  });
+});
+
+describe('assinatura na clínica', () => {
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+  it('mostra a assinatura desenhada, quem acompanhou e o meio presencial', () => {
+    const html = buildSignatureSheet({
+      documentLabel: 'Contrato nº CT-1',
+      records: [{ signerName: 'Ana Lima', acceptedAt: '2026-11-22T15:00:00.000Z', method: 'in_person_drawn', verifiedBy: 'in_person_document',
+        signatureImage: png, staffName: 'Dra. Paula', verificationCode: 'ABCDE-12345' }],
+    });
+    expect(html).toContain(`src="${png}"`);
+    expect(html).toContain('Dra. Paula (equipe da clínica)');
+    expect(html).toContain('assinatura desenhada na tela');
+    expect(html).toContain('Documento de identidade conferido pela equipe');
+  });
+
+  it('não aceita imagem que não seja PNG em base64', () => {
+    expect(safeSignatureImage('javascript:alert(1)')).toBeNull();
+    expect(safeSignatureImage('data:image/png;base64,abc" onerror="x')).toBeNull();
+    expect(safeSignatureImage(png)).toBe(png);
+    const html = buildSignatureSheet({ documentLabel: 'X', records: [{ signerName: 'A', acceptedAt: '2026-11-22T15:00:00.000Z', signatureImage: 'data:image/svg+xml,<svg>' }] });
+    expect(html).not.toContain('<img');
+  });
+
+  it('aceite pelo QR Code sai como feito na clínica, no celular da cliente', () => {
+    const html = buildSignatureSheet({ documentLabel: 'X', records: [{ signerName: 'A', acceptedAt: '2026-11-22T15:00:00.000Z', method: 'in_person_link' }] });
+    expect(html).toContain('pelo celular da própria cliente');
   });
 });

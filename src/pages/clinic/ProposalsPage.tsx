@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, FileText, Trash2, Search, Eye, Send, Check, X, Filter, DollarSign, Pencil, MessageCircle, Loader2, UserPlus } from 'lucide-react';
+import { Plus, FileText, Trash2, Search, Eye, Send, Check, X, Filter, DollarSign, Pencil, MessageCircle, Loader2, UserPlus, PenLine } from 'lucide-react';
 import QuickPatientModal from '@/components/patient/QuickPatientModal';
 import ProposalLinkPanel from '@/components/proposals/ProposalLinkPanel';
 import { format } from 'date-fns';
@@ -20,6 +20,9 @@ import { buildPaymentPresetSummary, parseProposalNotesPayload } from '@/lib/prop
 import { useProposalsPage } from './proposals/useProposalsPage';
 import { SendProposalDialog } from './proposals/SendProposalDialog';
 import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
+import { InPersonSignDialog } from '@/components/signing/InPersonSignDialog';
+import { createProposalLink } from '@/lib/proposals/publicLink';
+import { useState } from 'react';
 
 const statusMap: Record<string, { label: string; badge: BadgeStatus }> = {
   draft: { label: 'Rascunho', badge: 'draft' },
@@ -32,6 +35,7 @@ const statusMap: Record<string, { label: string; badge: BadgeStatus }> = {
 
 
 export default function ProposalsPage() {
+  const [inPersonFor, setInPersonFor] = useState<{ id: string; number: string; patientName: string | null } | null>(null);
   const {
     toast,
     qc,
@@ -553,6 +557,23 @@ export default function ProposalsPage() {
       </Dialog>
 
       {/* View dialog */}
+      {inPersonFor && (
+        <InPersonSignDialog
+          open={!!inPersonFor}
+          onOpenChange={(o) => { if (!o) setInPersonFor(null); }}
+          kind="proposal"
+          documentId={inPersonFor.id}
+          documentLabel={`Proposta ${inPersonFor.number}`}
+          patientName={inPersonFor.patientName}
+          createLink={() => createProposalLink(inPersonFor.id)}
+          onSigned={() => {
+            setViewDialog(null);
+            qc.invalidateQueries({ queryKey: ['proposals'] });
+            qc.invalidateQueries({ queryKey: ['crm-leads'] });
+          }}
+        />
+      )}
+
       <Dialog open={!!viewDialog} onOpenChange={() => setViewDialog(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           {viewDialog && (
@@ -657,6 +678,12 @@ export default function ProposalsPage() {
                   {viewDialog.status === 'draft' && (
                     <BrandButton size="sm" onClick={() => statusMutation.mutate({ id: viewDialog.id, status: 'sent' })}>
                       <Send className="w-4 h-4" /> Marcar como Enviada
+                    </BrandButton>
+                  )}
+
+                  {(viewDialog.status === 'draft' || viewDialog.status === 'sent') && viewDialog.patient_id && (
+                    <BrandButton size="sm" variant="outline" onClick={() => setInPersonFor({ id: viewDialog.id, number: viewDialog.proposal_number, patientName: viewDialog.patients?.full_name ?? null })}>
+                      <PenLine className="w-4 h-4" /> Assinar na clínica
                     </BrandButton>
                   )}
 

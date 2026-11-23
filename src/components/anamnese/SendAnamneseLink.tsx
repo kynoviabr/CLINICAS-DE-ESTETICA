@@ -2,7 +2,8 @@ import { publicOrigin } from '@/lib/publicOrigin';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
-import { Copy, Link2, Loader2, MessageCircle } from 'lucide-react';
+import { Copy, Link2, Loader2, MessageCircle, QrCode } from 'lucide-react';
+import QRCode from 'qrcode';
 import { supabase } from '@/integrations/supabase/client';
 import { BrandButton } from '@/components/ui/brand-button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -32,7 +33,9 @@ export function SendAnamneseLink({ patientId, clinicName, treatmentId, label = '
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [selection, setSelection] = useState<AnamneseSelection>({ general: true, templateIds: [] });
-  const [result, setResult] = useState<{ url: string; expiresAt: string; names: string[] } | null>(null);
+  const [result, setResult] = useState<{ url: string; token: string; expiresAt: string; names: string[] } | null>(null);
+  const [qr, setQr] = useState('');
+  const [qrLoading, setQrLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const options = useAnamneseOptions(patientId, open, treatmentId);
 
@@ -57,7 +60,7 @@ export function SendAnamneseLink({ patientId, clinicName, treatmentId, label = '
 
   const close = (o: boolean) => {
     setOpen(o);
-    if (!o) setResult(null);
+    if (!o) { setResult(null); setQr(''); }
   };
 
   const generate = async () => {
@@ -75,9 +78,24 @@ export function SendAnamneseLink({ patientId, clinicName, treatmentId, label = '
     const r = data as { token: string; expires_at: string };
     setResult({
       url: anamneseLinkUrl(publicOrigin(), r.token),
+      token: r.token,
       expiresAt: r.expires_at,
       names: selectionNames(options.data?.templates || [], selection),
     });
+  };
+
+  // Cliente na clínica: responde no próprio celular pelo QR Code (o aceite sai como presencial).
+  const showQr = async () => {
+    if (!result) return;
+    setQrLoading(true);
+    const { error } = await supabase.rpc('mark_link_in_person', { p_kind: 'anamnese', p_token: result.token });
+    if (error) {
+      setQrLoading(false);
+      toast({ title: 'Não foi possível gerar o QR Code', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setQr(await QRCode.toDataURL(result.url, { margin: 1, width: 280, errorCorrectionLevel: 'M' }));
+    setQrLoading(false);
   };
 
   const message = result && patient ? anamneseLinkMessage(patient.full_name, clinicName, result.url, result.names) : '';
@@ -138,6 +156,16 @@ export function SendAnamneseLink({ patientId, clinicName, treatmentId, label = '
                   </a>
                 </div>
                 {!patient?.phone && <p className="text-xs text-muted-foreground">Sem telefone no cadastro: copie e envie pelo canal que preferir.</p>}
+                {qr ? (
+                  <div className="space-y-1 text-center">
+                    <img src={qr} alt="QR Code da anamnese" className="mx-auto h-60 w-60 rounded-lg border bg-white p-2" />
+                    <p className="text-xs text-muted-foreground">A paciente aponta a câmera do celular e responde por lá. O aceite fica registrado como feito na clínica.</p>
+                  </div>
+                ) : (
+                  <BrandButton variant="ghost" className="w-full" onClick={showQr} disabled={qrLoading}>
+                    {qrLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />} Ela está na clínica: mostrar QR Code
+                  </BrandButton>
+                )}
               </div>
             </>
           )}

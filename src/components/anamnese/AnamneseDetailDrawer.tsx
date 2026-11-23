@@ -7,7 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { BrandButton } from '@/components/ui/brand-button';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Eye, Hash, Calendar, Clock, User as UserIcon, FileText, Paperclip, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { Eye, Hash, Calendar, Clock, User as UserIcon, FileText, Paperclip, ChevronsDownUp, ChevronsUpDown, PenLine, ShieldCheck } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import type { Database } from '@/integrations/supabase/types';
 import { openStoredFile } from '@/lib/storedFile';
@@ -16,6 +16,7 @@ import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButt
 import { loadClinicLetterhead } from '@/hooks/useClinicLetterhead';
 import { supabase } from '@/integrations/supabase/client';
 import { loadAcceptancesSafe } from '@/lib/documents/acceptances';
+import { InPersonSignDialog } from '@/components/signing/InPersonSignDialog';
 import { buildAnamneseHtml, fieldLabels, formatValue, highlightedBooleanFields, isYesAnswer, sectionLabels, sourceLabels, visibleSections } from '@/lib/anamnese/document';
 
 type AnamneseRow = Database['public']['Tables']['patient_anamneses']['Row'];
@@ -40,6 +41,22 @@ export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: P
   const [expanded, setExpanded] = useState<string[]>([]);
   // Cada anamnese aberta começa com as seções fechadas.
   useEffect(() => { setExpanded([]); }, [anamnese?.id]);
+
+  // Aceite da cliente no registro único (para mostrar "Assinar na clínica" quando falta).
+  const [signState, setSignState] = useState<{ code: string | null; patientName: string | null } | null>(null);
+  const [signOpen, setSignOpen] = useState(false);
+  const loadSignState = async (id: string, patientId: string) => {
+    const [acc, p] = await Promise.all([
+      loadAcceptancesSafe('anamnese', id),
+      supabase.from('patients').select('full_name').eq('id', patientId).maybeSingle(),
+    ]);
+    setSignState({ code: acc?.records[0]?.verificationCode ?? (acc?.records.length ? '' : null), patientName: p.data?.full_name ?? null });
+  };
+  useEffect(() => {
+    setSignState(null);
+    if (open && anamnese?.id && anamnese.patient_id) loadSignState(anamnese.id, anamnese.patient_id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, anamnese?.id]);
 
   if (!anamnese) return null;
   const a = anamnese;
@@ -87,6 +104,27 @@ export default function AnamneseDetailDrawer({ open, onOpenChange, anamnese }: P
             {a.title || 'Detalhes completos da anamnese'}
           </DrawerDescription>
           {sections.length > 0 && <DocumentOutputButtons className="flex flex-wrap gap-2 pt-2" getDocument={anamneseDocument} />}
+          {signState && signState.code !== null && (
+            <p className="flex items-center gap-1.5 pt-1 text-xs text-emerald-700">
+              <ShieldCheck className="h-3.5 w-3.5" /> Aceite da cliente registrado{signState.code ? ` · código ${signState.code}` : ''}
+            </p>
+          )}
+          {signState && signState.code === null && a.source_type !== 'patient_link' && sections.length > 0 && (
+            <div className="pt-1">
+              <BrandButton size="sm" variant="outline" onClick={() => setSignOpen(true)}>
+                <PenLine className="h-4 w-4" /> Assinatura da cliente na clínica
+              </BrandButton>
+            </div>
+          )}
+          <InPersonSignDialog
+            open={signOpen}
+            onOpenChange={setSignOpen}
+            kind="anamnese"
+            documentId={a.id}
+            documentLabel={`Anamnese ${a.anamnese_number}`}
+            patientName={signState?.patientName}
+            onSigned={() => loadSignState(a.id, a.patient_id)}
+          />
         </DrawerHeader>
 
         <ScrollArea className="flex-1 px-4 pb-6 max-h-[65vh]">

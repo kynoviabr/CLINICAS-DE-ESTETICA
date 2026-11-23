@@ -20,6 +20,7 @@ export type Database = {
           expires_at: string
           failed_attempts: number
           id: string
+          in_person: boolean
           patient_id: string
           token_hash: string
           used_at: string | null
@@ -34,6 +35,7 @@ export type Database = {
           expires_at: string
           failed_attempts?: number
           id?: string
+          in_person?: boolean
           patient_id: string
           token_hash: string
           used_at?: string | null
@@ -48,6 +50,7 @@ export type Database = {
           expires_at?: string
           failed_attempts?: number
           id?: string
+          in_person?: boolean
           patient_id?: string
           token_hash?: string
           used_at?: string | null
@@ -1441,6 +1444,7 @@ export type Database = {
           failed_attempts: number
           first_opened_at: string | null
           id: string
+          in_person: boolean
           last_opened_at: string | null
           revoked_at: string | null
           token_hash: string
@@ -1454,6 +1458,7 @@ export type Database = {
           failed_attempts?: number
           first_opened_at?: string | null
           id?: string
+          in_person?: boolean
           last_opened_at?: string | null
           revoked_at?: string | null
           token_hash: string
@@ -1467,6 +1472,7 @@ export type Database = {
           failed_attempts?: number
           first_opened_at?: string | null
           id?: string
+          in_person?: boolean
           last_opened_at?: string | null
           revoked_at?: string | null
           token_hash?: string
@@ -1710,6 +1716,7 @@ export type Database = {
           phone: string | null
           geo: Json | null
           whatsapp_message_id: string | null
+          signature_image: string | null
           signature_image_path: string | null
           document_hash: string
           snapshot: Json | null
@@ -1734,6 +1741,7 @@ export type Database = {
           phone?: string | null
           geo?: Json | null
           whatsapp_message_id?: string | null
+          signature_image?: string | null
           signature_image_path?: string | null
           document_hash: string
           snapshot?: Json | null
@@ -1758,6 +1766,7 @@ export type Database = {
           phone?: string | null
           geo?: Json | null
           whatsapp_message_id?: string | null
+          signature_image?: string | null
           signature_image_path?: string | null
           document_hash?: string
           snapshot?: Json | null
@@ -3011,6 +3020,7 @@ export type Database = {
           failed_attempts: number
           first_opened_at: string | null
           id: string
+          in_person: boolean
           last_opened_at: string | null
           open_count: number
           proposal_id: string
@@ -3025,6 +3035,7 @@ export type Database = {
           failed_attempts?: number
           first_opened_at?: string | null
           id?: string
+          in_person?: boolean
           last_opened_at?: string | null
           open_count?: number
           proposal_id: string
@@ -3038,6 +3049,7 @@ export type Database = {
           expires_at?: string
           first_opened_at?: string | null
           id?: string
+          in_person?: boolean
           last_opened_at?: string | null
           open_count?: number
           proposal_id?: string
@@ -4578,6 +4590,14 @@ export type Database = {
       }
       deposit_receipt_ack: {
         Args: { p_token: string }
+        Returns: Json
+      }
+      mark_link_in_person: {
+        Args: { p_kind: string; p_token: string }
+        Returns: Json
+      }
+      sign_in_person: {
+        Args: { p_kind: string; p_document_id: string; p_signer_name: string; p_signature_image: string }
         Returns: Json
       }
       lead_signup_status: {

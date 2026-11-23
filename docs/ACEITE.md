@@ -1,6 +1,6 @@
 # Aceite eletrônico, PDF e impressão de documentos
 
-Status: etapas 1 (Baixar PDF e Imprimir), 2 (registro dos aceites e folha de assinatura) e 3 (anamnese, sinal, recibo e cadastro no registro) implementadas; etapas 4 a 6 pendentes.
+Status: etapas 1 (Baixar PDF e Imprimir), 2 (registro dos aceites e folha de assinatura) 3 (anamnese, sinal, recibo e cadastro no registro) e 4 (aceite na clínica) implementadas; etapas 5 e 6 pendentes.
 
 Etapa 1, onde está:
 - `src/lib/documents/output.ts`: PDF e impressão (quadro escondido no computador; PDF + menu de
@@ -29,6 +29,17 @@ Etapa 3, onde está:
   as provas antigas.
 - O telefone guardado é o do cadastro da cliente: o sistema ainda não registra para qual número o link
   foi enviado.
+
+Etapa 4, onde está:
+- `supabase/migrations/20261226100000_aceite_presencial.sql`: links de proposta, contrato e anamnese
+  ganham `in_person`; `mark_link_in_person` marca o link mostrado em QR Code e o aceite sai como
+  "Na clínica, pelo celular da própria cliente". `sign_in_person` registra a assinatura desenhada no
+  aparelho da clínica (nome conferido com o cadastro, documento conferido pela equipe, imagem, aparelho,
+  equipe logada) e tem o mesmo efeito do aceite pelo link (proposta aceita, contrato assinado).
+- A imagem da assinatura fica no próprio registro (`signature_image`, PNG em base64), e não no
+  armazenamento de arquivos, para sair no PDF da clínica e no link da cliente sem acesso extra.
+- `src/components/signing/SignaturePad.tsx` e `InPersonSignDialog.tsx`; botões "Assinar na clínica" no
+  contrato, na proposta e na anamnese preenchida pela clínica; QR Code no envio do link da anamnese.
 
 ## Objetivo
 

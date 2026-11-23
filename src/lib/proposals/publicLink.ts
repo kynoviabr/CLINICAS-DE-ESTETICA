@@ -6,7 +6,7 @@ export async function createProposalLink(proposalId: string, origin = publicOrig
   const { data, error } = await supabase.rpc('create_proposal_link', { p_proposal_id: proposalId });
   if (error) throw error;
   const res = data as { token: string; expires_at: string };
-  return { url: proposalLinkUrl(res.token, origin), expiresAt: res.expires_at };
+  return { url: proposalLinkUrl(res.token, origin), token: res.token, expiresAt: res.expires_at };
 }
 
 export const proposalLinkUrl = (token: string, origin: string) => `${origin}/proposta/${token}`;

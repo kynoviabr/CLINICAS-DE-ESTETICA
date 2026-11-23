@@ -18,6 +18,10 @@ export type AcceptanceRecord = {
   note?: string | null;
   /** Tipo do documento no registro (ex.: deposit_policy). */
   documentKind?: string | null;
+  /** Assinatura desenhada na tela da clínica (PNG em data URL). */
+  signatureImage?: string | null;
+  /** Quem da equipe acompanhou a assinatura na clínica. */
+  staffName?: string | null;
 };
 
 export type SignatureSheetInput = {
@@ -53,17 +57,24 @@ export const VERIFIED_LABELS: Record<string, string> = {
   birth_date: 'Data de nascimento conferida com o cadastro',
   cpf: 'Início do CPF conferido com o cadastro',
   none: 'Nome completo conferido com o cadastro',
+  in_person_document: 'Documento de identidade conferido pela equipe na clínica',
 };
+
+/** Só aceita PNG em base64 (vem do quadro de assinatura); qualquer outra coisa não entra no HTML. */
+export function safeSignatureImage(src?: string | null): string | null {
+  return src && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(src) ? src : null;
+}
 
 /** Linha de um aceite com os campos da tabela document_acceptances (ou da folha pública). */
 export function acceptanceFromRow(r: {
   signer_name: string; accepted_at: string; method?: string | null; verified_by?: string | null; ip?: string | null;
   user_agent?: string | null; phone?: string | null; geo?: unknown; verification_code?: string | null; document_kind?: string | null;
+  signature_image?: string | null; staff_name?: string | null;
 }): AcceptanceRecord {
   return {
     signerName: r.signer_name, acceptedAt: r.accepted_at, method: r.method, verifiedBy: r.verified_by, ip: r.ip,
     userAgent: r.user_agent, phone: r.phone, geo: (r.geo as AcceptanceRecord['geo']) ?? null, verificationCode: r.verification_code,
-    documentKind: r.document_kind ?? null,
+    documentKind: r.document_kind ?? null, signatureImage: r.signature_image ?? null, staffName: r.staff_name ?? null,
   };
 }
 
@@ -86,12 +97,15 @@ function recordHtml(r: AcceptanceRecord, i: number) {
     r.phone ? row('Telefone', r.phone) : '',
     r.geo?.lat != null && r.geo?.lng != null ? row('Localização aproximada', `${r.geo.lat.toFixed(4)}, ${r.geo.lng.toFixed(4)}${r.geo.accuracy ? ` (±${Math.round(r.geo.accuracy)} m)` : ''}`) : '',
     r.note ? row('Aceite', r.note) : '',
+    r.staffName ? row('Acompanhado por', `${r.staffName} (equipe da clínica)`) : '',
     r.verificationCode ? row('Código de verificação', r.verificationCode) : '',
   ].join('');
+  const img = safeSignatureImage(r.signatureImage);
+  const drawn = img ? `<div style="margin-top:6px"><div style="font-size:10px;color:#6b7280">Assinatura</div><img src="${img}" alt="Assinatura" style="max-width:260px;max-height:90px;border-bottom:1px solid #9ca3af;background:#fff" /></div>` : '';
   const technical = r.userAgent ? `<div style="margin-top:4px;font-size:9px;color:#9ca3af;word-break:break-all">Identificação técnica do aparelho: ${escapeHtml(r.userAgent)}</div>` : '';
   return `<div style="border:1px solid #d1fae5;border-left:4px solid #059669;border-radius:6px;padding:10px 12px;margin:10px 0;break-inside:avoid;page-break-inside:avoid">
     <div style="font-weight:700;color:#065f46;margin-bottom:4px">${i + 1}. ${escapeHtml(r.role || 'Cliente')}: de acordo</div>
-    <table style="width:100%;border-collapse:collapse;font-size:11px">${rows}</table>${technical}
+    <table style="width:100%;border-collapse:collapse;font-size:11px">${rows}</table>${drawn}${technical}
   </div>`;
 }
 
