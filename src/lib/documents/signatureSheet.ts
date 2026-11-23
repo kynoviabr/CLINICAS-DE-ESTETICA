@@ -1,5 +1,6 @@
 import { escapeHtml } from '@/lib/documents/letterhead';
 import { deviceLabel } from '@/lib/documents/device';
+import { publicOrigin } from '@/lib/publicOrigin';
 
 /** Um aceite do documento (da tabela document_acceptances ou de outra prova já guardada). */
 export type AcceptanceRecord = {
@@ -37,6 +38,8 @@ export type SignatureSheetInput = {
   issuer?: string | null;
   /** Texto quando ainda não há aceite. */
   pendingText?: string;
+  /** Endereço do site para a conferência (padrão: o site atual). */
+  verifyOrigin?: string;
 };
 
 const BRT = new Intl.DateTimeFormat('pt-BR', {
@@ -92,7 +95,7 @@ function row(label: string, value: string) {
   return `<tr><td style="padding:3px 8px 3px 0;color:#6b7280;width:34%;vertical-align:top">${escapeHtml(label)}</td><td style="padding:3px 0;color:#111827;word-break:break-word">${escapeHtml(value)}</td></tr>`;
 }
 
-function recordHtml(r: AcceptanceRecord, i: number) {
+function recordHtml(r: AcceptanceRecord, i: number, verifyOrigin: string) {
   const whatsapp = r.method === 'whatsapp';
   const rows = [
     row('Nome', r.signerName),
@@ -109,6 +112,7 @@ function recordHtml(r: AcceptanceRecord, i: number) {
     whatsapp ? row('Observação', 'O WhatsApp não informa endereço de rede (IP) nem aparelho.') : '',
     r.staffName ? row(whatsapp ? 'Enviado por' : 'Acompanhado por', `${r.staffName} (equipe da clínica)`) : '',
     r.verificationCode ? row('Código de verificação', r.verificationCode) : '',
+    r.verificationCode ? row('Conferir autenticidade', `${verifyOrigin}/verificar/${r.verificationCode}`) : '',
   ].join('');
   const img = safeSignatureImage(r.signatureImage);
   const drawn = img ? `<div style="margin-top:6px"><div style="font-size:10px;color:#6b7280">Assinatura</div><img src="${img}" alt="Assinatura" style="max-width:260px;max-height:90px;border-bottom:1px solid #9ca3af;background:#fff" /></div>` : '';
@@ -117,6 +121,10 @@ function recordHtml(r: AcceptanceRecord, i: number) {
     <div style="font-weight:700;color:#065f46;margin-bottom:4px">${i + 1}. ${escapeHtml(r.role || 'Cliente')}: de acordo</div>
     <table style="width:100%;border-collapse:collapse;font-size:11px">${rows}</table>${drawn}${technical}
   </div>`;
+}
+
+function safeOrigin() {
+  try { return publicOrigin(); } catch { return ''; }
 }
 
 /** Folha de assinatura: última página do PDF e da impressão. Todo texto é escapado. */
@@ -134,7 +142,7 @@ export function buildSignatureSheet(s: SignatureSheetInput): string {
     <h2 style="margin:0 0 6px;font-size:16px;color:#111827">Folha de assinatura</h2>
     <div style="color:#4b5563;margin-bottom:8px">${escapeHtml(s.documentLabel)}</div>
     ${status}${issuer}${hash}
-    ${s.records.map(recordHtml).join('')}
+    ${s.records.map((r, i) => recordHtml(r, i, s.verifyOrigin ?? safeOrigin())).join('')}
     ${signed ? `<p style="margin-top:12px;font-size:9.5px;color:#6b7280;line-height:1.5">${escapeHtml(LEGAL + (s.documentHash ? LEGAL_HASH : ''))}</p>` : ''}
   </section>`;
 }

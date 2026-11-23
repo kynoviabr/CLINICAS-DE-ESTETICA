@@ -4,6 +4,7 @@ import { buildAnamneseHtml } from '@/lib/anamnese/document';
 import { brasiliaDateTime, buildSignatureSheet, safeSignatureImage } from '@/lib/documents/signatureSheet';
 import { deviceLabel } from '@/lib/documents/device';
 import { whatsappAcceptanceStatusText } from '@/lib/signing/whatsappAcceptanceStatus';
+import { normalizeVerificationCode, verifyTexts } from '@/lib/documents/verify';
 
 describe('saída de documentos', () => {
   it('nome de arquivo seguro', () => {
@@ -171,5 +172,29 @@ describe('de acordo pelo WhatsApp', () => {
     expect(whatsappAcceptanceStatusText({ ...base, status: 'changed' })).toContain('mudou depois do envio');
     expect(whatsappAcceptanceStatusText({ ...base, status: 'cancelled' })).toBeNull();
     expect(whatsappAcceptanceStatusText(null)).toBeNull();
+  });
+});
+
+describe('conferência de autenticidade', () => {
+  it('a folha traz o endereço de conferência de cada aceite', () => {
+    const html = buildSignatureSheet({ documentLabel: 'X', verifyOrigin: 'https://klinova.test',
+      records: [{ signerName: 'A', acceptedAt: '2026-11-22T15:00:00.000Z', verificationCode: 'C22D0-E777D' }] });
+    expect(html).toContain('https://klinova.test/verificar/C22D0-E777D');
+  });
+
+  it('aceita o código com minúsculas, espaços ou sem hífen', () => {
+    expect(normalizeVerificationCode('c22d0 e777d')).toBe('C22D0-E777D');
+    expect(normalizeVerificationCode('C22D0E777D')).toBe('C22D0-E777D');
+    expect(normalizeVerificationCode('C22D0')).toBeNull();
+  });
+
+  it('avisa quando o documento mudou ou o SHA-256 do arquivo não confere', () => {
+    const base = { found: true as const, verification_code: 'C22D0-E777D', document_kind: 'contract', document_label: 'Contrato nº 1',
+      clinic_name: 'Clínica', accepted_at: '2026-11-22T15:00:00.000Z', method: 'whatsapp', signer_initials: 'M. S.', document_hash: 'ab' };
+    expect(verifyTexts({ ...base, integrity: 'same', hash_matches: null }).ok).toBe(true);
+    expect(verifyTexts({ ...base, integrity: 'same', hash_matches: null }).method).toContain('WhatsApp');
+    expect(verifyTexts({ ...base, integrity: 'changed', hash_matches: null }).ok).toBe(false);
+    expect(verifyTexts({ ...base, integrity: 'same', hash_matches: false }).hash).toContain('diferente');
+    expect(verifyTexts({ found: false, reason: 'not_found' }).title).toBe('Código não encontrado');
   });
 });

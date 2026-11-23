@@ -4673,6 +4673,10 @@ export type Database = {
         Args: { p_kind: string; p_document_id: string; p_link_url: string }
         Returns: Json
       }
+      verify_document: {
+        Args: { p_code: string; p_hash?: string | null }
+        Returns: Json
+      }
       cancel_whatsapp_acceptance: {
         Args: { p_request_id: string }
         Returns: undefined

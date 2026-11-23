@@ -1,6 +1,6 @@
 # Aceite eletrônico, PDF e impressão de documentos
 
-Status: etapas 1 (Baixar PDF e Imprimir), 2 (registro dos aceites e folha de assinatura), 3 (anamnese, sinal, recibo e cadastro no registro), 4 (aceite na clínica) e 5 (DE ACORDO pelo WhatsApp) implementadas; etapa 6 pendente.
+Status: etapas 1 (Baixar PDF e Imprimir), 2 (registro dos aceites e folha de assinatura), 3 (anamnese, sinal, recibo e cadastro no registro), 4 (aceite na clínica), 5 (DE ACORDO pelo WhatsApp) e 6 (conferência de autenticidade) implementadas.
 
 Etapa 1, onde está:
 - `src/lib/documents/output.ts`: PDF e impressão (quadro escondido no computador; PDF + menu de
@@ -55,6 +55,16 @@ Etapa 5, onde está:
 - Vale para proposta e contrato (a cliente lê o documento inteiro pelo link antes de responder).
 - `aura-webhook` responde à cliente confirmando o registro, com o código de verificação.
 - Botão "Pedir DE ACORDO no WhatsApp" no contrato e na proposta (`WhatsappAcceptanceButton.tsx`).
+
+Etapa 6, onde está:
+- `supabase/migrations/20261228100000_conferir_documento.sql`: `verify_document(código, sha256 opcional)`,
+  pública. Devolve só o nome do documento, a clínica, a data e o meio do aceite, as iniciais de quem aceitou
+  e se o documento guardado hoje é o mesmo que foi aceito (recalcula o código de integridade). Se a pessoa
+  colar o SHA-256 do PDF, diz se é igual ao do registro.
+- Página pública `/verificar` e `/verificar/CÓDIGO` (`src/pages/PublicVerifyPage.tsx`). A folha de
+  assinatura traz o endereço de conferência de cada aceite.
+- O código de verificação tem 10 caracteres hexadecimais (cerca de um trilhão de combinações) e a
+  página não mostra dados pessoais, então tentar códigos ao acaso não revela nada útil.
 
 ## Objetivo
 

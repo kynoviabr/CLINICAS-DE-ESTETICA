@@ -19,6 +19,7 @@ const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const PublicAnamnesePage = lazy(() => import("./pages/PublicAnamnesePage"));
 const PublicLeadSignupPage = lazy(() => import("./pages/PublicLeadSignupPage"));
 const PublicDepositPage = lazy(() => import("./pages/PublicDepositPage"));
+const PublicVerifyPage = lazy(() => import("./pages/PublicVerifyPage"));
 const PublicAppointmentPage = lazy(() => import("./pages/PublicAppointmentPage"));
 const PublicContractPage = lazy(() => import("./pages/PublicContractPage"));
 const PortalEntryPage = lazy(() => import("./pages/PortalEntryPage"));
@@ -83,6 +84,8 @@ const App = () => (
               <Route path="/anamnese/:token" element={<PublicAnamnesePage />} />
               <Route path="/cadastro/:token" element={<PublicLeadSignupPage />} />
               <Route path="/sinal/:token" element={<PublicDepositPage />} />
+              <Route path="/verificar" element={<PublicVerifyPage />} />
+              <Route path="/verificar/:code" element={<PublicVerifyPage />} />
               <Route path="/agendamento/:token" element={<PublicAppointmentPage />} />
               <Route path="/contrato/:token" element={<PublicContractPage />} />
               <Route path="/portal/entrar/:token" element={<PortalEntryPage />} />
