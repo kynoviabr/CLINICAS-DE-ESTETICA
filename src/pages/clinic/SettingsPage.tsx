@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, ClipboardList, FileText, MessageCircle, Bot, QrCode } from 'lucide-react';
 import { AutomationsSettingsTab } from '@/components/settings/AutomationsSettingsTab';
 import TeamMfaCard from '@/components/settings/TeamMfaCard';
+import { MFA_ENABLED } from '@/lib/auth/mfa';
 import AccessLogList from '@/components/security/AccessLogList';
 import CategoriesTab from '@/components/settings/CategoriesTab';
 import CostItemsTab from '@/components/settings/CostItemsTab';
@@ -425,7 +426,7 @@ export default function SettingsPage() {
             </TabsList>
 
             <TabsContent value="internal-team" className="space-y-4">
-            <TeamMfaCard clinicId={clinicId} isAdmin={role === 'admin'} />
+            {MFA_ENABLED && <TeamMfaCard clinicId={clinicId} isAdmin={role === 'admin'} />}
             {/* Invite button */}
             <div className="flex flex-wrap items-center justify-end gap-3">
               {plan.maxUsers && (
@@ -534,7 +535,7 @@ export default function SettingsPage() {
                               {s.is_active ? 'Desativar' : 'Reativar'}
                             </Button>
                           )}
-                          {role === 'admin' && s.user_id !== user?.id && (
+                          {MFA_ENABLED && role === 'admin' && s.user_id !== user?.id && (
                             <Button variant="ghost" size="sm" className="text-xs" onClick={() => handleResetMfa(s.user_id)}>
                               Zerar duas etapas
                             </Button>

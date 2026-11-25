@@ -1,5 +1,8 @@
 import { supabase } from '@/integrations/supabase/client';
 
+/** MVP: duas etapas desligada. Para religar, defina VITE_MFA_ENABLED=true no build. */
+export const MFA_ENABLED = import.meta.env.VITE_MFA_ENABLED === 'true';
+
 export type MfaGate = 'ok' | 'enroll' | 'challenge';
 
 /** Decide o que falta: cadastrar o autenticador, digitar o código ou nada. */
@@ -10,6 +13,7 @@ export function decideMfaGate(p: { required: boolean; hasVerifiedFactor: boolean
 }
 
 export async function loadMfaGate(): Promise<MfaGate> {
+  if (!MFA_ENABLED) return 'ok';
   const [{ data: aal }, { data: factors }, { data: policy }] = await Promise.all([
     supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
     supabase.auth.mfa.listFactors(),
