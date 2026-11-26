@@ -40,12 +40,21 @@ export default function ContractSignaturePanel({ contract }: {
   const hasDocument = Boolean(contract.template_snapshot_html || contract.template_html);
   const cancelled = contract.process_status === 'cancelled';
 
+  // Assinatura pelo celular confirma a identidade pela data de nascimento: sem ela, não gera o link.
+  const requireBirthDate = async () => {
+    const { data } = await supabase.from('patients').select('date_of_birth').eq('id', contract.patient_id).maybeSingle();
+    if (!data?.date_of_birth) {
+      throw new Error('Cadastre a data de nascimento do paciente antes (Revisar contrato > Corrigir dados do paciente). Ela é usada para confirmar a identidade na assinatura.');
+    }
+  };
+
   const send = async () => {
     const tab = window.open('', '_blank');
     setSending(true);
     try {
       const { data: p } = await supabase.from('patients').select('full_name, phone').eq('id', contract.patient_id).maybeSingle();
       if (!p?.phone) throw new Error('O paciente não tem telefone cadastrado.');
+      await requireBirthDate();
       const { data: r, error } = await supabase.rpc('create_contract_link', { p_contract_id: contract.id });
       if (error) throw error;
       const url = contractLinkUrl(publicOrigin(), (r as { token: string }).token);
@@ -89,7 +98,8 @@ export default function ContractSignaturePanel({ contract }: {
           kind="contract"
           documentId={contract.id}
           createLink={async () => {
-            const { data: r, error } = await supabase.rpc('create_contract_link', { p_contract_id: contract.id });
+            await requireBirthDate();
+      const { data: r, error } = await supabase.rpc('create_contract_link', { p_contract_id: contract.id });
             if (error) throw error;
             return { url: contractLinkUrl(publicOrigin(), (r as { token: string }).token) };
           }}
@@ -110,7 +120,8 @@ export default function ContractSignaturePanel({ contract }: {
         documentLabel={`Contrato nº ${contract.contract_number}`}
         patientName={data?.patientName}
         createLink={async () => {
-          const { data: r, error } = await supabase.rpc('create_contract_link', { p_contract_id: contract.id });
+          await requireBirthDate();
+      const { data: r, error } = await supabase.rpc('create_contract_link', { p_contract_id: contract.id });
           if (error) throw error;
           const token = (r as { token: string }).token;
           return { token, url: contractLinkUrl(publicOrigin(), token) };
