@@ -13,7 +13,7 @@ export function useOnboardingStatus(clinicId: string | null | undefined, enabled
     queryFn: async () => {
       const id = clinicId!;
       const count = { count: 'exact' as const, head: true };
-      const [clinic, cnpj, hours, treatments, contract, whatsapp, patients, appointments, hidden, brandOk] = await Promise.all([
+      const [clinic, cnpj, hours, treatments, contract, whatsapp, patients, appointments, hidden, brandOk, contracts] = await Promise.all([
         supabase.from('clinics').select('name, logo_url, primary_color').eq('id', id).maybeSingle(),
         supabase.from('clinic_settings').select('value').eq('clinic_id', id).eq('key', 'cnpj').maybeSingle(),
         supabase.from('professional_availability').select('id', count).eq('clinic_id', id).eq('is_active', true),
@@ -24,6 +24,7 @@ export function useOnboardingStatus(clinicId: string | null | undefined, enabled
         supabase.from('appointments').select('id', count).eq('clinic_id', id),
         supabase.from('clinic_settings').select('value').eq('clinic_id', id).eq('key', 'onboarding_hidden_at').maybeSingle(),
         supabase.from('clinic_settings').select('value').eq('clinic_id', id).eq('key', 'brand_confirmed_at').maybeSingle(),
+        supabase.from('contracts').select('id', count).eq('clinic_id', id),
       ]);
       const c = clinic.data;
       const facts: OnboardingFacts = {
@@ -37,7 +38,9 @@ export function useOnboardingStatus(clinicId: string | null | undefined, enabled
         appointments: appointments.count || 0,
       };
       const items = onboardingItems(facts);
-      return { items, ...onboardingProgress(items), hidden: !!hidden.data?.value };
+      // Clínica que já fechou contrato está operando: os primeiros passos não aparecem mais.
+      const operating = (contracts.count || 0) > 0;
+      return { items, ...onboardingProgress(items), hidden: !!hidden.data?.value || operating };
     },
   });
 }
