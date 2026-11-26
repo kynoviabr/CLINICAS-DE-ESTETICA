@@ -142,6 +142,15 @@ export default function PublicProposalPage() {
   const hasDiscount = Number(proposal.discount_amount || 0) > 0;
   const standardTotal = Number(proposal.total_amount || proposal.final_amount);
   const finalTotal = Number(proposal.final_amount);
+  // Quando o cliente não pode aprovar, explica o motivo (em vez de só esconder o botão).
+  const isExpired = !!proposal.valid_until && proposal.valid_until < new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const notAcceptable = proposal.status === 'accepted' || proposal.status === 'approved'
+    ? { title: 'Proposta já aprovada', text: 'Esta proposta já foi aprovada. A clínica vai enviar o contrato para você.' }
+    : proposal.status === 'rejected' || proposal.status === 'cancelled' || proposal.status === 'expired'
+      ? { title: 'Proposta indisponível', text: 'Esta proposta não está mais disponível para aprovação. Fale com a clínica pelo WhatsApp.' }
+      : isExpired
+        ? { title: 'Proposta vencida', text: `A validade desta proposta terminou em ${format(new Date(`${proposal.valid_until}T12:00:00`), 'dd/MM/yyyy', { locale: ptBR })}. Fale com a clínica pelo WhatsApp para receber uma proposta atualizada.` }
+        : { title: 'Aprovação indisponível', text: 'Não é possível aprovar por este link no momento. Fale com a clínica pelo WhatsApp.' };
   const validityDate = proposal.valid_until
     ? format(new Date(`${proposal.valid_until}T12:00:00`), 'dd/MM/yyyy', { locale: ptBR })
     : null;
@@ -378,7 +387,17 @@ export default function PublicProposalPage() {
               </div>
             </CardContent>
           </Card>
-        ) : proposal.can_accept && (
+        ) : !proposal.can_accept ? (
+          <Card className="rounded-2xl border-amber-200 bg-amber-50 shadow-sm">
+            <CardContent className="flex items-start gap-3 p-5">
+              <AlertCircle className="mt-0.5 h-6 w-6 shrink-0 text-amber-600" />
+              <div>
+                <p className="font-semibold text-amber-900">{notAcceptable.title}</p>
+                <p className="text-sm text-amber-800">{notAcceptable.text}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
           <Card id="aceite" className="rounded-2xl border-0 bg-white shadow-sm">
             <CardContent className="space-y-3 p-5 sm:p-6">
               <p className="text-base font-bold text-slate-900">Aceitar proposta</p>

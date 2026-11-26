@@ -860,7 +860,14 @@ export default function ContractsPage() {
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <p className="text-sm font-medium text-foreground">{contract.contract_number}</p>
+                      <button
+                        type="button"
+                        onClick={() => setViewContract(contract)}
+                        className="rounded-sm text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        title={`Abrir contrato ${contract.contract_number}`}
+                      >
+                        {contract.contract_number}
+                      </button>
                       <p className="text-xs text-muted-foreground">
                         {format(new Date(contract.created_at), 'dd/MM/yyyy', { locale: ptBR })}
                       </p>
