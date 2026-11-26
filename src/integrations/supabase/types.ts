@@ -4607,6 +4607,14 @@ export type Database = {
       }
     }
     Functions: {
+      create_contract_copy_link: {
+        Args: { p_contract_id: string }
+        Returns: Json
+      }
+      get_public_contract_copy: {
+        Args: { p_token: string }
+        Returns: Json
+      }
       amend_contract_patient_data: {
         Args: { p_changes: Json; p_contract_id: string; p_reason: string }
         Returns: string

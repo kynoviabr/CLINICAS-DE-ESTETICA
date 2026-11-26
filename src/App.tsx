@@ -88,6 +88,7 @@ const App = () => (
               <Route path="/verificar/:code" element={<PublicVerifyPage />} />
               <Route path="/agendamento/:token" element={<PublicAppointmentPage />} />
               <Route path="/contrato/:token" element={<PublicContractPage />} />
+              <Route path="/contrato-copia/:token" element={<PublicContractPage copy />} />
               <Route path="/portal/entrar/:token" element={<PortalEntryPage />} />
               <Route path="/duas-etapas" element={<MfaPage />} />
               <Route path="/agendar/:slug" element={<PublicBookingPage />} />
