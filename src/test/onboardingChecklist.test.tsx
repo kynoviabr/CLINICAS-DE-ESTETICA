@@ -28,7 +28,7 @@ function renderCard() {
   );
 }
 
-const facts = { hasClinicData: true, hasBrand: false, hasHours: false, treatments: 0, hasContract: true, whatsappConnected: false, patients: 0, appointments: 0 };
+const facts = { hasClinicData: true, hasBrand: false, hasHours: false, treatments: 0, hasContract: true, whatsappConnected: false };
 
 describe('cartão "Primeiros passos" no Meu dia', () => {
   it('mostra o progresso e leva ao próximo passo', () => {
@@ -42,7 +42,7 @@ describe('cartão "Primeiros passos" no Meu dia', () => {
   });
 
   it('some quando tudo está pronto ou quando foi ocultado', () => {
-    const done = onboardingItems({ ...facts, hasBrand: true, hasHours: true, treatments: 3, patients: 1, appointments: 1 });
+    const done = onboardingItems({ ...facts, hasBrand: true, hasHours: true, treatments: 3 });
     status = { items: done, ...onboardingProgress(done), hidden: false };
     renderCard();
     expect(screen.queryByText('Primeiros passos da sua clínica')).not.toBeInTheDocument();

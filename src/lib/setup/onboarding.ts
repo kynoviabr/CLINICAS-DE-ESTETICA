@@ -1,7 +1,6 @@
 // Primeiros passos de uma clínica nova: o que já está pronto e o que falta, calculado a partir dos
 // dados reais (não de marcações manuais). Usado no "Meu dia" e na implantação guiada.
-// Só a configuração é obrigatória; cadastrar cliente e marcar atendimento são uso do sistema (opcionais),
-// para não prender uma clínica nova que ainda está prospectando.
+// Só configuração. Cadastrar cliente e marcar atendimento já são operação e não entram aqui.
 
 export type OnboardingFacts = {
   hasClinicData: boolean;      // nome + CNPJ/CPF
@@ -10,12 +9,10 @@ export type OnboardingFacts = {
   treatments: number;          // tratamentos ativos
   hasContract: boolean;        // contrato padrão ativo
   whatsappConnected: boolean;  // WhatsApp oficial ligado (opcional)
-  patients: number;
-  appointments: number;
 };
 
 export type OnboardingItem = {
-  id: 'clinica' | 'marca' | 'horarios' | 'tratamentos' | 'contrato' | 'whatsapp' | 'paciente' | 'agendamento';
+  id: 'clinica' | 'marca' | 'horarios' | 'tratamentos' | 'contrato' | 'whatsapp';
   title: string;
   why: string;                 // por que isso importa, em uma frase
   action: string;              // texto do botão
@@ -55,16 +52,6 @@ export function onboardingItems(f: OnboardingFacts): OnboardingItem[] {
       id: 'whatsapp', title: 'WhatsApp da clínica', done: f.whatsappConnected, optional: true,
       why: 'Lembretes automáticos e a IA respondendo clientes no número oficial.',
       action: 'Conectar WhatsApp', href: '/clinic/settings?aba=whatsapp',
-    },
-    {
-      id: 'paciente', title: 'Primeira cliente cadastrada', done: f.patients > 0, optional: true,
-      why: 'Cadastre uma cliente real (ou você mesma, para testar).',
-      action: 'Cadastrar cliente', href: '/clinic/patients',
-    },
-    {
-      id: 'agendamento', title: 'Primeiro atendimento marcado', done: f.appointments > 0, optional: true,
-      why: 'Com o primeiro horário na agenda, a clínica está rodando.',
-      action: 'Marcar atendimento', href: '/clinic/appointments?openNew=1',
     },
   ];
 }
