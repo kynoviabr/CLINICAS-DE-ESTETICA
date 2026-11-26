@@ -8,9 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ContractStatusBadge } from './ContractStatusBadge';
+import { AmendmentHistory, ApproveReviewDialog, PatientDataAmendDialog, useContractAmendments } from './ContractAmendments';
 import ContractSignaturePanel from './ContractSignaturePanel';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, Copy, ExternalLink, FileUp, TriangleAlert } from 'lucide-react';
+import { CheckCircle2, Copy, ExternalLink, FileUp, TriangleAlert, UserPen } from 'lucide-react';
 import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
 import type { DocumentOutput } from '@/lib/documents/output';
 import { buildSignatureSheet } from '@/lib/documents/signatureSheet';
@@ -118,6 +119,9 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
   const [uploading, setUploading] = useState(false);
   const [cancelConfirm, setCancelConfirm] = useState(false);
   const c = contract;
+  const [patientDlg, setPatientDlg] = useState(false);
+  const [approveDlg, setApproveDlg] = useState(false);
+  const { data: amendments = [] } = useContractAmendments(c.id);
   const parsed = parseContractNotes(c.notes);
   const [isEditing, setIsEditing] = useState(false);
   const [reviewPaymentCondition, setReviewPaymentCondition] = useState<PaymentCondition>(parsed.condition);
@@ -450,11 +454,14 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
         </DialogHeader>
 
         {c.process_status === 'overdue' && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 text-warning text-sm">
-            <TriangleAlert className="w-4 h-4" />
-            Este contrato precisa de revisão antes de seguir.
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-warning/10 p-3 text-sm text-warning">
+            <span className="flex items-center gap-2"><TriangleAlert className="h-4 w-4" /> Este contrato precisa de revisão antes de seguir.</span>
+            <BrandButton size="sm" onClick={() => setApproveDlg(true)}><CheckCircle2 className="h-4 w-4" /> Aprovar revisão</BrandButton>
           </div>
         )}
+        <PatientDataAmendDialog contractId={c.id} patientId={c.patient_id} open={patientDlg} onOpenChange={setPatientDlg}
+          onDone={() => qc.invalidateQueries({ queryKey: ['contracts'] })} />
+        <ApproveReviewDialog contractId={c.id} open={approveDlg} onOpenChange={setApproveDlg} onDone={refreshContracts} />
 
         <div className="space-y-4 mt-2">
           <ContractSignaturePanel contract={c} />
@@ -505,6 +512,18 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
               {c.process_status === 'overdue' && 'Revisar o documento e decidir se ele deve ser reenviado ou ativado.'}
             </p>
           </div>
+
+          {!isCancelled && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">Revisar contrato</p>
+                <p className="text-xs text-muted-foreground">Toda revisão fica registrada com motivo, data e quem fez.</p>
+              </div>
+              <BrandButton size="sm" variant="outline" onClick={() => setPatientDlg(true)}><UserPen className="h-4 w-4" /> Corrigir dados do paciente</BrandButton>
+            </div>
+          )}
+
+          <AmendmentHistory amendments={amendments} userNames={userNamesById} />
 
           <div className="rounded-lg border p-3">
             <p className="mb-2 text-sm font-medium text-foreground">Timeline do contrato</p>
