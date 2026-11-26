@@ -1129,6 +1129,12 @@ export type Database = {
         }
         Relationships: []
       }
+      contract_amendments: {
+        Row: { applied_at: string | null; changes: Json; clinic_id: string; contract_id: string; created_at: string; created_by: string | null; id: string; kind: string; reason: string; requires_acceptance: boolean; status: string }
+        Insert: { applied_at?: string | null; changes?: Json; clinic_id: string; contract_id: string; created_at?: string; created_by?: string | null; id?: string; kind: string; reason: string; requires_acceptance?: boolean; status?: string }
+        Update: { applied_at?: string | null; changes?: Json; clinic_id?: string; contract_id?: string; created_at?: string; created_by?: string | null; id?: string; kind?: string; reason?: string; requires_acceptance?: boolean; status?: string }
+        Relationships: []
+      }
       contract_installments: {
         Row: {
           amount: number
@@ -4601,6 +4607,14 @@ export type Database = {
       }
     }
     Functions: {
+      amend_contract_patient_data: {
+        Args: { p_changes: Json; p_contract_id: string; p_reason: string }
+        Returns: string
+      }
+      approve_contract_review: {
+        Args: { p_contract_id: string; p_reason: string }
+        Returns: string
+      }
       whatsapp_link_conversation: {
         Args: { p_conversation_id: string; p_lead_id: string | null; p_patient_id: string | null }
         Returns: undefined
