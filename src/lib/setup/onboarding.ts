@@ -1,5 +1,7 @@
 // Primeiros passos de uma clínica nova: o que já está pronto e o que falta, calculado a partir dos
 // dados reais (não de marcações manuais). Usado no "Meu dia" e na implantação guiada.
+// Só a configuração é obrigatória; cadastrar cliente e marcar atendimento são uso do sistema (opcionais),
+// para não prender uma clínica nova que ainda está prospectando.
 
 export type OnboardingFacts = {
   hasClinicData: boolean;      // nome + CNPJ/CPF
@@ -55,12 +57,12 @@ export function onboardingItems(f: OnboardingFacts): OnboardingItem[] {
       action: 'Conectar WhatsApp', href: '/clinic/settings?aba=whatsapp',
     },
     {
-      id: 'paciente', title: 'Primeira cliente cadastrada', done: f.patients > 0,
+      id: 'paciente', title: 'Primeira cliente cadastrada', done: f.patients > 0, optional: true,
       why: 'Cadastre uma cliente real (ou você mesma, para testar).',
       action: 'Cadastrar cliente', href: '/clinic/patients',
     },
     {
-      id: 'agendamento', title: 'Primeiro atendimento marcado', done: f.appointments > 0,
+      id: 'agendamento', title: 'Primeiro atendimento marcado', done: f.appointments > 0, optional: true,
       why: 'Com o primeiro horário na agenda, a clínica está rodando.',
       action: 'Marcar atendimento', href: '/clinic/appointments?openNew=1',
     },

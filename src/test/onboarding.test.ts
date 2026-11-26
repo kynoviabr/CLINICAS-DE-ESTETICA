@@ -10,7 +10,7 @@ describe('primeiros passos da clínica', () => {
   it('clínica nova: nada feito, o próximo passo é preencher os dados', () => {
     const p = onboardingProgress(onboardingItems(empty));
     expect(p.done).toBe(0);
-    expect(p.total).toBe(7); // WhatsApp é opcional e não conta
+    expect(p.total).toBe(5); // só a configuração conta; WhatsApp, cliente e atendimento são opcionais
     expect(p.next?.id).toBe('clinica');
     expect(p.complete).toBe(false);
   });
@@ -26,6 +26,13 @@ describe('primeiros passos da clínica', () => {
     expect(p.complete).toBe(true);
     expect(p.percent).toBe(100);
     expect(p.next?.id).toBe('whatsapp');
+  });
+
+  it('clínica configurada que ainda está prospectando (sem cliente nem agenda) está completa', () => {
+    const configured = { ...empty, hasClinicData: true, hasBrand: true, hasHours: true, treatments: 5, hasContract: true };
+    const p = onboardingProgress(onboardingItems(configured));
+    expect(p.complete).toBe(true);
+    expect(p.done).toBe(5);
   });
 
   it('cada passo tem explicação e um destino', () => {

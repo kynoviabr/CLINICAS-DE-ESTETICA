@@ -35,7 +35,7 @@ describe('cartão "Primeiros passos" no Meu dia', () => {
     const items = onboardingItems(facts);
     status = { items, ...onboardingProgress(items), hidden: false };
     renderCard();
-    expect(screen.getByText('2 de 7 prontos. Faça um de cada vez: cada um leva poucos minutos.')).toBeInTheDocument();
+    expect(screen.getByText('2 de 5 prontos. Faça um de cada vez: cada um leva poucos minutos.')).toBeInTheDocument();
     expect(screen.getByText('Próximo passo')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Escolher marca/ }));
     expect(screen.getByText('em /clinic/implantacao?passo=marca')).toBeInTheDocument();
