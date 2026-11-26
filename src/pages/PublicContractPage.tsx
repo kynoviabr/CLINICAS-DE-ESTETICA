@@ -23,8 +23,8 @@ type PublicContract = {
   can_sign: boolean;
 };
 
-/** Paciente (sem login) lê e assina o contrato pelo celular. */
-export default function PublicContractPage() {
+/** Paciente (sem login) lê e assina o contrato pelo celular. Com `copy`, abre a cópia (só leitura). */
+export default function PublicContractPage({ copy = false }: { copy?: boolean }) {
   const { token = '' } = useParams<{ token: string }>();
   const [data, setData] = useState<PublicContract | null>(null);
   const [error, setError] = useState('');
@@ -32,12 +32,12 @@ export default function PublicContractPage() {
   const [signError, setSignError] = useState('');
 
   useEffect(() => {
-    supabase.rpc('get_public_contract', { p_token: token }).then(({ data: r, error: e }) => {
+    supabase.rpc(copy ? 'get_public_contract_copy' : 'get_public_contract', { p_token: token }).then(({ data: r, error: e }) => {
       const res = r as (PublicContract | { ok: false; reason: string }) | null;
       if (e || !res || res.ok === false) setError(signingError((res as { reason?: string } | null)?.reason));
       else setData(res as PublicContract);
     });
-  }, [token]);
+  }, [token, copy]);
 
   const html = useMemo(() => sanitizeContractTemplate(data?.html || ''), [data?.html]);
 
@@ -77,7 +77,7 @@ export default function PublicContractPage() {
             {data.clinic.logo_url && <img src={data.clinic.logo_url} alt="" className="h-9 max-w-[120px] rounded object-contain" />}
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-slate-900">{data.clinic.name}</p>
-              <p className="text-[11px] text-slate-500">Contrato nº {data.contract_number}</p>
+              <p className="text-[11px] text-slate-500">{copy ? 'Cópia do contrato' : 'Contrato'} nº {data.contract_number}</p>
             </div>
           </div>
           <DocumentOutputButtons className="flex shrink-0 gap-2" getDocument={contractDocument} />

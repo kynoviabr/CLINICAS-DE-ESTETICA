@@ -29,4 +29,10 @@ export function contractLinkMessage(firstName: string, clinicName: string, contr
   return `Olá, ${firstName}! Aqui é da ${clinicName}. Seu contrato nº ${contractNumber} está pronto. Leia e assine pelo celular neste link seguro:\n\n${url}\n\nVai pedir seu nome completo e um dado do cadastro para confirmar que é você.`;
 }
 
+export function contractCopyMessage(firstName: string, clinicName: string, contractNumber: string, url: string) {
+  return `Olá, ${firstName}! Aqui é da ${clinicName}. Segue a cópia do seu contrato nº ${contractNumber}. Você pode ler e baixar o PDF neste link seguro (vale 30 dias):\n\n${url}`;
+}
+
+export const contractCopyUrl = (origin: string, token: string) => `${origin.replace(/\/$/, '')}/contrato-copia/${token}`;
+
 export const contractLinkUrl = (origin: string, token: string) => `${origin.replace(/\/$/, '')}/contrato/${token}`;
