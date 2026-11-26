@@ -445,14 +445,25 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
   const displayHtml = contract?.template_snapshot_html || contract?.template_html;
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between gap-3">
-            <span>Contrato {c.contract_number}</span>
-            <ContractStatusBadge status={c.process_status} />
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="flex max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-5xl flex-col gap-0 overflow-hidden p-0">
+        {/* Topo: número, status e dados principais */}
+        <div className="border-b px-5 pb-4 pt-5 sm:px-6">
+          <DialogHeader>
+            <DialogTitle className="flex flex-wrap items-center gap-3 pr-8">
+              <span>Contrato {c.contract_number}</span>
+              <ContractStatusBadge status={c.process_status} />
+            </DialogTitle>
+          </DialogHeader>
+          <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
+            <div className="min-w-0"><dt className="text-xs text-muted-foreground">Paciente</dt><dd className="truncate font-medium">{c.patients?.full_name || '—'}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Proposta</dt><dd className="font-medium">{c.proposals?.proposal_number || '—'}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Valor</dt><dd className="font-semibold">R$ {Number(c.proposals?.final_amount || 0).toFixed(2)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Criado em</dt><dd className="font-medium">{format(new Date(c.created_at), 'dd/MM/yyyy', { locale: ptBR })}</dd></div>
+          </dl>
+        </div>
 
+        {/* Corpo: à esquerda o que fazer agora; à direita o histórico */}
+        <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-6">
         {c.process_status === 'overdue' && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-warning/10 p-3 text-sm text-warning">
             <span className="flex items-center gap-2"><TriangleAlert className="h-4 w-4" /> Este contrato precisa de revisão antes de seguir.</span>
@@ -462,48 +473,10 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
         <PatientDataAmendDialog contractId={c.id} patientId={c.patient_id} open={patientDlg} onOpenChange={setPatientDlg}
           onDone={() => qc.invalidateQueries({ queryKey: ['contracts'] })} />
         <ApproveReviewDialog contractId={c.id} open={approveDlg} onOpenChange={setApproveDlg} onDone={refreshContracts} />
-
-        <div className="space-y-4 mt-2">
-          <ContractSignaturePanel contract={c} />
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span className="text-muted-foreground">Paciente:</span>
-              <br />
-              <span className="font-medium">{c.patients?.full_name}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Proposta:</span>
-              <br />
-              <span className="font-medium">{c.proposals?.proposal_number || '—'}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Valor:</span>
-              <br />
-              <span className="font-bold">R$ {Number(c.proposals?.final_amount || 0).toFixed(2)}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Criado em:</span>
-              <br />
-              <span className="font-medium">{format(new Date(c.created_at), 'dd/MM/yyyy', { locale: ptBR })}</span>
-            </div>
-            {c.signed_at && (
-              <div>
-                <span className="text-muted-foreground">Arquivo recebido em:</span>
-                <br />
-                <span className="font-medium">{format(new Date(c.signed_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</span>
-              </div>
-            )}
-            {c.confirmed_at && (
-              <div>
-                <span className="text-muted-foreground">Ativado em:</span>
-                <br />
-                <span className="font-medium">{format(new Date(c.confirmed_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</span>
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-lg bg-secondary/40 p-3 text-sm">
-            <p className="font-medium text-foreground mb-1">Próximo passo</p>
+          <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] first:mt-0">
+            <div className="min-w-0 space-y-4">
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-primary">Próximo passo</p>
             <p className="text-muted-foreground">
               {isGenerated && 'Gerar ou coletar o documento assinado e arquivá-lo no contrato.'}
               {isReadyToActivate && 'Revisar o arquivo assinado e ativar o contrato para seguir a operação.'}
@@ -511,8 +484,35 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
               {isCancelled && 'Contrato encerrado, sem continuidade operacional.'}
               {c.process_status === 'overdue' && 'Revisar o documento e decidir se ele deve ser reenviado ou ativado.'}
             </p>
+            <div className="mt-3 flex flex-wrap gap-2 empty:hidden">
+            {!isCancelled && !isActive && (
+              <label className="cursor-pointer">
+                <BrandButton size="sm" type="button" disabled={uploading}>
+                  <FileUp className="w-4 h-4" />
+                  {uploading ? 'Arquivando...' : hasSignedFile ? 'Substituir arquivo' : 'Arquivar assinado'}
+                </BrandButton>
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="hidden"
+                  onChange={(event) => {
+                    if (event.target.files?.[0]) handleUpload(event.target.files[0]);
+                  }}
+                />
+              </label>
+            )}
+
+            {isReadyToActivate && (
+              <BrandButton size="sm" onClick={activateContract}>
+                <CheckCircle2 className="w-4 h-4" />
+                Ativar contrato
+              </BrandButton>
+            )}
+
+            </div>
           </div>
 
+              <ContractSignaturePanel contract={c} />
           {!isCancelled && (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
               <div>
@@ -522,26 +522,6 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
               <BrandButton size="sm" variant="outline" onClick={() => setPatientDlg(true)}><UserPen className="h-4 w-4" /> Corrigir dados do paciente</BrandButton>
             </div>
           )}
-
-          <AmendmentHistory amendments={amendments} userNames={userNamesById} />
-
-          <div className="rounded-lg border p-3">
-            <p className="mb-2 text-sm font-medium text-foreground">Timeline do contrato</p>
-            {timelineEvents.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Sem eventos registrados.</p>
-            ) : (
-              <div className="space-y-2">
-                {timelineEvents.map((event) => (
-                  <div key={event.key} className="flex items-center justify-between gap-2 rounded-md bg-secondary/30 px-2.5 py-2">
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${event.tone}`}>{event.label}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {format(event.date, 'dd/MM/yyyy HH:mm', { locale: ptBR })}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
 
           {!isCancelled && (
             <div className="rounded-lg border p-3 space-y-3">
@@ -755,8 +735,29 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
             </div>
           )}
 
+            </div>
+            <div className="min-w-0 space-y-4">
+          <div className="rounded-lg border p-3">
+            <p className="mb-2 text-sm font-medium text-foreground">Linha do tempo</p>
+            {timelineEvents.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Sem eventos registrados.</p>
+            ) : (
+              <div className="space-y-2">
+                {timelineEvents.map((event) => (
+                  <div key={event.key} className="flex items-center justify-between gap-2 rounded-md bg-secondary/30 px-2.5 py-2">
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${event.tone}`}>{event.label}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {format(event.date, 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+              <AmendmentHistory amendments={amendments} userNames={userNamesById} />
           <div className="rounded-lg border p-3 space-y-2">
-            <p className="text-sm font-medium text-foreground">Histórico de revisões</p>
+            <p className="text-sm font-medium text-foreground">Alterações registradas</p>
             {loadingAudit ? (
               <p className="text-xs text-muted-foreground">Carregando histórico...</p>
             ) : reviewAuditLogs.length === 0 ? (
@@ -784,8 +785,13 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
               </div>
             )}
           </div>
+            </div>
+          </div>
+        </div>
 
-          <div className="flex flex-wrap gap-2 pt-4 border-t">
+        {/* Rodapé: documento e ações gerais */}
+        <div className="flex flex-col-reverse gap-2 border-t bg-muted/30 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="flex flex-wrap gap-2">
             {displayHtml && (
               <DocumentOutputButtons className="contents" getDocument={contractDocument} />
             )}
@@ -802,30 +808,8 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
               Copiar número
             </BrandButton>
 
-            {!isCancelled && !isActive && (
-              <label className="cursor-pointer">
-                <BrandButton size="sm" type="button" disabled={uploading}>
-                  <FileUp className="w-4 h-4" />
-                  {uploading ? 'Arquivando...' : hasSignedFile ? 'Substituir arquivo' : 'Arquivar assinado'}
-                </BrandButton>
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  className="hidden"
-                  onChange={(event) => {
-                    if (event.target.files?.[0]) handleUpload(event.target.files[0]);
-                  }}
-                />
-              </label>
-            )}
-
-            {isReadyToActivate && (
-              <BrandButton size="sm" onClick={activateContract}>
-                <CheckCircle2 className="w-4 h-4" />
-                Ativar contrato
-              </BrandButton>
-            )}
-
+          </div>
+          <div className="flex flex-wrap gap-2">
             {!isCancelled && !isActive && (
               cancelConfirm ? (
                 <div className="flex gap-2 items-center">
