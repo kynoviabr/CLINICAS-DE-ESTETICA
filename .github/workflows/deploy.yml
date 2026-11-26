@@ -4,8 +4,13 @@ name: Publicar banco e funções
 # Produção: a cada merge na main, faz o mesmo no Supabase de produção, depois da aprovação no ambiente "production"
 #           (GitHub > Settings > Environments > production > Required reviewers).
 #
+# Depois do banco, publica o SITE na Vercel pelo Deploy Hook (não depende do aviso automático do GitHub para a Vercel).
+# Se o banco falhar, o site não é publicado.
+#
 # Segredos (GitHub > Settings > Secrets and variables > Actions):
 #   SUPABASE_ACCESS_TOKEN          token pessoal do Supabase (Account > Access Tokens). Não precisa da senha do banco.
+#   VERCEL_DEPLOY_HOOK_HOMOLOG     Deploy Hook da Vercel para a branch homolog (projeto > Settings > Git > Deploy Hooks)
+#   VERCEL_DEPLOY_HOOK_PRODUCTION  Deploy Hook da Vercel para a branch main
 # Variáveis (mesma tela, aba Variables):
 #   SUPABASE_PROJECT_HOMOLOG       id do projeto de homologação
 #   SUPABASE_PROJECT_PROD          id do projeto de produção
@@ -13,9 +18,6 @@ name: Publicar banco e funções
 on:
   push:
     branches: [homolog, main]
-    paths:
-      - "supabase/**"
-      - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
 concurrency:
@@ -23,7 +25,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # O banco só é publicado quando a mudança mexe em supabase/ (ou quando rodado à mão).
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      db: ${{ steps.diff.outputs.db }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        run: |
+          BEFORE="${{ github.event.before }}"
+          if [ "${{ github.event_name }}" != "push" ] || [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
+            echo "db=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$BEFORE" "${{ github.sha }}" | grep -qE '^(supabase/|\.github/workflows/deploy\.yml)'; then
+            echo "db=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "db=false" >> "$GITHUB_OUTPUT"
+          fi
+
   deploy:
+    needs: changes
+    if: needs.changes.outputs.db == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: ${{ github.ref_name == 'main' && 'production' || 'homolog' }}
@@ -66,3 +90,26 @@ jobs:
 
       - name: Publica as funções
         run: supabase functions deploy --project-ref "$PROJECT_REF"
+
+  # Site (Vercel): roda depois do banco (ou direto, se a mudança não mexeu no banco).
+  site:
+    needs: [changes, deploy]
+    if: ${{ always() && needs.changes.result == 'success' && (needs.deploy.result == 'success' || needs.deploy.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: ${{ github.ref_name == 'main' && 'production' || 'homolog' }}
+    env:
+      HOOK: ${{ github.ref_name == 'main' && secrets.VERCEL_DEPLOY_HOOK_PRODUCTION || secrets.VERCEL_DEPLOY_HOOK_HOMOLOG }}
+    steps:
+      - name: Dispara o deploy na Vercel
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::warning::Sem Deploy Hook da Vercel para ${{ github.ref_name }}; o site não foi publicado por aqui. Veja o topo deste arquivo."
+            exit 0
+          fi
+          code=$(curl -s -o resposta.json -w "%{http_code}" -X POST "$HOOK")
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            echo "::error::A Vercel recusou o Deploy Hook (HTTP $code)."
+            exit 1
+          fi
+          echo "Deploy do site pedido à Vercel (${{ github.ref_name }}, ${GITHUB_SHA::7}). Acompanhe em vercel.com > clinicas-de-estetica > Deployments."
