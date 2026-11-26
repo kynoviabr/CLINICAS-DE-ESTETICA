@@ -8,10 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ContractStatusBadge } from './ContractStatusBadge';
-import { AmendmentHistory, ApproveReviewDialog, PatientDataAmendDialog, useContractAmendments } from './ContractAmendments';
+import { AmendmentHistory, ApproveReviewDialog, PatientDataAmendDialog, PaymentAmendDialog, PendingAmendmentCard, useContractAmendments } from './ContractAmendments';
 import ContractSignaturePanel from './ContractSignaturePanel';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, Copy, ExternalLink, FileUp, TriangleAlert, UserPen } from 'lucide-react';
+import { CheckCircle2, Copy, ExternalLink, FileUp, TriangleAlert, UserPen, CreditCard } from 'lucide-react';
 import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
 import type { DocumentOutput } from '@/lib/documents/output';
 import { buildSignatureSheet } from '@/lib/documents/signatureSheet';
@@ -121,7 +121,9 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
   const c = contract;
   const [patientDlg, setPatientDlg] = useState(false);
   const [approveDlg, setApproveDlg] = useState(false);
+  const [paymentDlg, setPaymentDlg] = useState(false);
   const { data: amendments = [] } = useContractAmendments(c.id);
+  const pendingAmendment = amendments.find((a) => a.status === 'pending_acceptance');
   const parsed = parseContractNotes(c.notes);
   const [isEditing, setIsEditing] = useState(false);
   const [reviewPaymentCondition, setReviewPaymentCondition] = useState<PaymentCondition>(parsed.condition);
@@ -473,8 +475,13 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
         <PatientDataAmendDialog contractId={c.id} patientId={c.patient_id} open={patientDlg} onOpenChange={setPatientDlg}
           onDone={() => qc.invalidateQueries({ queryKey: ['contracts'] })} />
         <ApproveReviewDialog contractId={c.id} open={approveDlg} onOpenChange={setApproveDlg} onDone={refreshContracts} />
+        <PaymentAmendDialog contractId={c.id} open={paymentDlg} onOpenChange={setPaymentDlg} onDone={() => qc.invalidateQueries({ queryKey: ['contracts'] })} />
           <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] first:mt-0">
             <div className="min-w-0 space-y-4">
+              {pendingAmendment && (
+                <PendingAmendmentCard amendment={pendingAmendment} contractId={c.id} patientId={c.patient_id} contractNumber={c.contract_number}
+                  clinicName={clinicName} onChanged={() => qc.invalidateQueries({ queryKey: ['contracts'] })} />
+              )}
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm">
             <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-primary">Próximo passo</p>
             <p className="text-muted-foreground">
@@ -519,221 +526,13 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
                 <p className="text-sm font-medium text-foreground">Revisar contrato</p>
                 <p className="text-xs text-muted-foreground">Toda revisão fica registrada com motivo, data e quem fez.</p>
               </div>
-              <BrandButton size="sm" variant="outline" onClick={() => setPatientDlg(true)}><UserPen className="h-4 w-4" /> Corrigir dados do paciente</BrandButton>
-            </div>
-          )}
-
-          {!isCancelled && (
-            <div className="rounded-lg border p-3 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-foreground">Revisão de parâmetros</p>
-                <BrandButton size="sm" variant="outline" onClick={() => setIsEditing((current) => !current)}>
-                  {isEditing ? 'Fechar revisão' : 'Editar após envio'}
-                </BrandButton>
+              <div className="flex flex-wrap gap-2">
+                <BrandButton size="sm" variant="outline" onClick={() => setPatientDlg(true)}><UserPen className="h-4 w-4" /> Corrigir dados do paciente</BrandButton>
+                <BrandButton size="sm" variant="outline" disabled={!!pendingAmendment} title={pendingAmendment ? 'Já existe uma revisão aguardando o aceite do paciente' : undefined} onClick={() => setPaymentDlg(true)}><CreditCard className="h-4 w-4" /> Alterar forma de pagamento</BrandButton>
               </div>
-
-              {isEditing && (
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Condição de pagamento</p>
-                    <Select
-                      value={reviewPaymentCondition}
-                      onValueChange={(value) => setReviewPaymentCondition(value as PaymentCondition)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="cash">À vista</SelectItem>
-                        <SelectItem value="installments">Parcelado</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-muted-foreground">Formas de pagamento</p>
-                      <span className="text-xs text-muted-foreground">{reviewMethods.length}/2</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {[...paymentMethodOptions, ...(reviewMethods.includes('card') ? [{ value: 'card' as PaymentMethod, label: PAYMENT_METHOD_NAMES.card }] : [])].map((option) => (
-                        <label key={option.value} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                          <Checkbox
-                            checked={reviewMethods.includes(option.value)}
-                            onCheckedChange={(next) => toggleReviewMethod(option.value, Boolean(next))}
-                          />
-                          {option.label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  {reviewMethods.length > 0 && (
-                    <div className="space-y-2">
-                      {reviewMethods.map((method) => {
-                        const label = PAYMENT_METHOD_NAMES[method] || method;
-                        const installable = isInstallmentMethod(method);
-                        return (
-                          <div key={method} className="space-y-1">
-                            <p className="text-xs text-muted-foreground">{label}</p>
-                            <div className={`grid gap-2 ${installable ? 'grid-cols-3' : 'grid-cols-1'}`}>
-                              <div className="space-y-1">
-                                <p className="text-[11px] text-muted-foreground">Valor</p>
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
-                                  value={reviewConfig[method]?.amount || ''}
-                                  onChange={(event) =>
-                                    setReviewConfig((current) => ({
-                                      ...current,
-                                      [method]: {
-                                        amount: event.target.value,
-                                        installments: current[method]?.installments || '',
-                                        installmentAmount: current[method]?.installmentAmount || '',
-                                        brand: current[method]?.brand,
-                                        last4: current[method]?.last4,
-                                      },
-                                    }))
-                                  }
-                                  placeholder="Valor"
-                                />
-                              </div>
-                              {installable ? (
-                                <>
-                                  <div className="space-y-1">
-                                    <p className="text-[11px] text-muted-foreground">Número de parcelas</p>
-                                    <Input
-                                      type="number"
-                                      min={1}
-                                      value={reviewConfig[method]?.installments || ''}
-                                      onChange={(event) =>
-                                        setReviewConfig((current) => ({
-                                          ...current,
-                                          [method]: {
-                                            amount: current[method]?.amount || '',
-                                            installments: event.target.value,
-                                            installmentAmount: current[method]?.installmentAmount || '',
-                                            brand: current[method]?.brand,
-                                            last4: current[method]?.last4,
-                                          },
-                                        }))
-                                      }
-                                      placeholder="Parcelas"
-                                    />
-                                  </div>
-                                  <div className="space-y-1">
-                                    <p className="text-[11px] text-muted-foreground">Valor da parcela</p>
-                                    <Input
-                                      type="number"
-                                      min={0}
-                                      step="0.01"
-                                      value={reviewConfig[method]?.installmentAmount || ''}
-                                      onChange={(event) =>
-                                        setReviewConfig((current) => ({
-                                          ...current,
-                                          [method]: {
-                                            amount: current[method]?.amount || '',
-                                            installments: current[method]?.installments || '',
-                                            installmentAmount: event.target.value,
-                                            brand: current[method]?.brand,
-                                            last4: current[method]?.last4,
-                                          },
-                                        }))
-                                      }
-                                      placeholder="Valor da parcela"
-                                    />
-                                  </div>
-                                </>
-                              ) : null}
-                            </div>
-                            {method === 'card' && (
-                              <div className="grid grid-cols-2 gap-2">
-                                <div className="space-y-1">
-                                  <p className="text-[11px] text-muted-foreground">Bandeira</p>
-                                  <Select
-                                    value={reviewConfig.card?.brand || ''}
-                                    onValueChange={(value) =>
-                                      setReviewConfig((current) => ({
-                                        ...current,
-                                        card: {
-                                          amount: current.card?.amount || '',
-                                          installments: current.card?.installments || '',
-                                          installmentAmount: current.card?.installmentAmount || '',
-                                          brand: value as CardBrand,
-                                          last4: current.card?.last4 || '',
-                                        },
-                                      }))
-                                    }
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Bandeira" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {cardBrandOptions.map((option) => (
-                                        <SelectItem key={option.value} value={option.value}>
-                                          {option.label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-1">
-                                  <p className="text-[11px] text-muted-foreground">4 últimos dígitos</p>
-                                  <Input
-                                    inputMode="numeric"
-                                    maxLength={4}
-                                    value={reviewConfig.card?.last4 || ''}
-                                    onChange={(event) =>
-                                      setReviewConfig((current) => ({
-                                        ...current,
-                                        card: {
-                                          amount: current.card?.amount || '',
-                                          installments: current.card?.installments || '',
-                                          installmentAmount: current.card?.installmentAmount || '',
-                                          brand: current.card?.brand,
-                                          last4: event.target.value.replace(/\D/g, '').slice(0, 4),
-                                        },
-                                      }))
-                                    }
-                                    placeholder="1234"
-                                  />
-                                </div>
-                              </div>
-                            )}
-                            <Textarea
-                              rows={2}
-                              value={reviewDetails[method] || ''}
-                              onChange={(event) =>
-                                setReviewDetails((current) => ({ ...current, [method]: event.target.value }))
-                              }
-                              placeholder="Detalhes desta forma de pagamento"
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Observações da revisão</p>
-                    <Textarea
-                      rows={3}
-                      value={reviewNotes}
-                      onChange={(event) => setReviewNotes(event.target.value)}
-                      placeholder="Descreva ajustes e observações do contrato."
-                    />
-                  </div>
-
-                  <div className="flex justify-end">
-                    <BrandButton size="sm" onClick={saveReview} disabled={savingReview}>
-                      {savingReview ? 'Salvando...' : 'Salvar revisão'}
-                    </BrandButton>
-                  </div>
-                </div>
-              )}
             </div>
           )}
+
 
             </div>
             <div className="min-w-0 space-y-4">
