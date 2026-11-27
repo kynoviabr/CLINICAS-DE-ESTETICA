@@ -215,6 +215,17 @@ export function useSessionsPage() {
     enabled: !!clinicId,
   });
 
+  // Ajustes de itens feitos por revisão do contrato (adicionar/remover sessões).
+  const { data: itemAdjustments = [] } = useQuery({
+    queryKey: ['session-item-adjustments', clinicId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('contract_item_adjustments').select('contract_id, treatment_id, treatment_name, sessions_delta').eq('clinic_id', clinicId!);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!clinicId,
+  });
+
   const { data: renewalTasks = [] } = useQuery({
     queryKey: ['sessions-renewal-tasks', clinicId],
     queryFn: async () => {
@@ -298,6 +309,14 @@ export function useSessionsPage() {
       });
     });
 
+    const contractPatient = new Map(contracts.map((c: ContractRow) => [c.id, c.patient_id] as [string, string]));
+    itemAdjustments.forEach((adj) => {
+      const patientId = contractPatient.get(adj.contract_id);
+      if (!patientId) return;
+      const row = ensureRow(patientId, adj.treatment_id || null, adj.treatment_name);
+      row.contracted += Number(adj.sessions_delta || 0);
+    });
+
     sessions.forEach((session: SessionRecordRow) => {
       const treatmentId = session.treatment_id || null;
       const treatmentName = session.treatments?.name || (treatmentId ? treatmentMap.get(treatmentId)?.name : undefined);
@@ -315,7 +334,7 @@ export function useSessionsPage() {
         if (b.contracted !== a.contracted) return b.contracted - a.contracted;
         return a.patientName.localeCompare(b.patientName);
       });
-  }, [contracts, patients, proposalItems, sessions, treatments]);
+  }, [contracts, patients, proposalItems, sessions, treatments, itemAdjustments]);
 
   const renewalTaskKeys = useMemo(() => {
     const keys = new Set<string>();

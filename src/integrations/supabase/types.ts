@@ -1135,6 +1135,12 @@ export type Database = {
         Update: { applied_at?: string | null; changes?: Json; clinic_id?: string; contract_id?: string; created_at?: string; created_by?: string | null; id?: string; kind?: string; reason?: string; requires_acceptance?: boolean; status?: string }
         Relationships: []
       }
+      contract_item_adjustments: {
+        Row: { amendment_id: string; clinic_id: string; contract_id: string; created_at: string; id: string; sessions_delta: number; treatment_id: string | null; treatment_name: string; value_delta: number }
+        Insert: { amendment_id: string; clinic_id: string; contract_id: string; created_at?: string; id?: string; sessions_delta: number; treatment_id?: string | null; treatment_name: string; value_delta: number }
+        Update: { amendment_id?: string; clinic_id?: string; contract_id?: string; created_at?: string; id?: string; sessions_delta?: number; treatment_id?: string | null; treatment_name?: string; value_delta?: number }
+        Relationships: []
+      }
       contract_installments: {
         Row: {
           amount: number
@@ -4607,6 +4613,14 @@ export type Database = {
       }
     }
     Functions: {
+      contract_items_summary: {
+        Args: { p_contract_id: string }
+        Returns: Json
+      }
+      propose_contract_items_amendment: {
+        Args: { p_add: Json; p_contract_id: string; p_first_due: string | null; p_payment: Json | null; p_reason: string; p_remove: Json }
+        Returns: string
+      }
       propose_contract_payment_amendment: {
         Args: { p_contract_id: string; p_first_due: string; p_methods: Json; p_reason: string }
         Returns: string
