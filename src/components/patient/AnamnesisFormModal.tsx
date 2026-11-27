@@ -271,11 +271,14 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
 
   const [treatmentAnswers, setTreatmentAnswers] = useState<Record<string, Record<string, TreatmentAnswer>>>({});
   const [riskAck, setRiskAck] = useState<Record<string, boolean>>({});
+  // Antes de começar: termos gerais e ciência dos riscos de cada tratamento.
+  const [introAccepted, setIntroAccepted] = useState(false);
 
   const reset = () => {
     setForm(emptyForm);
     setTreatmentAnswers({});
     setRiskAck({});
+    setIntroAccepted(false);
     setChosenLocal(null);
     setSeeded(false);
     setStep(0);
@@ -676,19 +679,9 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
       case 'consent':
         return (
           <div className="space-y-5">
-            <div className="p-4 rounded-lg bg-secondary/50 text-sm text-muted-foreground space-y-2">
-              <p>Ao preencher esta anamnese, o(a) paciente declara que:</p>
-              <ul className="list-disc pl-4 space-y-1">
-                <li>As informações prestadas são verdadeiras e completas</li>
-                <li>Está ciente que a omissão de informações pode prejudicar o tratamento</li>
-                <li>Autoriza a clínica a utilizar os dados para fins terapêuticos</li>
-              </ul>
-            </div>
-            <CheckboxField
-              label="Concordo com os termos de consentimento *"
-              checked={form.consent.agrees_terms}
-              onChange={v => updateSection('consent', 'agrees_terms', v)}
-            />
+            <p className="flex items-start gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">
+              <Check className="mt-0.5 h-4 w-4 shrink-0" /> Termos e ciência dos riscos aceitos no início da anamnese.
+            </p>
             {chosen?.general && (
               <>
                 <CheckboxField
@@ -708,17 +701,6 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
                 />
               </>
             )}
-            {templatesChosen.map((t) => (
-              <div key={t.id} className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-                <p className="text-sm font-semibold text-foreground">Ciência dos riscos: {t.category_name || t.name}</p>
-                <p className="text-sm text-muted-foreground">{templateRiskTerms(t)}</p>
-                <CheckboxField
-                  label="Li e concordo *"
-                  checked={!!riskAck[t.id]}
-                  onChange={(v) => setRiskAck((cur) => ({ ...cur, [t.id]: v }))}
-                />
-              </div>
-            ))}
             {isPage && (
               <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
                 <Label>Assinatura: digite seu nome completo *</Label>
@@ -778,7 +760,56 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
     );
   }
 
-  const body = (
+  const intro = (
+    <>
+    {!isPage && (
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2"><FileCheck className="h-5 w-5 text-primary" /> Antes de começar {patientName ? `— ${patientName}` : ''}</DialogTitle>
+      </DialogHeader>
+    )}
+    <ScrollArea className={isPage ? '' : 'max-h-[62vh] pr-3'}>
+      <div className="space-y-4 py-2">
+        <div>
+          <p className="text-base font-semibold text-foreground">Antes de começar</p>
+          <p className="text-sm text-muted-foreground">Leia com atenção. Depois de concordar, você responde a anamnese.</p>
+        </div>
+        {templatesChosen.map((t) => (
+          <div key={t.id} className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+            <p className="text-sm font-semibold text-foreground">Riscos e cuidados: {t.category_name || t.name}</p>
+            <div className="space-y-2 text-sm leading-relaxed text-foreground/90">
+              {templateRiskTerms(t).split(/\n{2,}/).map((para, n) => {
+                const k = para.indexOf(':');
+                return k > 0 && k < 40
+                  ? <p key={n}><span className="font-semibold">{para.slice(0, k + 1)}</span>{para.slice(k + 1)}</p>
+                  : <p key={n}>{para}</p>;
+              })}
+            </div>
+            <CheckboxField label="Li, entendi e concordo *" checked={!!riskAck[t.id]} onChange={(v) => setRiskAck((cur) => ({ ...cur, [t.id]: v }))} />
+          </div>
+        ))}
+        <div className="space-y-3 rounded-xl border bg-secondary/40 p-4">
+          <p className="text-sm font-semibold text-foreground">Termos da anamnese</p>
+          <ul className="list-disc space-y-1 pl-4 text-sm text-muted-foreground">
+            <li>As informações que vou prestar são verdadeiras e completas.</li>
+            <li>Estou ciente de que omitir informações pode prejudicar o tratamento.</li>
+            <li>Autorizo a clínica a usar os meus dados para fins do meu tratamento.</li>
+          </ul>
+          <CheckboxField label="Concordo com os termos *" checked={form.consent.agrees_terms} onChange={(v) => updateSection('consent', 'agrees_terms', v)} />
+        </div>
+      </div>
+    </ScrollArea>
+    <div className="flex items-center justify-between border-t pt-4">
+      {!isPage ? (
+        <BrandButton variant="outline" onClick={() => onOpenChange(false)}><ChevronLeft className="h-4 w-4" /> Cancelar</BrandButton>
+      ) : <span />}
+      <BrandButton disabled={!form.consent.agrees_terms || !allRisksAcknowledged} onClick={() => { setIntroAccepted(true); setStep(0); }}>
+        Concordo e quero começar <ChevronRight className="h-4 w-4" />
+      </BrandButton>
+    </div>
+    </>
+  );
+
+  const body = !introAccepted ? intro : (
     <>
     {!isPage && (
       <DialogHeader>
