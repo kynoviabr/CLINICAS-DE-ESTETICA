@@ -17,7 +17,7 @@ import {
   ChevronLeft, ChevronRight, Check, ClipboardList, Loader2, type LucideIcon,
 } from 'lucide-react';
 import {
-  buildTreatmentFormData, templateQuestions, templateRiskTerms, unansweredQuestions,
+  buildTreatmentFormData, templateRiskTerms, unansweredQuestions, visibleTemplateQuestions,
   type AnamneseTemplate, type TreatmentAnswer,
 } from '@/lib/anamnese/templates';
 import { isEmptySelection, type AnamneseSelection } from '@/lib/anamnese/selection';
@@ -271,11 +271,14 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
 
   const [treatmentAnswers, setTreatmentAnswers] = useState<Record<string, Record<string, TreatmentAnswer>>>({});
   const [riskAck, setRiskAck] = useState<Record<string, boolean>>({});
+  // Antes de começar: termos gerais e ciência dos riscos de cada tratamento.
+  const [introAccepted, setIntroAccepted] = useState(false);
 
   const reset = () => {
     setForm(emptyForm);
     setTreatmentAnswers({});
     setRiskAck({});
+    setIntroAccepted(false);
     setChosenLocal(null);
     setSeeded(false);
     setStep(0);
@@ -301,7 +304,7 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
   /** Mensagem do que falta responder numa etapa de tratamento (ou null). */
   const missingIn = (section: Section | undefined) => {
     if (!section?.template) return null;
-    const missing = unansweredQuestions(section.template, treatmentAnswers[section.template.id]);
+    const missing = unansweredQuestions(section.template, treatmentAnswers[section.template.id], !!chosen?.general);
     return missing.length ? `Responda Sim ou Não em todas as perguntas de ${section.label}.` : null;
   };
 
@@ -394,7 +397,7 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
       const t = currentSection.template;
       return (
         <div className="space-y-4">
-          {templateQuestions(t).map((q, i) => (
+          {visibleTemplateQuestions(t, !!chosen?.general).map((q, i) => (
             <TreatmentQuestion
               key={`${t.id}-${i}`}
               id={`tq-${t.id}-${i}`}
@@ -676,19 +679,9 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
       case 'consent':
         return (
           <div className="space-y-5">
-            <div className="p-4 rounded-lg bg-secondary/50 text-sm text-muted-foreground space-y-2">
-              <p>Ao preencher esta anamnese, o(a) paciente declara que:</p>
-              <ul className="list-disc pl-4 space-y-1">
-                <li>As informações prestadas são verdadeiras e completas</li>
-                <li>Está ciente que a omissão de informações pode prejudicar o tratamento</li>
-                <li>Autoriza a clínica a utilizar os dados para fins terapêuticos</li>
-              </ul>
-            </div>
-            <CheckboxField
-              label="Concordo com os termos de consentimento *"
-              checked={form.consent.agrees_terms}
-              onChange={v => updateSection('consent', 'agrees_terms', v)}
-            />
+            <p className="flex items-start gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">
+              <Check className="mt-0.5 h-4 w-4 shrink-0" /> Termos e ciência dos riscos aceitos no início da anamnese.
+            </p>
             {chosen?.general && (
               <>
                 <CheckboxField
@@ -708,17 +701,6 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
                 />
               </>
             )}
-            {templatesChosen.map((t) => (
-              <div key={t.id} className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-                <p className="text-sm font-semibold text-foreground">Ciência dos riscos: {t.category_name || t.name}</p>
-                <p className="text-sm text-muted-foreground">{templateRiskTerms(t)}</p>
-                <CheckboxField
-                  label="Li e concordo *"
-                  checked={!!riskAck[t.id]}
-                  onChange={(v) => setRiskAck((cur) => ({ ...cur, [t.id]: v }))}
-                />
-              </div>
-            ))}
             {isPage && (
               <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
                 <Label>Assinatura: digite seu nome completo *</Label>
@@ -778,7 +760,56 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
     );
   }
 
-  const body = (
+  const intro = (
+    <>
+    {!isPage && (
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2"><FileCheck className="h-5 w-5 text-primary" /> Antes de começar {patientName ? `— ${patientName}` : ''}</DialogTitle>
+      </DialogHeader>
+    )}
+    <ScrollArea className={isPage ? '' : 'max-h-[62vh] pr-3'}>
+      <div className="space-y-4 py-2">
+        <div>
+          <p className="text-base font-semibold text-foreground">Antes de começar</p>
+          <p className="text-sm text-muted-foreground">Leia com atenção. Depois de concordar, você responde a anamnese.</p>
+        </div>
+        {templatesChosen.map((t) => (
+          <div key={t.id} className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+            <p className="text-sm font-semibold text-foreground">Riscos e cuidados: {t.category_name || t.name}</p>
+            <div className="space-y-2 text-sm leading-relaxed text-foreground/90">
+              {templateRiskTerms(t).split(/\n{2,}/).map((para, n) => {
+                const k = para.indexOf(':');
+                return k > 0 && k < 40
+                  ? <p key={n}><span className="font-semibold">{para.slice(0, k + 1)}</span>{para.slice(k + 1)}</p>
+                  : <p key={n}>{para}</p>;
+              })}
+            </div>
+            <CheckboxField label="Li, entendi e concordo *" checked={!!riskAck[t.id]} onChange={(v) => setRiskAck((cur) => ({ ...cur, [t.id]: v }))} />
+          </div>
+        ))}
+        <div className="space-y-3 rounded-xl border bg-secondary/40 p-4">
+          <p className="text-sm font-semibold text-foreground">Termos da anamnese</p>
+          <ul className="list-disc space-y-1 pl-4 text-sm text-muted-foreground">
+            <li>As informações que vou prestar são verdadeiras e completas.</li>
+            <li>Estou ciente de que omitir informações pode prejudicar o tratamento.</li>
+            <li>Autorizo a clínica a usar os meus dados para fins do meu tratamento.</li>
+          </ul>
+          <CheckboxField label="Concordo com os termos *" checked={form.consent.agrees_terms} onChange={(v) => updateSection('consent', 'agrees_terms', v)} />
+        </div>
+      </div>
+    </ScrollArea>
+    <div className="flex items-center justify-between border-t pt-4">
+      {!isPage ? (
+        <BrandButton variant="outline" onClick={() => onOpenChange(false)}><ChevronLeft className="h-4 w-4" /> Cancelar</BrandButton>
+      ) : <span />}
+      <BrandButton disabled={!form.consent.agrees_terms || !allRisksAcknowledged} onClick={() => { setIntroAccepted(true); setStep(0); }}>
+        Concordo e quero começar <ChevronRight className="h-4 w-4" />
+      </BrandButton>
+    </div>
+    </>
+  );
+
+  const body = !introAccepted ? intro : (
     <>
     {!isPage && (
       <DialogHeader>
@@ -789,29 +820,36 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
       </DialogHeader>
     )}
 
-    {/* Step indicator */}
-    <div className="flex items-center gap-1 py-2">
-      {sections.map((s, i) => {
-        const SIcon = s.icon;
-        return (
-          <button
-            key={s.key}
-            type="button"
-            onClick={() => setStep(i)}
-            className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 px-1 rounded-lg transition-colors text-xs ${
-              i === step
-                ? 'bg-primary/10 text-primary font-semibold'
-                : i < step
-                ? 'text-primary/60'
-                : 'text-muted-foreground'
-            }`}
-          >
-            <SIcon className="w-3.5 h-3.5" />
-            <span className="hidden sm:block truncate">{s.label}</span>
-            {i < step && <Check className="w-3 h-3 text-green-500" />}
-          </button>
-        );
-      })}
+    {/* Etapas: texto da etapa atual + barra de progresso + ícones (sempre cabem no quadro) */}
+    <div className="space-y-2 py-2">
+      <div className="flex items-baseline justify-between gap-2 text-xs">
+        <span className="min-w-0 truncate font-semibold text-primary">Etapa {step + 1} de {sections.length} · {sections[step]?.label}</span>
+        <span className="shrink-0 text-muted-foreground">{Math.round(((step + 1) / sections.length) * 100)}%</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-primary transition-[width] duration-300" style={{ width: `${((step + 1) / sections.length) * 100}%` }} />
+      </div>
+      <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${sections.length}, minmax(0, 1fr))` }}>
+        {sections.map((s, i) => {
+          const SIcon = s.icon;
+          return (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => setStep(i)}
+              title={s.label}
+              aria-label={`Etapa ${i + 1}: ${s.label}${i < step ? ' (feita)' : ''}`}
+              aria-current={i === step ? 'step' : undefined}
+              className={`relative flex min-w-0 items-center justify-center rounded-lg py-2 transition-colors ${
+                i === step ? 'bg-primary/10 text-primary' : i < step ? 'text-primary/70 hover:bg-muted' : 'text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              <SIcon className="h-4 w-4" />
+              {i < step && <Check className="absolute right-0.5 top-0.5 h-3 w-3 text-green-500" />}
+            </button>
+          );
+        })}
+      </div>
     </div>
 
     {/* Section content */}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -27,6 +28,7 @@ type PublicContract = {
 export default function PublicContractPage({ copy = false }: { copy?: boolean }) {
   const { token = '' } = useParams<{ token: string }>();
   const [data, setData] = useState<PublicContract | null>(null);
+  useDocumentTitle(data?.clinic?.name ? `Contrato · ${data.clinic.name}` : null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [signError, setSignError] = useState('');

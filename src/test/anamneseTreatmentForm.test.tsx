@@ -48,6 +48,14 @@ describe('anamnese de tratamento (link da paciente)', () => {
     const onSubmitForm = vi.fn(async () => undefined);
     renderForm(onSubmitForm);
 
+    // Antes de começar: riscos do tratamento + termos; só depois de concordar abre a anamnese.
+    expect(screen.getByText('Fui informada dos riscos do peeling.')).toBeInTheDocument();
+    const start = screen.getByRole('button', { name: /Concordo e quero começar/ });
+    expect(start).toBeDisabled();
+    screen.getAllByRole('checkbox').forEach((box) => fireEvent.click(box)); // "Li, entendi e concordo" + termos
+    expect(start).not.toBeDisabled();
+    fireEvent.click(start);
+
     // Sem a inicial: começa direto nas perguntas do tratamento.
     expect(screen.getByText('Usa ácidos ou retinoides?')).toBeInTheDocument();
     expect(screen.queryByText('Profissão')).not.toBeInTheDocument();
@@ -60,13 +68,8 @@ describe('anamnese de tratamento (link da paciente)', () => {
     fireEvent.change(screen.getByLabelText('Qual seu objetivo principal?'), { target: { value: 'manchas' } });
     fireEvent.click(screen.getByRole('button', { name: /Próximo/ }));
 
-    // Consentimento: ciência de riscos do tratamento + assinatura.
-    expect(screen.getByText('Fui informada dos riscos do peeling.')).toBeInTheDocument();
+    // Consentimento: riscos já aceitos no início; falta a assinatura.
     const send = screen.getByRole('button', { name: /Enviar anamnese/ });
-    expect(send).toBeDisabled();
-
-    const boxes = screen.getAllByRole('checkbox');
-    boxes.forEach((box) => fireEvent.click(box)); // termos + "Li e concordo"
     fireEvent.change(screen.getByPlaceholderText('Seu nome completo'), { target: { value: 'Joana Silva' } });
     expect(send).not.toBeDisabled();
     fireEvent.click(send);

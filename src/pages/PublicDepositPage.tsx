@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useParams } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { CalendarDays, CheckCircle2, Copy, Loader2, ShieldCheck } from 'lucide-react';
@@ -22,6 +23,7 @@ const MESSAGES: Record<string, string> = {
 export default function PublicDepositPage() {
   const { token = '' } = useParams<{ token: string }>();
   const [data, setData] = useState<DepositPublic | null>(null);
+  useDocumentTitle(data?.clinic?.name ? `Sinal do agendamento · ${data.clinic.name}` : null);
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [qr, setQr] = useState('');

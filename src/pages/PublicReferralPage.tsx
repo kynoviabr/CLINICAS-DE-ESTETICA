@@ -1,4 +1,5 @@
 import { publicOrigin } from '@/lib/publicOrigin';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { CheckCircle2, Loader2 } from 'lucide-react';
@@ -14,6 +15,7 @@ type Page = { ok: boolean; referrer_first_name: string; clinic: { name: string; 
 export default function PublicReferralPage() {
   const { code = '' } = useParams<{ code: string }>();
   const [page, setPage] = useState<Page | null | undefined>(undefined);
+  useDocumentTitle(page?.clinic?.name ? `Indicação · ${page.clinic.name}` : null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [busy, setBusy] = useState(false);
