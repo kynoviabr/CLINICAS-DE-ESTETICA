@@ -1129,6 +1129,12 @@ export type Database = {
         }
         Relationships: []
       }
+      contract_amendments: {
+        Row: { accepted_at: string | null; accepted_hash: string | null; accepted_ip: string | null; accepted_name: string | null; accepted_user_agent: string | null; accepted_verified_by: string | null; applied_at: string | null; changes: Json; clinic_id: string; contract_id: string; created_at: string; created_by: string | null; discarded_at: string | null; id: string; kind: string; reason: string; requires_acceptance: boolean; status: string }
+        Insert: { applied_at?: string | null; changes?: Json; clinic_id: string; contract_id: string; created_at?: string; created_by?: string | null; id?: string; kind: string; reason: string; requires_acceptance?: boolean; status?: string }
+        Update: { applied_at?: string | null; changes?: Json; clinic_id?: string; contract_id?: string; created_at?: string; created_by?: string | null; id?: string; kind?: string; reason?: string; requires_acceptance?: boolean; status?: string }
+        Relationships: []
+      }
       contract_installments: {
         Row: {
           amount: number
@@ -4601,6 +4607,42 @@ export type Database = {
       }
     }
     Functions: {
+      propose_contract_payment_amendment: {
+        Args: { p_contract_id: string; p_first_due: string; p_methods: Json; p_reason: string }
+        Returns: string
+      }
+      create_amendment_link: {
+        Args: { p_amendment_id: string }
+        Returns: Json
+      }
+      discard_contract_amendment: {
+        Args: { p_amendment_id: string }
+        Returns: undefined
+      }
+      get_public_amendment: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      accept_public_amendment: {
+        Args: { p_full_name: string; p_identity: string; p_token: string }
+        Returns: Json
+      }
+      create_contract_copy_link: {
+        Args: { p_contract_id: string }
+        Returns: Json
+      }
+      get_public_contract_copy: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      amend_contract_patient_data: {
+        Args: { p_changes: Json; p_contract_id: string; p_reason: string }
+        Returns: string
+      }
+      approve_contract_review: {
+        Args: { p_contract_id: string; p_reason: string }
+        Returns: string
+      }
       whatsapp_link_conversation: {
         Args: { p_conversation_id: string; p_lead_id: string | null; p_patient_id: string | null }
         Returns: undefined

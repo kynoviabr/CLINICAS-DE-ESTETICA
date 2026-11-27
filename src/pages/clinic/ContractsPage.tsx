@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/ui/page-header';
 import { BrandButton } from '@/components/ui/brand-button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -123,6 +124,7 @@ export default function ContractsPage() {
   const [generatingPreview, setGeneratingPreview] = useState(false);
 
   const [selectedProposal, setSelectedProposal] = useState('');
+  const [birthDateInput, setBirthDateInput] = useState('');
   const [payerData, setPayerData] = useState<PayerData>({ is_self_payer: true, payer_id: null });
   const [paymentCondition, setPaymentCondition] = useState<PaymentCondition>('cash');
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -298,6 +300,16 @@ export default function ContractsPage() {
       const contractNumber = `CT-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`;
 
       const proposal = approvedProposals.find((item) => item.id === selectedProposal);
+      // Data de nascimento é obrigatória: o paciente confirma a identidade com ela ao assinar pelo celular.
+      if (proposal && !proposal.patients?.date_of_birth) {
+        const today = new Date().toISOString().slice(0, 10);
+        if (!birthDateInput || birthDateInput >= today || birthDateInput < '1900-01-01') {
+          throw new Error('Informe a data de nascimento do paciente. Ela é usada para confirmar a identidade na assinatura pelo celular.');
+        }
+        const { error: dobError } = await supabase.from('patients').update({ date_of_birth: birthDateInput }).eq('id', proposal.patient_id);
+        if (dobError) throw dobError;
+        proposal.patients = { ...proposal.patients, date_of_birth: birthDateInput } as typeof proposal.patients;
+      }
       if (!proposal) throw new Error('Selecione uma proposta');
       if (selectedPaymentMethods.length === 0) throw new Error('Selecione ao menos uma forma de pagamento.');
       const proposalAmount = Math.max(0, Number(proposal.final_amount || 0) - depositCredit);
@@ -452,6 +464,7 @@ export default function ContractsPage() {
       qc.invalidateQueries({ queryKey: ['patients'] });
       setCreateDialog(false);
       setSelectedProposal('');
+      setBirthDateInput('');
       setPaymentCondition('cash');
       setSelectedPaymentMethods([]);
       setPaymentDetails({});
@@ -515,6 +528,7 @@ export default function ContractsPage() {
       setPreviewContract(null);
       setCreateDialog(false);
       setSelectedProposal('');
+      setBirthDateInput('');
       toast({ title: 'Contrato emitido com sucesso!' });
     } catch (error) {
       if (uploaded) await supabase.storage.from('contracts').remove([previewContract.pdfPath]);
@@ -860,7 +874,14 @@ export default function ContractsPage() {
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <p className="text-sm font-medium text-foreground">{contract.contract_number}</p>
+                      <button
+                        type="button"
+                        onClick={() => setViewContract(contract)}
+                        className="rounded-sm text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        title={`Abrir contrato ${contract.contract_number}`}
+                      >
+                        {contract.contract_number}
+                      </button>
                       <p className="text-xs text-muted-foreground">
                         {format(new Date(contract.created_at), 'dd/MM/yyyy', { locale: ptBR })}
                       </p>
@@ -916,6 +937,7 @@ export default function ContractsPage() {
           setCreateDialog(open);
           if (!open) {
             setSelectedProposal('');
+      setBirthDateInput('');
             setPaymentCondition('cash');
             setSelectedPaymentMethods([]);
             setPaymentDetails({});
@@ -966,6 +988,15 @@ export default function ContractsPage() {
                 </p>
               )}
             </div>
+
+            {selectedProposalData && !selectedProposalData.patients?.date_of_birth && (
+              <div className="space-y-1.5 rounded-lg border border-amber-300 bg-amber-50 p-3">
+                <Label htmlFor="contract-birth-date" className="text-sm font-medium text-amber-900">Data de nascimento do paciente (obrigatória)</Label>
+                <Input id="contract-birth-date" type="date" max={new Date().toISOString().slice(0, 10)} value={birthDateInput}
+                  onChange={(e) => setBirthDateInput(e.target.value)} className="max-w-[220px] bg-white" />
+                <p className="text-xs text-amber-800">O cadastro de {selectedProposalData.patients?.full_name || 'paciente'} está sem data de nascimento. Ela é usada para confirmar a identidade na assinatura pelo celular e fica salva no cadastro.</p>
+              </div>
+            )}
 
             {approvedProposals.length > 0 && (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">

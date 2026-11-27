@@ -22,6 +22,7 @@ const PublicDepositPage = lazy(() => import("./pages/PublicDepositPage"));
 const PublicVerifyPage = lazy(() => import("./pages/PublicVerifyPage"));
 const PublicAppointmentPage = lazy(() => import("./pages/PublicAppointmentPage"));
 const PublicContractPage = lazy(() => import("./pages/PublicContractPage"));
+const PublicAmendmentPage = lazy(() => import("./pages/PublicAmendmentPage"));
 const PortalEntryPage = lazy(() => import("./pages/PortalEntryPage"));
 const MfaPage = lazy(() => import("./pages/MfaPage"));
 const PublicBookingPage = lazy(() => import("./pages/PublicBookingPage"));
@@ -88,6 +89,8 @@ const App = () => (
               <Route path="/verificar/:code" element={<PublicVerifyPage />} />
               <Route path="/agendamento/:token" element={<PublicAppointmentPage />} />
               <Route path="/contrato/:token" element={<PublicContractPage />} />
+              <Route path="/contrato-copia/:token" element={<PublicContractPage copy />} />
+              <Route path="/aditivo/:token" element={<PublicAmendmentPage />} />
               <Route path="/portal/entrar/:token" element={<PortalEntryPage />} />
               <Route path="/duas-etapas" element={<MfaPage />} />
               <Route path="/agendar/:slug" element={<PublicBookingPage />} />
