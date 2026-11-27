@@ -67,3 +67,12 @@ describe('devoluções a pacientes no DRE', () => {
     expect(result).toBe(500);
   });
 });
+
+describe('taxas de cartão no DRE', () => {
+  it('entram como dedução antes da receita líquida', async () => {
+    const { buildDre } = await import('@/lib/finance/dre');
+    const { lines } = buildDre({ received: 1000, cardFees: 50, materialUsed: 0, materialLost: 0, expenses: [] }, true);
+    expect(lines.find((l) => l.key === 'card_fees')?.value).toBe(50);
+    expect(lines.find((l) => l.key === 'net')?.value).toBe(950);
+  });
+});
