@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CheckCircle2, CreditCard, Package, History, Link2, Loader2, MessageCircle, Plus, Trash2, UserPen } from 'lucide-react';
+import { Ban, CheckCircle2, CreditCard, Package, Undo2, History, Link2, Loader2, MessageCircle, Plus, Trash2, UserPen } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { publicOrigin } from '@/lib/publicOrigin';
 import { whatsappLink } from '@/lib/proposals/sale';
-import { METHOD_LABEL, brDate, brl, describeInstallment, describeMethod, splittable, type ItemNow, type ItemsChanges, type NewMethod, type PaymentChanges } from '@/lib/contracts/paymentAmendment';
+import { METHOD_LABEL, brDate, brl, describeInstallment, describeMethod, splittable, type CancellationCalc, type ItemNow, type ItemsChanges, type NewMethod, type PaymentChanges, REFUND_METHOD_LABEL } from '@/lib/contracts/paymentAmendment';
+import { upsertClinicSetting } from '@/lib/setup/clinicSetup';
+import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { BrandButton } from '@/components/ui/brand-button';
@@ -81,6 +83,7 @@ export function AmendmentHistory({ amendments, userNames }: { amendments: Contra
               <p className="mt-1 text-muted-foreground">Motivo: {a.reason}</p>
               {a.kind === 'payment' && <PaymentChangeSummary changes={a.changes as unknown as PaymentChanges} />}
               {a.kind === 'items' && <ItemsChangeSummary changes={a.changes as unknown as ItemsChanges} />}
+              {a.kind === 'cancellation' && <CancellationSummary calc={a.changes as unknown as CancellationCalc} />}
               {a.accepted_at && (
                 <p className="mt-1 text-emerald-700">Aceito por {a.accepted_name} em {format(new Date(a.accepted_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })} ({a.accepted_verified_by === 'birth_date' ? 'data de nascimento conferida' : a.accepted_verified_by === 'cpf' ? 'CPF conferido' : 'nome conferido'})</p>
               )}
@@ -359,7 +362,7 @@ export function PendingAmendmentCard({ amendment, contractId, patientId, contrac
       const { data: p } = await supabase.from('patients').select('full_name, phone').eq('id', patientId).maybeSingle();
       if (!p?.phone) throw new Error('O paciente não tem telefone cadastrado.');
       const url = await makeLink();
-      const msg = `Olá, ${p.full_name.split(' ')[0]}! Aqui é da ${clinicName || 'clínica'}. Conforme combinamos, preparamos a alteração ${amendment.kind === 'items' ? 'nos tratamentos' : 'na forma de pagamento'} do seu contrato nº ${contractNumber}. Confira e aceite neste link seguro:\n\n${url}\n\nVai pedir seu nome completo e a data de nascimento para confirmar que é você.`;
+      const msg = `Olá, ${p.full_name.split(' ')[0]}! Aqui é da ${clinicName || 'clínica'}. Conforme combinamos, preparamos ${amendment.kind === 'cancellation' ? 'o termo de cancelamento' : amendment.kind === 'items' ? 'a alteração nos tratamentos' : 'a alteração na forma de pagamento'} do seu contrato nº ${contractNumber}. Confira e aceite neste link seguro:\n\n${url}\n\nVai pedir seu nome completo e a data de nascimento para confirmar que é você.`;
       const wa = whatsappLink(p.phone, msg);
       if (tab) tab.location.href = wa; else window.location.href = wa;
       toast({ title: 'WhatsApp aberto', description: 'Link do aceite pronto para enviar. Vale 15 dias.' });
@@ -390,6 +393,7 @@ export function PendingAmendmentCard({ amendment, contractId, patientId, contrac
       <p className="text-xs text-amber-800">{AMENDMENT_KIND_LABEL[amendment.kind] || amendment.kind} · criada em {format(new Date(amendment.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}. Nada muda no financeiro até o aceite.</p>
       {amendment.kind === 'payment' && <div className="text-xs"><PaymentChangeSummary changes={amendment.changes as unknown as PaymentChanges} /></div>}
       {amendment.kind === 'items' && <div className="text-xs"><ItemsChangeSummary changes={amendment.changes as unknown as ItemsChanges} /></div>}
+      {amendment.kind === 'cancellation' && <div className="text-xs"><CancellationSummary calc={amendment.changes as unknown as CancellationCalc} /></div>}
       <div className="mt-3 flex flex-wrap gap-2">
         <BrandButton size="sm" onClick={sendWa} disabled={!!busy}>{busy === 'wa' ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />} Enviar ao paciente</BrandButton>
         <BrandButton size="sm" variant="outline" onClick={copy} disabled={!!busy}><Link2 className="h-4 w-4" /> Copiar link</BrandButton>
@@ -602,5 +606,159 @@ export function ItemsAmendDialog({ contractId, clinicId, open, onOpenChange, onD
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Conta do cancelamento: pago − usado − multa. */
+export function CancellationSummary({ calc }: { calc: CancellationCalc }) {
+  if (!calc) return null;
+  return (
+    <div className="mt-1.5 space-y-0.5">
+      <p>Pago: <b>{brl(calc.paid)}</b></p>
+      <p>Usado (sessões feitas): − {brl(calc.used_value)}</p>
+      <p>Multa ({calc.fee_percent}% sobre o não usado de {brl(calc.unused_value)}): − {brl(calc.fee)}</p>
+      {calc.refund > 0 && <p className="font-semibold text-emerald-700">Devolução ao paciente: {brl(calc.refund)}</p>}
+      {calc.due > 0 && <p className="font-semibold text-rose-700">Paciente ainda deve: {brl(calc.due)}</p>}
+      {calc.refund === 0 && calc.due === 0 && <p className="font-semibold">Sem valores a devolver ou receber.</p>}
+      {calc.open_balance > 0 && <p className="text-muted-foreground">Parcelas em aberto ({brl(calc.open_balance)}) são canceladas.</p>}
+    </div>
+  );
+}
+
+/** Cancelar contrato: mostra a conta e cria o termo para o paciente aceitar. */
+export function CancellationDialog({ contractId, clinicId, open, onOpenChange, onDone }: {
+  contractId: string; clinicId: string; open: boolean; onOpenChange: (v: boolean) => void; onDone: () => void;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [fee, setFee] = useState<number | null>(null);
+  const [saveDefault, setSaveDefault] = useState(false);
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { if (open) { setFee(null); setSaveDefault(false); setReason(''); } }, [open]);
+
+  const { data: calc, isFetching } = useQuery({
+    queryKey: ['contract-cancel-preview', contractId, fee, open],
+    enabled: open,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('contract_cancellation_preview', { p_contract_id: contractId, p_fee_percent: fee });
+      if (error) throw error;
+      return data as unknown as CancellationCalc;
+    },
+  });
+  useEffect(() => { if (calc && fee === null) setFee(Number(calc.default_fee_percent || 0)); }, [calc, fee]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      if (saveDefault) await upsertClinicSetting(clinicId, 'contract_cancellation_fee_percent', String(fee ?? 0));
+      const { error } = await supabase.rpc('propose_contract_cancellation', { p_contract_id: contractId, p_fee_percent: fee ?? 0, p_reason: reason.trim() });
+      if (error) throw error;
+      toast({ title: 'Termo de cancelamento criado', description: 'Envie ao paciente. O contrato só é cancelado depois do aceite.' });
+      qc.invalidateQueries({ queryKey: ['contract-amendments', contractId] });
+      onOpenChange(false);
+      onDone();
+    } catch (e) {
+      toast({ title: 'Não foi possível criar o termo', description: e instanceof Error ? e.message : '', variant: 'destructive' });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-destructive"><Ban className="h-5 w-5" /> Cancelar contrato</DialogTitle>
+          <DialogDescription>Calcula a devolução (pago − usado − multa) e gera o termo de cancelamento para o paciente aceitar pelo link.</DialogDescription>
+        </DialogHeader>
+        {!calc ? <p className="text-sm text-muted-foreground">Calculando…</p> : (
+          <div className="space-y-4">
+            {calc.items.length > 0 && (
+              <div className="rounded-lg border p-3 text-sm">
+                <p className="mb-1 font-medium">O que foi usado</p>
+                <ul className="space-y-0.5 text-muted-foreground">
+                  {calc.items.map((it, n) => <li key={n}>{it.name}: {it.used} de {it.contracted} sessões · {brl(it.used_value)} de {brl(it.value)}</li>)}
+                </ul>
+              </div>
+            )}
+            <div className="grid gap-3 sm:grid-cols-[160px_1fr] sm:items-end">
+              <div className="space-y-1">
+                <Label className="text-xs">Multa (%)</Label>
+                <Input type="number" min={0} max={100} step="0.5" value={fee ?? ''} onChange={(e) => setFee(Math.max(0, Math.min(100, Number(e.target.value))))} />
+              </div>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox checked={saveDefault} onCheckedChange={(v) => setSaveDefault(!!v)} /> Usar este percentual como padrão da clínica
+              </label>
+            </div>
+            <div className={`rounded-lg border p-3 text-sm ${isFetching ? 'opacity-60' : ''}`}>
+              <CancellationSummary calc={calc} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Motivo do cancelamento (obrigatório)</Label>
+              <Textarea rows={2} placeholder="Ex.: paciente mudou de cidade" value={reason} onChange={(e) => setReason(e.target.value)} />
+            </div>
+          </div>
+        )}
+        <div className="flex justify-end gap-2 pt-2">
+          <BrandButton variant="ghost" onClick={() => onOpenChange(false)}>Voltar</BrandButton>
+          <BrandButton className="bg-destructive hover:bg-destructive/90" disabled={!calc || reason.trim().length < 5 || saving || isFetching} onClick={save}>
+            {saving ? 'Criando…' : 'Criar termo e enviar ao paciente'}
+          </BrandButton>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Devolução do cancelamento: pendente até a equipe registrar. */
+export function ContractRefunds({ contractId }: { contractId: string }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [form, setForm] = useState<{ id: string; method: string; date: string; notes: string } | null>(null);
+  const { data: refunds = [] } = useQuery({
+    queryKey: ['contract-refunds', contractId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('contract_refunds').select('id, amount, status, paid_at, paid_method, notes, created_at').eq('contract_id', contractId).order('created_at');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+  if (!refunds.length) return null;
+  const save = async () => {
+    if (!form) return;
+    const { error } = await supabase.rpc('mark_contract_refund_paid', { p_refund_id: form.id, p_method: form.method, p_paid_at: form.date, p_notes: form.notes || null });
+    if (error) { toast({ title: 'Não foi possível registrar', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: 'Devolução registrada' });
+    setForm(null);
+    qc.invalidateQueries({ queryKey: ['contract-refunds', contractId] });
+  };
+  return (
+    <div className="space-y-2">
+      {refunds.map((r) => (
+        <div key={r.id} className={`rounded-xl border p-4 text-sm ${r.status === 'pending' ? 'border-amber-300 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+          <p className="flex items-center gap-2 font-semibold"><Undo2 className="h-4 w-4" /> Devolução ao paciente: {brl(Number(r.amount))}</p>
+          {r.status === 'paid'
+            ? <p className="text-xs text-emerald-800">Devolvida em {brDate(r.paid_at || '')} · {REFUND_METHOD_LABEL[r.paid_method || ''] || r.paid_method}{r.notes ? ` · ${r.notes}` : ''}</p>
+            : form?.id === r.id ? (
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                <Select value={form.method} onValueChange={(v) => setForm({ ...form, method: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{Object.entries(REFUND_METHOD_LABEL).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}</SelectContent>
+                </Select>
+                <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+                <Input placeholder="Observação (opcional)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+                <div className="flex gap-2 sm:col-span-3">
+                  <BrandButton size="sm" onClick={save}>Confirmar devolução</BrandButton>
+                  <BrandButton size="sm" variant="ghost" onClick={() => setForm(null)}>Cancelar</BrandButton>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-amber-800">Pendente: faça a devolução e registre aqui.</p>
+                <BrandButton size="sm" onClick={() => setForm({ id: r.id, method: 'pix', date: todayIso(), notes: '' })}>Registrar devolução feita</BrandButton>
+              </div>
+            )}
+        </div>
+      ))}
+    </div>
   );
 }
