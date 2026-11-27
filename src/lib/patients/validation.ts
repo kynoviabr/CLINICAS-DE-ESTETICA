@@ -56,11 +56,23 @@ export function formatPatientAddress(p: PatientAddressParts): string {
   return [street, cityUf, cep].filter(Boolean).join(', ');
 }
 
-export type PatientFieldErrors = Partial<Record<'cpf' | 'phone' | 'address_number', string>>;
+export type PatientFieldErrors = Partial<Record<'cpf' | 'phone' | 'address_number' | 'date_of_birth', string>>;
+
+/** Data de nascimento: obrigatória (confirma a identidade nos links) e não pode ser futura. */
+export function birthDateError(value: string | null | undefined): string | null {
+  if (!value) return 'Data de nascimento é obrigatória.';
+  const today = new Date().toISOString().slice(0, 10);
+  if (value >= today || value < '1900-01-01') return 'Data de nascimento inválida.';
+  return null;
+}
 
 /** Regras do cadastro completo de cliente. */
-export function validatePatientFields(form: { cpf: string; phone: string; address: string; address_number: string }): PatientFieldErrors {
+export function validatePatientFields(form: { cpf: string; phone: string; address: string; address_number: string; date_of_birth?: string }): PatientFieldErrors {
   const errors: PatientFieldErrors = {};
+  if ('date_of_birth' in form) {
+    const dob = birthDateError(form.date_of_birth);
+    if (dob) errors.date_of_birth = dob;
+  }
   if (!onlyDigits(form.cpf)) errors.cpf = 'CPF é obrigatório.';
   else if (!isValidCpf(form.cpf)) errors.cpf = 'CPF inválido. Confira os 11 dígitos.';
   if (!onlyDigits(form.phone)) errors.phone = 'Telefone é obrigatório.';

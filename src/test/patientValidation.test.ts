@@ -57,4 +57,9 @@ describe('Cadastro', () => {
     expect(patientSaveErrorMessage({ code: '23505', hint: 'cpf_duplicado', message: 'CPF já cadastrado para outro cliente: Ana' }))
       .toBe('CPF já cadastrado para outro cliente: Ana');
   });
+  it('data de nascimento obrigatória quando o formulário tem o campo', () => {
+    expect(validatePatientFields({ ...base, date_of_birth: '' }).date_of_birth).toBe('Data de nascimento é obrigatória.');
+    expect(validatePatientFields({ ...base, date_of_birth: '2999-01-01' }).date_of_birth).toBe('Data de nascimento inválida.');
+    expect(validatePatientFields({ ...base, date_of_birth: '1990-05-10' }).date_of_birth).toBeUndefined();
+  });
 });
