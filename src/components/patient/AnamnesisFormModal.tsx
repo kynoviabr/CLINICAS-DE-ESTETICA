@@ -17,7 +17,7 @@ import {
   ChevronLeft, ChevronRight, Check, ClipboardList, Loader2, type LucideIcon,
 } from 'lucide-react';
 import {
-  buildTreatmentFormData, templateQuestions, templateRiskTerms, unansweredQuestions,
+  buildTreatmentFormData, templateRiskTerms, unansweredQuestions, visibleTemplateQuestions,
   type AnamneseTemplate, type TreatmentAnswer,
 } from '@/lib/anamnese/templates';
 import { isEmptySelection, type AnamneseSelection } from '@/lib/anamnese/selection';
@@ -304,7 +304,7 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
   /** Mensagem do que falta responder numa etapa de tratamento (ou null). */
   const missingIn = (section: Section | undefined) => {
     if (!section?.template) return null;
-    const missing = unansweredQuestions(section.template, treatmentAnswers[section.template.id]);
+    const missing = unansweredQuestions(section.template, treatmentAnswers[section.template.id], !!chosen?.general);
     return missing.length ? `Responda Sim ou Não em todas as perguntas de ${section.label}.` : null;
   };
 
@@ -397,7 +397,7 @@ export default function AnamnesisFormModal({ open, onOpenChange, patientId, clin
       const t = currentSection.template;
       return (
         <div className="space-y-4">
-          {templateQuestions(t).map((q, i) => (
+          {visibleTemplateQuestions(t, !!chosen?.general).map((q, i) => (
             <TreatmentQuestion
               key={`${t.id}-${i}`}
               id={`tq-${t.id}-${i}`}

@@ -163,6 +163,18 @@ export function templateQuestions(template: Pick<AnamneseTemplate, 'questions' |
   return (template.specific_questions || []).filter(Boolean).map((text) => ({ text, type: guessQuestionType(text) }));
 }
 
+// Perguntas que a anamnese básica já faz (alergias, medicamentos, gestação, cirurgias, doença crônica, objetivo).
+// Quando as duas são respondidas juntas, o tratamento não repete.
+const COVERED_BY_GENERAL = [/alergi/i, /medica(mento|ção|cao)|anticoagul/i, /gestant|gr[áa]vid|amament/i, /cirurgi/i, /doen[çc]a cr[ôo]nica/i, /objetivo|resultado espera/i];
+// A ciência dos riscos agora é aceita antes de começar: a pergunta não precisa aparecer.
+const COVERED_BY_INTRO = [/orientad[oa] sobre (os )?riscos/i];
+
+/** Perguntas do tratamento que aparecem para o paciente (sem repetir a anamnese básica nem a ciência dos riscos). */
+export function visibleTemplateQuestions(template: Pick<AnamneseTemplate, 'questions' | 'specific_questions'>, withGeneral: boolean): TemplateQuestion[] {
+  return templateQuestions(template).filter((q) =>
+    !COVERED_BY_INTRO.some((re) => re.test(q.text)) && !(withGeneral && COVERED_BY_GENERAL.some((re) => re.test(q.text))));
+}
+
 /** Texto padrão de ciência de riscos de uma categoria. */
 type RiskInfo = { como: string; riscos: string; contra: string; antes: string; depois: string };
 
@@ -249,7 +261,10 @@ export function defaultRiskTerms(categoryName: string) {
 
 /** Texto de riscos do modelo (ou o padrão da categoria). */
 export function templateRiskTerms(template: Pick<AnamneseTemplate, 'risk_terms' | 'category_name'>) {
-  return template.risk_terms?.trim() || defaultRiskTerms(template.category_name);
+  const custom = template.risk_terms?.trim();
+  // Modelos salvos com o texto curto antigo passam a usar o detalhado.
+  if (!custom || custom.startsWith('Declaro que fui informada sobre como funciona o tratamento de')) return defaultRiskTerms(template.category_name);
+  return custom;
 }
 
 export function buildAnamneseTemplate(category: TreatmentCategory): AnamneseTemplate {
@@ -299,6 +314,6 @@ export function buildTreatmentFormData(
 }
 
 /** Perguntas Sim/Não do modelo ainda sem resposta. */
-export function unansweredQuestions(template: AnamneseTemplate, answers: Record<string, TreatmentAnswer> | undefined) {
-  return templateQuestions(template).filter((q) => q.type === 'yes_no' && !isAnswered(q, answers?.[q.text]));
+export function unansweredQuestions(template: AnamneseTemplate, answers: Record<string, TreatmentAnswer> | undefined, withGeneral = false) {
+  return visibleTemplateQuestions(template, withGeneral).filter((q) => q.type === 'yes_no' && !isAnswered(q, answers?.[q.text]));
 }
