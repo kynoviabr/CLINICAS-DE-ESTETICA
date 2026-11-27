@@ -726,8 +726,17 @@ export default function PatientsPage() {
                 {fieldErrors.cpf && <p className="text-xs text-destructive">{fieldErrors.cpf}</p>}
               </div>
               <div className="space-y-2">
-                <Label>Data de nascimento</Label>
-                <Input type="date" value={form.date_of_birth} onChange={e => setForm({ ...form, date_of_birth: e.target.value })} />
+                <Label>Data de nascimento *</Label>
+                <Input
+                  type="date"
+                  value={form.date_of_birth}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={e => setForm({ ...form, date_of_birth: e.target.value })}
+                  aria-invalid={!!fieldErrors.date_of_birth}
+                  className={fieldErrors.date_of_birth ? 'border-destructive' : undefined}
+                  required
+                />
+                {fieldErrors.date_of_birth && <p className="text-xs text-destructive">{fieldErrors.date_of_birth}</p>}
               </div>
             </div>
             <PatientDuplicateAlert cpfMatch={duplicates.cpfMatch} phoneMatches={duplicates.phoneMatches} />

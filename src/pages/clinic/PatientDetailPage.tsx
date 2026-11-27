@@ -530,8 +530,17 @@ export default function PatientDetailPage() {
                 {editErrors.cpf && <p className="text-xs text-destructive">{editErrors.cpf}</p>}
               </div>
               <div className="space-y-2">
-                <Label>Data de nascimento</Label>
-                <Input type="date" value={editForm.date_of_birth} onChange={(event) => setEditForm((current) => ({ ...current, date_of_birth: event.target.value }))} />
+                <Label>Data de nascimento *</Label>
+                <Input
+                  type="date"
+                  value={editForm.date_of_birth}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(event) => setEditForm((current) => ({ ...current, date_of_birth: event.target.value }))}
+                  aria-invalid={!!editErrors.date_of_birth}
+                  className={editErrors.date_of_birth ? 'border-destructive' : undefined}
+                  required
+                />
+                {editErrors.date_of_birth && <p className="text-xs text-destructive">{editErrors.date_of_birth}</p>}
               </div>
             </div>
             <PatientDuplicateAlert cpfMatch={duplicates.cpfMatch} phoneMatches={duplicates.phoneMatches} />
