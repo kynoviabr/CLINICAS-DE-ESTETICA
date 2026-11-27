@@ -26,6 +26,8 @@ export default function QuickPatientModal({ open, onOpenChange, onCreated }: Qui
   const [phone, setPhone] = useState('');
   const [cpf, setCpf] = useState('');
   const [email, setEmail] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [birthError, setBirthError] = useState('');
   const [errors, setErrors] = useState<PatientFieldErrors>({});
   const [checking, setChecking] = useState(false);
   const duplicates = usePatientDuplicateCheck(clinicId);
@@ -43,6 +45,7 @@ export default function QuickPatientModal({ open, onOpenChange, onCreated }: Qui
           phone: phone.trim(),
           cpf: onlyDigits(cpf) || null,
           email: email.trim() || null,
+          date_of_birth: birthDate,
           is_self_payer: true,
         })
         .select('id, full_name')
@@ -69,6 +72,8 @@ export default function QuickPatientModal({ open, onOpenChange, onCreated }: Qui
     setPhone('');
     setCpf('');
     setEmail('');
+    setBirthDate('');
+    setBirthError('');
     setErrors({});
     duplicates.reset();
   };
@@ -76,7 +81,11 @@ export default function QuickPatientModal({ open, onOpenChange, onCreated }: Qui
   const handleSubmit = async () => {
     const found = validatePatientFields({ cpf, phone, address: '', address_number: '' });
     setErrors(found);
-    if (Object.keys(found).length > 0) return;
+    // Data de nascimento: confirma a identidade do paciente nos links (anamnese, contrato, revisões).
+    const today = new Date().toISOString().slice(0, 10);
+    const dobError = !birthDate ? 'Informe a data de nascimento.' : birthDate >= today || birthDate < '1900-01-01' ? 'Data de nascimento inválida.' : '';
+    setBirthError(dobError);
+    if (Object.keys(found).length > 0 || dobError) return;
     try {
       setChecking(true);
       if (!(await duplicates.canSave(cpf, phone))) return;
@@ -145,14 +154,27 @@ export default function QuickPatientModal({ open, onOpenChange, onCreated }: Qui
               {errors.cpf && <p className="text-xs text-destructive">{errors.cpf}</p>}
             </div>
             <div className="space-y-2">
-              <Label>E-mail</Label>
+              <Label>Data de nascimento *</Label>
               <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="email@exemplo.com"
+                type="date"
+                value={birthDate}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => { setBirthDate(e.target.value); setBirthError(''); }}
+                aria-invalid={!!birthError}
+                className={birthError ? 'border-destructive' : undefined}
+                required
               />
+              {birthError && <p className="text-xs text-destructive">{birthError}</p>}
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label>E-mail</Label>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="email@exemplo.com"
+            />
           </div>
           <PatientDuplicateAlert cpfMatch={duplicates.cpfMatch} phoneMatches={duplicates.phoneMatches} />
           <div className="flex gap-3 pt-2">
