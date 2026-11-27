@@ -8,10 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ContractStatusBadge } from './ContractStatusBadge';
-import { AmendmentHistory, ApproveReviewDialog, PatientDataAmendDialog, PaymentAmendDialog, PendingAmendmentCard, ItemsAmendDialog, useContractAmendments } from './ContractAmendments';
+import { AmendmentHistory, ApproveReviewDialog, PatientDataAmendDialog, PaymentAmendDialog, PendingAmendmentCard, ItemsAmendDialog, CancellationDialog, ContractRefunds, useContractAmendments } from './ContractAmendments';
 import ContractSignaturePanel from './ContractSignaturePanel';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, Copy, ExternalLink, FileUp, TriangleAlert, UserPen, CreditCard, Package } from 'lucide-react';
+import { CheckCircle2, Copy, ExternalLink, FileUp, TriangleAlert, UserPen, CreditCard, Package, Ban } from 'lucide-react';
 import { DocumentOutputButtons } from '@/components/documents/DocumentOutputButtons';
 import type { DocumentOutput } from '@/lib/documents/output';
 import { buildSignatureSheet } from '@/lib/documents/signatureSheet';
@@ -123,6 +123,7 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
   const [approveDlg, setApproveDlg] = useState(false);
   const [paymentDlg, setPaymentDlg] = useState(false);
   const [itemsDlg, setItemsDlg] = useState(false);
+  const [cancelDlg, setCancelDlg] = useState(false);
   const { data: amendments = [] } = useContractAmendments(c.id);
   const pendingAmendment = amendments.find((a) => a.status === 'pending_acceptance');
   const parsed = parseContractNotes(c.notes);
@@ -478,8 +479,10 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
         <ApproveReviewDialog contractId={c.id} open={approveDlg} onOpenChange={setApproveDlg} onDone={refreshContracts} />
         <PaymentAmendDialog contractId={c.id} open={paymentDlg} onOpenChange={setPaymentDlg} onDone={() => qc.invalidateQueries({ queryKey: ['contracts'] })} />
         <ItemsAmendDialog contractId={c.id} clinicId={c.clinic_id} open={itemsDlg} onOpenChange={setItemsDlg} onDone={() => qc.invalidateQueries({ queryKey: ['contracts'] })} />
+        <CancellationDialog contractId={c.id} clinicId={c.clinic_id} open={cancelDlg} onOpenChange={setCancelDlg} onDone={() => qc.invalidateQueries({ queryKey: ['contracts'] })} />
           <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] first:mt-0">
             <div className="min-w-0 space-y-4">
+              <ContractRefunds contractId={c.id} />
               {pendingAmendment && (
                 <PendingAmendmentCard amendment={pendingAmendment} contractId={c.id} patientId={c.patient_id} contractNumber={c.contract_number}
                   clinicName={clinicName} onChanged={() => qc.invalidateQueries({ queryKey: ['contracts'] })} />
@@ -532,6 +535,9 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
                 <BrandButton size="sm" variant="outline" onClick={() => setPatientDlg(true)}><UserPen className="h-4 w-4" /> Corrigir dados do paciente</BrandButton>
                 <BrandButton size="sm" variant="outline" disabled={!!pendingAmendment} title={pendingAmendment ? 'Já existe uma revisão aguardando o aceite do paciente' : undefined} onClick={() => setPaymentDlg(true)}><CreditCard className="h-4 w-4" /> Alterar forma de pagamento</BrandButton>
                 <BrandButton size="sm" variant="outline" disabled={!!pendingAmendment} title={pendingAmendment ? 'Já existe uma revisão aguardando o aceite do paciente' : undefined} onClick={() => setItemsDlg(true)}><Package className="h-4 w-4" /> Produtos e serviços</BrandButton>
+                {!isGenerated && (
+                  <BrandButton size="sm" variant="outline" className="border-destructive/50 text-destructive" disabled={!!pendingAmendment} title={pendingAmendment ? 'Já existe uma revisão aguardando o aceite do paciente' : undefined} onClick={() => setCancelDlg(true)}><Ban className="h-4 w-4" /> Cancelar contrato</BrandButton>
+                )}
               </div>
             </div>
           )}
@@ -612,7 +618,7 @@ export function ContractViewDialog({ contract, clinicName, onClose }: Props) {
 
           </div>
           <div className="flex flex-wrap gap-2">
-            {!isCancelled && !isActive && (
+            {isGenerated && (
               cancelConfirm ? (
                 <div className="flex gap-2 items-center">
                   <span className="text-xs text-destructive flex items-center gap-1">

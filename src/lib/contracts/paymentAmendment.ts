@@ -30,3 +30,11 @@ export type ItemsChanges = {
   payment: { methods: NewMethod[]; first_due: string } | null;
   refund_due?: number;
 };
+
+export type CancellationCalc = {
+  contract_value: number; paid: number; used_value: number; unused_value: number;
+  fee_percent: number; fee: number; refund: number; due: number; open_balance: number;
+  items: { name: string; contracted: number; used: number; value: number; used_value: number }[];
+  default_fee_percent?: number;
+};
+export const REFUND_METHOD_LABEL: Record<string, string> = { pix: 'Pix', transfer: 'Transferência', cash: 'Dinheiro', card_reversal: 'Estorno no cartão', other: 'Outra' };

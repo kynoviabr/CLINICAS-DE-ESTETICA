@@ -1491,6 +1491,12 @@ export type Database = {
         }
         Relationships: []
       }
+      contract_refunds: {
+        Row: { amendment_id: string | null; amount: number; clinic_id: string; contract_id: string; created_at: string; id: string; notes: string | null; paid_at: string | null; paid_by: string | null; paid_method: string | null; status: string }
+        Insert: { amendment_id?: string | null; amount: number; clinic_id: string; contract_id: string; created_at?: string; id?: string; notes?: string | null; paid_at?: string | null; paid_by?: string | null; paid_method?: string | null; status?: string }
+        Update: { amendment_id?: string | null; amount?: number; clinic_id?: string; contract_id?: string; created_at?: string; id?: string; notes?: string | null; paid_at?: string | null; paid_by?: string | null; paid_method?: string | null; status?: string }
+        Relationships: []
+      }
       contract_signatures: {
         Row: {
           clinic_id: string
@@ -4613,6 +4619,18 @@ export type Database = {
       }
     }
     Functions: {
+      contract_cancellation_preview: {
+        Args: { p_contract_id: string; p_fee_percent?: number | null }
+        Returns: Json
+      }
+      propose_contract_cancellation: {
+        Args: { p_contract_id: string; p_fee_percent: number; p_reason: string }
+        Returns: string
+      }
+      mark_contract_refund_paid: {
+        Args: { p_method: string; p_notes?: string | null; p_paid_at: string; p_refund_id: string }
+        Returns: undefined
+      }
       contract_items_summary: {
         Args: { p_contract_id: string }
         Returns: Json
