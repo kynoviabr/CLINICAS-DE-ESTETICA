@@ -57,3 +57,13 @@ describe('DRE simplificado', () => {
     expect(rows[0].key).toBe('received');
   });
 });
+
+describe('devoluções a pacientes no DRE', () => {
+  it('entram como dedução da receita e reduzem o resultado', async () => {
+    const { buildDre } = await import('@/lib/finance/dre');
+    const { lines, result } = buildDre({ received: 1000, refunds: 200, materialUsed: 0, materialLost: 0, expenses: [{ category: 'Aluguel', amount: 300 }] }, true);
+    expect(lines.find((l) => l.key === 'refunds')?.value).toBe(200);
+    expect(lines.find((l) => l.key === 'net')?.value).toBe(800);
+    expect(result).toBe(500);
+  });
+});

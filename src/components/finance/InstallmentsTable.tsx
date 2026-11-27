@@ -84,7 +84,7 @@ export function InstallmentsTable({ installments, showContract, onRegister, onUn
                         <BrandButton size="sm" disabled={busy} onClick={() => onRegister(inst)}>Registrar pagamento</BrandButton>
                       )}
                       {inst.status === 'pago' && onUndo && (
-                        <BrandButton size="sm" variant="ghost" disabled={busy} onClick={() => onUndo(inst)}>Estornar</BrandButton>
+                        <BrandButton size="sm" variant="ghost" disabled={busy} onClick={() => onUndo(inst)}>Corrigir baixa</BrandButton>
                       )}
                     </TableCell>
                   )}
