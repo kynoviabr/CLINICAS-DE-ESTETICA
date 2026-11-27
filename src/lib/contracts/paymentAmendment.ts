@@ -20,3 +20,13 @@ export function describeMethod(m: NewMethod) {
 /** "Boleto 2/3 · vence 10/12/2026 · R$ 300,00" */
 export const describeInstallment = (i: OldInstallment) =>
   `${METHOD_LABEL[i.method] || i.method}${i.count > 1 ? ` ${i.number}/${i.count}` : ''} · vence ${brDate(i.due_date)} · ${brl(i.amount)}`;
+
+export type ItemNow = { treatment_id: string; name: string; contracted: number; used: number; value: number };
+export type ItemsChanges = {
+  items_before: ItemNow[];
+  add: { treatment_id: string; name: string; packages: number; sessions: number; value: number }[];
+  remove: { treatment_id: string; name: string; sessions: number; value: number }[];
+  value_before: number; value_after: number; delta: number; open_balance: number;
+  payment: { methods: NewMethod[]; first_due: string } | null;
+  refund_due?: number;
+};

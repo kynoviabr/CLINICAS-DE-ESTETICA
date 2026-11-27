@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CheckCircle2, CreditCard, History, Link2, Loader2, MessageCircle, Plus, Trash2, UserPen } from 'lucide-react';
+import { CheckCircle2, CreditCard, Package, History, Link2, Loader2, MessageCircle, Plus, Trash2, UserPen } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { publicOrigin } from '@/lib/publicOrigin';
 import { whatsappLink } from '@/lib/proposals/sale';
-import { METHOD_LABEL, brDate, brl, describeInstallment, describeMethod, splittable, type NewMethod, type PaymentChanges } from '@/lib/contracts/paymentAmendment';
+import { METHOD_LABEL, brDate, brl, describeInstallment, describeMethod, splittable, type ItemNow, type ItemsChanges, type NewMethod, type PaymentChanges } from '@/lib/contracts/paymentAmendment';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { BrandButton } from '@/components/ui/brand-button';
@@ -80,6 +80,7 @@ export function AmendmentHistory({ amendments, userNames }: { amendments: Contra
               {a.status === 'discarded' && <p className="mt-1 text-muted-foreground">Desistência da equipe (não foi aplicada)</p>}
               <p className="mt-1 text-muted-foreground">Motivo: {a.reason}</p>
               {a.kind === 'payment' && <PaymentChangeSummary changes={a.changes as unknown as PaymentChanges} />}
+              {a.kind === 'items' && <ItemsChangeSummary changes={a.changes as unknown as ItemsChanges} />}
               {a.accepted_at && (
                 <p className="mt-1 text-emerald-700">Aceito por {a.accepted_name} em {format(new Date(a.accepted_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })} ({a.accepted_verified_by === 'birth_date' ? 'data de nascimento conferida' : a.accepted_verified_by === 'cpf' ? 'CPF conferido' : 'nome conferido'})</p>
               )}
@@ -358,7 +359,7 @@ export function PendingAmendmentCard({ amendment, contractId, patientId, contrac
       const { data: p } = await supabase.from('patients').select('full_name, phone').eq('id', patientId).maybeSingle();
       if (!p?.phone) throw new Error('O paciente não tem telefone cadastrado.');
       const url = await makeLink();
-      const msg = `Olá, ${p.full_name.split(' ')[0]}! Aqui é da ${clinicName || 'clínica'}. Conforme combinamos, preparamos a alteração na forma de pagamento do seu contrato nº ${contractNumber}. Confira e aceite neste link seguro:\n\n${url}\n\nVai pedir seu nome completo e a data de nascimento para confirmar que é você.`;
+      const msg = `Olá, ${p.full_name.split(' ')[0]}! Aqui é da ${clinicName || 'clínica'}. Conforme combinamos, preparamos a alteração ${amendment.kind === 'items' ? 'nos tratamentos' : 'na forma de pagamento'} do seu contrato nº ${contractNumber}. Confira e aceite neste link seguro:\n\n${url}\n\nVai pedir seu nome completo e a data de nascimento para confirmar que é você.`;
       const wa = whatsappLink(p.phone, msg);
       if (tab) tab.location.href = wa; else window.location.href = wa;
       toast({ title: 'WhatsApp aberto', description: 'Link do aceite pronto para enviar. Vale 15 dias.' });
@@ -388,11 +389,218 @@ export function PendingAmendmentCard({ amendment, contractId, patientId, contrac
       <p className="font-semibold text-amber-900">Revisão aguardando aceite do paciente</p>
       <p className="text-xs text-amber-800">{AMENDMENT_KIND_LABEL[amendment.kind] || amendment.kind} · criada em {format(new Date(amendment.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}. Nada muda no financeiro até o aceite.</p>
       {amendment.kind === 'payment' && <div className="text-xs"><PaymentChangeSummary changes={amendment.changes as unknown as PaymentChanges} /></div>}
+      {amendment.kind === 'items' && <div className="text-xs"><ItemsChangeSummary changes={amendment.changes as unknown as ItemsChanges} /></div>}
       <div className="mt-3 flex flex-wrap gap-2">
         <BrandButton size="sm" onClick={sendWa} disabled={!!busy}>{busy === 'wa' ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />} Enviar ao paciente</BrandButton>
         <BrandButton size="sm" variant="outline" onClick={copy} disabled={!!busy}><Link2 className="h-4 w-4" /> Copiar link</BrandButton>
         <BrandButton size="sm" variant="ghost" className="text-destructive" onClick={discard} disabled={!!busy}>Desistir da revisão</BrandButton>
       </div>
     </div>
+  );
+}
+
+/** Itens: removidos, adicionados e efeito no valor. */
+export function ItemsChangeSummary({ changes }: { changes: ItemsChanges }) {
+  if (!changes) return null;
+  return (
+    <div className="mt-1.5 space-y-1">
+      {changes.remove.map((r, n) => <p key={`r${n}`} className="text-rose-700">− {r.name}: {r.sessions} sessão(ões) · abate {brl(r.value)}</p>)}
+      {changes.add.map((a, n) => <p key={`a${n}`} className="text-emerald-700">+ {a.name}: {a.packages}x ({a.sessions} sessão(ões)) · {brl(a.value)}</p>)}
+      <p className="font-medium">Valor do contrato: {brl(changes.value_before)} → {brl(changes.value_after)} ({changes.delta >= 0 ? '+' : '−'}{brl(Math.abs(changes.delta))})</p>
+      {changes.delta > 0 && changes.payment && <p className="text-muted-foreground">Diferença: {changes.payment.methods.map(describeMethod).join(' + ')} · 1º vencimento {brDate(changes.payment.first_due)}</p>}
+      {changes.delta < 0 && <p className="text-muted-foreground">A diferença é abatida das parcelas em aberto (das últimas para as primeiras).</p>}
+      {!!changes.refund_due && changes.refund_due > 0 && <p className="font-medium text-amber-700">Crédito a devolver ao paciente: {brl(changes.refund_due)}</p>}
+    </div>
+  );
+}
+
+type AddRow = { treatment_id: string; packages: number; value: number };
+
+/** Adicionar ou remover produtos/serviços (vira aditivo; vale depois do aceite do paciente). */
+export function ItemsAmendDialog({ contractId, clinicId, open, onOpenChange, onDone }: {
+  contractId: string; clinicId: string; open: boolean; onOpenChange: (v: boolean) => void; onDone: () => void;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [remove, setRemove] = useState<Record<string, { sessions: number; value: number }>>({});
+  const [add, setAdd] = useState<AddRow[]>([]);
+  const [pay, setPay] = useState<NewMethod[]>([]);
+  const [firstDue, setFirstDue] = useState(todayIso());
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const { data: summary, isLoading } = useQuery({
+    queryKey: ['contract-items-summary', contractId, open],
+    enabled: open,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('contract_items_summary', { p_contract_id: contractId });
+      if (error) throw error;
+      return data as unknown as { items: ItemNow[]; contract_value: number; open_balance: number };
+    },
+  });
+  const { data: treatments = [] } = useQuery({
+    queryKey: ['items-amend-treatments', clinicId, open],
+    enabled: open,
+    queryFn: async () => {
+      const { data } = await supabase.from('treatments').select('id, name, price, num_sessions').eq('clinic_id', clinicId).eq('is_active', true).order('name');
+      return data || [];
+    },
+  });
+
+  useEffect(() => { if (open) { setRemove({}); setAdd([]); setPay([]); setReason(''); setFirstDue(todayIso()); } }, [open]);
+
+  const removed = Object.entries(remove).filter(([, r]) => r.sessions > 0);
+  const sumRemove = removed.reduce((s, [, r]) => s + Number(r.value || 0), 0);
+  const sumAdd = add.reduce((s, r) => s + Number(r.value || 0), 0);
+  const delta = Math.round((sumAdd - sumRemove) * 100) / 100;
+  useEffect(() => {
+    if (delta > 0) setPay((cur) => (cur.length ? cur : [{ method: 'pix', amount: delta, installments: 1 }]));
+    else setPay([]);
+  }, [delta]);
+  const paySum = Math.round(pay.reduce((s, r) => s + Number(r.amount || 0), 0) * 100) / 100;
+  const payOk = delta <= 0 || Math.abs(paySum - delta) < 0.01;
+  const valid = (removed.length + add.length) > 0 && add.every((a) => a.treatment_id && a.packages >= 1 && a.value >= 0) && payOk && reason.trim().length >= 5 && !saving;
+
+  const setRem = (item: ItemNow, sessions: number) => {
+    const free = Math.max(item.contracted - item.used, 0);
+    const n = Math.max(0, Math.min(free, Math.floor(sessions || 0)));
+    const perSession = item.contracted > 0 ? Number(item.value) / item.contracted : 0;
+    setRemove((cur) => ({ ...cur, [item.treatment_id]: { sessions: n, value: Math.round(perSession * n * 100) / 100 } }));
+  };
+  const setAddRow = (i: number, patch: Partial<AddRow>) => setAdd((cur) => cur.map((r, n) => {
+    if (n !== i) return r;
+    const next = { ...r, ...patch };
+    if (patch.treatment_id !== undefined || patch.packages !== undefined) {
+      const t = treatments.find((x) => x.id === next.treatment_id);
+      if (t) next.value = Math.round(Number(t.price || 0) * Math.max(1, next.packages) * 100) / 100;
+    }
+    return next;
+  }));
+
+  const save = async () => {
+    setSaving(true);
+    const { error } = await supabase.rpc('propose_contract_items_amendment', {
+      p_contract_id: contractId,
+      p_add: add,
+      p_remove: removed.map(([treatment_id, r]) => ({ treatment_id, sessions: r.sessions, value: r.value })),
+      p_payment: delta > 0 ? pay.map((r) => ({ ...r, installments: splittable(r.method) ? Math.max(1, Number(r.installments || 1)) : 1 })) : null,
+      p_first_due: delta > 0 ? firstDue : null,
+      p_reason: reason.trim(),
+    });
+    setSaving(false);
+    if (error) { toast({ title: 'Não foi possível criar a revisão', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: 'Revisão criada', description: 'Agora envie ao paciente para ele aceitar. Nada muda antes disso.' });
+    qc.invalidateQueries({ queryKey: ['contract-amendments', contractId] });
+    onOpenChange(false);
+    onDone();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><Package className="h-5 w-5 text-primary" /> Produtos e serviços do contrato</DialogTitle>
+          <DialogDescription>Remova o saldo não usado ou adicione tratamentos. O financeiro é ajustado depois que o paciente aceitar pelo link.</DialogDescription>
+        </DialogHeader>
+        {isLoading || !summary ? <p className="text-sm text-muted-foreground">Carregando itens…</p> : (
+          <div className="space-y-5">
+            <section className="space-y-2">
+              <p className="text-sm font-medium">Itens do contrato (valor atual {brl(summary.contract_value)})</p>
+              {summary.items.length === 0 && <p className="text-sm text-muted-foreground">Nenhum item encontrado neste contrato.</p>}
+              {summary.items.map((it) => {
+                const free = Math.max(it.contracted - it.used, 0);
+                const r = remove[it.treatment_id];
+                return (
+                  <div key={it.treatment_id} className="grid grid-cols-2 items-end gap-2 rounded-lg border p-2 sm:grid-cols-[1.6fr_1fr_1fr]">
+                    <div className="col-span-2 sm:col-span-1">
+                      <p className="text-sm font-medium">{it.name}</p>
+                      <p className="text-xs text-muted-foreground">{it.contracted} contratadas · {it.used} feitas · <span className={free ? 'text-foreground' : ''}>{free} não usadas</span> · {brl(it.value)}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Remover sessões</Label>
+                      <Input type="number" min={0} max={free} disabled={!free} value={r?.sessions || ''} placeholder="0" onChange={(e) => setRem(it, Number(e.target.value))} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Abater (R$)</Label>
+                      <Input type="number" min={0} step="0.01" disabled={!r?.sessions} value={r?.sessions ? r.value : ''} onChange={(e) => setRemove((cur) => ({ ...cur, [it.treatment_id]: { ...cur[it.treatment_id], value: Number(e.target.value) } }))} />
+                    </div>
+                  </div>
+                );
+              })}
+            </section>
+
+            <section className="space-y-2">
+              <p className="text-sm font-medium">Adicionar</p>
+              {add.map((a, i) => (
+                <div key={i} className="grid grid-cols-2 items-end gap-2 rounded-lg border p-2 sm:grid-cols-[1.6fr_0.7fr_1fr_auto]">
+                  <div className="col-span-2 space-y-1 sm:col-span-1">
+                    <Label className="text-xs">Tratamento</Label>
+                    <Select value={a.treatment_id} onValueChange={(v) => setAddRow(i, { treatment_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Escolha" /></SelectTrigger>
+                      <SelectContent>{treatments.map((t) => <SelectItem key={t.id} value={t.id}>{t.name} ({t.num_sessions} sessão(ões) · {brl(Number(t.price))})</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Qtd.</Label>
+                    <Input type="number" min={1} value={a.packages} onChange={(e) => setAddRow(i, { packages: Math.max(1, Number(e.target.value)) })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Valor (R$)</Label>
+                    <Input type="number" min={0} step="0.01" value={a.value} onChange={(e) => setAdd((cur) => cur.map((r, n) => (n === i ? { ...r, value: Number(e.target.value) } : r)))} />
+                  </div>
+                  <BrandButton variant="ghost" size="sm" aria-label="Remover linha" onClick={() => setAdd((cur) => cur.filter((_, n) => n !== i))}><Trash2 className="h-4 w-4" /></BrandButton>
+                </div>
+              ))}
+              <BrandButton variant="outline" size="sm" onClick={() => setAdd((cur) => [...cur, { treatment_id: '', packages: 1, value: 0 }])}><Plus className="h-4 w-4" /> Adicionar tratamento</BrandButton>
+            </section>
+
+            <section className="rounded-lg border bg-muted/30 p-3 text-sm">
+              <p>Remover: <b>{brl(sumRemove)}</b> · Adicionar: <b>{brl(sumAdd)}</b></p>
+              <p className="font-semibold">Novo valor do contrato: {brl(Number(summary.contract_value) + delta)} ({delta >= 0 ? '+' : '−'}{brl(Math.abs(delta))})</p>
+              {delta < 0 && (
+                <p className="text-xs text-muted-foreground">
+                  A diferença é abatida das parcelas em aberto ({brl(summary.open_balance)}), das últimas para as primeiras.
+                  {-delta > summary.open_balance && ` Passa do saldo em aberto: ${brl(-delta - summary.open_balance)} ficam como crédito a devolver ao paciente.`}
+                </p>
+              )}
+            </section>
+
+            {delta > 0 && (
+              <section className="space-y-2">
+                <p className="text-sm font-medium">Como o paciente paga a diferença ({brl(delta)})</p>
+                {pay.map((r, i) => (
+                  <div key={i} className="grid grid-cols-2 items-end gap-2 sm:grid-cols-[1.4fr_1fr_0.8fr_auto]">
+                    <Select value={r.method} onValueChange={(v) => setPay((cur) => cur.map((x, n) => (n === i ? { ...x, method: v, installments: splittable(v) ? x.installments || 1 : 1 } : x)))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{['pix', 'credit', 'debit', 'cash', 'boleto', 'transfer'].map((m) => <SelectItem key={m} value={m}>{METHOD_LABEL[m]}</SelectItem>)}</SelectContent>
+                    </Select>
+                    <Input type="number" min={0} step="0.01" value={r.amount || ''} onChange={(e) => setPay((cur) => cur.map((x, n) => (n === i ? { ...x, amount: Number(e.target.value) } : x)))} />
+                    <Input type="number" min={1} max={48} disabled={!splittable(r.method)} value={splittable(r.method) ? r.installments || 1 : 1} onChange={(e) => setPay((cur) => cur.map((x, n) => (n === i ? { ...x, installments: Number(e.target.value) } : x)))} />
+                    <BrandButton variant="ghost" size="sm" aria-label="Remover forma" disabled={pay.length === 1} onClick={() => setPay((cur) => cur.filter((_, n) => n !== i))}><Trash2 className="h-4 w-4" /></BrandButton>
+                  </div>
+                ))}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <BrandButton variant="outline" size="sm" disabled={pay.length >= 4} onClick={() => setPay((cur) => [...cur, { method: 'pix', amount: Math.max(0, Math.round((delta - paySum) * 100) / 100), installments: 1 }])}><Plus className="h-4 w-4" /> Outra forma</BrandButton>
+                  <p className={`text-sm font-medium ${payOk ? 'text-emerald-700' : 'text-rose-700'}`}>{payOk ? 'Soma confere' : `Soma das formas: ${brl(paySum)} (precisa ser ${brl(delta)})`}</p>
+                </div>
+                <div className="max-w-[200px] space-y-1">
+                  <Label className="text-xs">1º vencimento</Label>
+                  <Input type="date" min={todayIso()} value={firstDue} onChange={(e) => setFirstDue(e.target.value)} />
+                </div>
+              </section>
+            )}
+
+            <div className="space-y-1">
+              <Label className="text-xs">Motivo da revisão (obrigatório)</Label>
+              <Textarea rows={2} placeholder="Ex.: paciente trocou as sessões restantes de laser por peeling" value={reason} onChange={(e) => setReason(e.target.value)} />
+            </div>
+          </div>
+        )}
+        <div className="flex justify-end gap-2 pt-2">
+          <BrandButton variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</BrandButton>
+          <BrandButton disabled={!valid} onClick={save}>{saving ? 'Criando…' : 'Criar revisão e enviar ao paciente'}</BrandButton>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
