@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useParams } from 'react-router-dom';
 import { CheckCircle2, Loader2, Pencil, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -27,6 +28,7 @@ const MESSAGES: Record<Exclude<LinkStatus['status'], 'ok'>, string> = {
 export default function PublicLeadSignupPage() {
   const { token = '' } = useParams<{ token: string }>();
   const [link, setLink] = useState<LinkStatus | null>(null);
+  useDocumentTitle(link?.clinic_name ? `Cadastro · ${link.clinic_name}` : null);
   const [form, setForm] = useState<LeadSignupForm>({ fullName: '', birthDate: '', cpf: '', phone: '', email: '', consent: false });
   const [errors, setErrors] = useState<LeadSignupErrors>({});
   const [serverError, setServerError] = useState('');

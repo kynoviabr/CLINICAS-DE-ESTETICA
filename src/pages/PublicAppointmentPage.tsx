@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useParams } from 'react-router-dom';
 import { CalendarCheck2, CalendarClock, CalendarX2, CheckCircle2, ChevronLeft, ChevronRight, Loader2, MapPin, Phone } from 'lucide-react';
 import { BrandButton } from '@/components/ui/brand-button';
@@ -24,6 +25,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
 export default function PublicAppointmentPage() {
   const { token = '' } = useParams<{ token: string }>();
   const [view, setView] = useState<PatientView | null>(null);
+  useDocumentTitle(view?.clinic?.name ? `Seu atendimento · ${view.clinic.name}` : null);
   const [error, setError] = useState('');
   const [mode, setMode] = useState<Mode>('main');
   const [busy, setBusy] = useState(false);
