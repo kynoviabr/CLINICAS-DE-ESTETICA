@@ -17,6 +17,7 @@ import { Progress } from '@/components/ui/progress';
 import { MonthCashPanel } from '@/components/finance/MonthCashPanel';
 import { useMonthDeposits } from '@/hooks/useMonthDeposits';
 import { RegisterPaymentDialog } from '@/components/finance/RegisterPaymentDialog';
+import { CorrectPaymentDialog } from '@/components/finance/CorrectPaymentDialog';
 import { useInstallmentPayments } from '@/components/finance/useInstallmentPayments';
 import { useScheduledRevenue } from '@/hooks/useScheduledRevenue';
 import { paymentMethodLabel, todayIso, type ContractInstallment } from '@/lib/finance/installments';
@@ -284,8 +285,8 @@ export default function SimpleFinancePage() {
                         <BrandButton size="sm" onClick={() => payments.setPaying(r)} disabled={payments.register.isPending}>Recebi</BrandButton>
                       )}
                       {r.status === 'pago' && role === 'admin' && (
-                        <BrandButton size="sm" variant="ghost" onClick={() => payments.undo.mutate(r)} disabled={payments.undo.isPending} title="Desfazer o recebimento">
-                          <RotateCcw className="h-4 w-4" /> Estornar
+                        <BrandButton size="sm" variant="ghost" onClick={() => payments.setCorrecting(r)} disabled={payments.undo.isPending} title="Pagamento registrado por engano">
+                          <RotateCcw className="h-4 w-4" /> Corrigir baixa
                         </BrandButton>
                       )}
                     </div>
@@ -301,6 +302,7 @@ export default function SimpleFinancePage() {
         <MonthCashPanel clinicId={clinicId} month={start.slice(0, 7)} received={[...lists.recebidas, ...monthDeposits.map((d) => ({ paid_method: 'Sinal (Pix)', amount: Number(d.amount) }))]} showExpenses={isEnabled('expenses')} />
       )}
 
+      <CorrectPaymentDialog installment={payments.correcting} busy={payments.undo.isPending} onCancel={() => payments.setCorrecting(null)} onConfirm={(reason) => payments.undo.mutate(reason)} />
       <RegisterPaymentDialog
         installment={payments.paying}
         saving={payments.register.isPending}

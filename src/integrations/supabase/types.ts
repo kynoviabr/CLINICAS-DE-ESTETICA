@@ -4619,6 +4619,10 @@ export type Database = {
       }
     }
     Functions: {
+      correct_installment_payment: {
+        Args: { p_installment_id: string; p_reason: string }
+        Returns: undefined
+      }
       contract_cancellation_preview: {
         Args: { p_contract_id: string; p_fee_percent?: number | null }
         Returns: Json
