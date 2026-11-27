@@ -163,14 +163,108 @@ export function templateQuestions(template: Pick<AnamneseTemplate, 'questions' |
   return (template.specific_questions || []).filter(Boolean).map((text) => ({ text, type: guessQuestionType(text) }));
 }
 
+// Perguntas que a anamnese básica já faz (alergias, medicamentos, gestação, cirurgias, doença crônica, objetivo).
+// Quando as duas são respondidas juntas, o tratamento não repete.
+const COVERED_BY_GENERAL = [/alergi/i, /medica(mento|ção|cao)|anticoagul/i, /gestant|gr[áa]vid|amament/i, /cirurgi/i, /doen[çc]a cr[ôo]nica/i, /objetivo|resultado espera/i];
+// A ciência dos riscos agora é aceita antes de começar: a pergunta não precisa aparecer.
+const COVERED_BY_INTRO = [/orientad[oa] sobre (os )?riscos/i];
+
+/** Perguntas do tratamento que aparecem para o paciente (sem repetir a anamnese básica nem a ciência dos riscos). */
+export function visibleTemplateQuestions(template: Pick<AnamneseTemplate, 'questions' | 'specific_questions'>, withGeneral: boolean): TemplateQuestion[] {
+  return templateQuestions(template).filter((q) =>
+    !COVERED_BY_INTRO.some((re) => re.test(q.text)) && !(withGeneral && COVERED_BY_GENERAL.some((re) => re.test(q.text))));
+}
+
 /** Texto padrão de ciência de riscos de uma categoria. */
+type RiskInfo = { como: string; riscos: string; contra: string; antes: string; depois: string };
+
+// Informações de riscos por tipo de tratamento (padrão; a clínica pode reescrever em Configurações > Anamnese).
+const RISKS: Array<{ match: string[]; info: RiskInfo }> = [
+  { match: ['injet'], info: {
+    como: 'Aplicação de produtos (como toxina botulínica, preenchedores com ácido hialurônico ou bioestimuladores) com agulha ou cânula, em pontos definidos pela profissional.',
+    riscos: 'Dor, inchaço, vermelhidão e hematomas (manchas roxas) no local; assimetria; nódulos; resultado diferente do esperado. Raramente: alergia, infecção, necrose de pele ou alteração visual por obstrução de vaso, que exigem atendimento imediato.',
+    contra: 'Gravidez e amamentação; infecção ou ferida no local; doenças neuromusculares; doenças autoimunes ativas; alergia a algum componente; uso de anticoagulantes sem liberação médica.',
+    antes: 'Evitar álcool, anti-inflamatórios e suplementos que afinam o sangue (ômega 3, ginkgo) por 2 a 3 dias, se não houver orientação médica em contrário. Avisar sobre medicamentos e procedimentos recentes.',
+    depois: 'Não massagear nem deitar sobre a área nas primeiras horas; evitar exercícios intensos, calor, sauna e álcool por 24 horas. Procurar a clínica imediatamente em caso de dor forte, pele pálida ou arroxeada ou alteração na visão.',
+  } },
+  { match: ['laser', 'tecnolog', 'luz pulsada', 'radiofrequ', 'ultrassom', 'criolip'], info: {
+    como: 'Uso de equipamentos (laser, luz pulsada, radiofrequência, ultrassom, criolipólise e similares) que agem com luz, calor ou frio na pele e nos tecidos.',
+    riscos: 'Vermelhidão, inchaço, ardor e sensibilidade; manchas escuras ou claras; bolhas ou queimaduras; crostas. Na criolipólise, dormência temporária e, raramente, aumento da gordura no local.',
+    contra: 'Gravidez; pele bronzeada ou exposição recente ao sol; uso de isotretinoína (Roacutan) nos últimos 6 meses; marcapasso ou implantes metálicos na área (conforme o equipamento); câncer de pele, lesões ou infecção no local; doenças de fotossensibilidade.',
+    antes: 'Não tomar sol nem usar autobronzeador por 15 a 30 dias; suspender ácidos na região conforme orientação; avisar sobre medicamentos que causam sensibilidade à luz.',
+    depois: 'Protetor solar FPS 50 todos os dias e evitar sol; não esfregar nem arrancar crostas; hidratar a pele; evitar calor intenso nas primeiras 48 horas.',
+  } },
+  { match: ['peeling'], info: {
+    como: 'Aplicação de ácidos ou técnicas de esfoliação que removem camadas superficiais da pele para renovar textura, manchas e acne.',
+    riscos: 'Ardor, vermelhidão e descamação; sensibilidade; manchas escuras (principalmente com exposição ao sol); irritação ou alergia; em peelings mais profundos, crostas e risco de cicatriz.',
+    contra: 'Gravidez e amamentação (para alguns ácidos); uso de isotretinoína nos últimos 6 meses; herpes ativo, feridas ou infecção no local; pele bronzeada; alergia a componentes.',
+    antes: 'Suspender ácidos, esfoliantes e depilação na área por 3 a 7 dias; evitar sol; avisar se tem histórico de herpes ou manchas.',
+    depois: 'Protetor solar FPS 50 e chapéu; não arrancar a pele que descama; usar só os produtos indicados pela profissional; evitar maquiagem, sauna e piscina nos primeiros dias.',
+  } },
+  { match: ['facial', 'rejuven', 'limpeza'], info: {
+    como: 'Procedimentos na pele do rosto (limpeza, hidratação, microagulhamento, protocolos de rejuvenescimento) com produtos e técnicas definidos pela profissional.',
+    riscos: 'Vermelhidão, sensibilidade e pequenas lesões temporárias; acne ou irritação após o procedimento; alergia a produtos; manchas com exposição ao sol.',
+    contra: 'Lesões, herpes ou infecção ativa na pele; uso recente de isotretinoína (para microagulhamento); alergia conhecida a cosméticos; pele muito sensibilizada ou queimada de sol.',
+    antes: 'Evitar ácidos e esfoliantes por 3 dias; não tomar sol; chegar sem maquiagem, se possível.',
+    depois: 'Protetor solar diário; evitar maquiagem por 12 a 24 horas (ou conforme orientação); não espremer cravos e espinhas; manter a pele hidratada.',
+  } },
+  { match: ['corporal', 'gordura', 'celulite', 'flacidez', 'drenag', 'massag', 'modela'], info: {
+    como: 'Protocolos para o corpo (massagens, drenagem, tecnologias, enzimas, protocolos para gordura, celulite e flacidez) feitos em sessões.',
+    riscos: 'Dor ou sensibilidade, vermelhidão e hematomas leves; inchaço temporário; irritação na pele; resultados que variam de pessoa para pessoa e dependem de hábitos.',
+    contra: 'Gravidez; trombose ou problemas de circulação graves; feridas ou infecção na área; câncer em tratamento; marcapasso ou metais na área (para algumas tecnologias); alergia a produtos aplicados.',
+    antes: 'Beber água e manter uma alimentação equilibrada; avisar sobre cirurgias recentes, varizes e medicamentos.',
+    depois: 'Beber bastante água; manter atividade física e alimentação orientadas; seguir os intervalos entre sessões indicados.',
+  } },
+  { match: ['emagrec', 'nutri'], info: {
+    como: 'Acompanhamento e protocolos para emagrecimento e reeducação alimentar, que podem incluir orientação nutricional, procedimentos e, quando houver prescrição, medicamentos.',
+    riscos: 'Mudanças no apetite e no intestino; cansaço ou tontura no início; efeitos colaterais de medicamentos, quando usados; perda de peso diferente da esperada.',
+    contra: 'Gravidez e amamentação; transtornos alimentares; doenças que exijam acompanhamento médico específico sem liberação; uso de medicamentos sem prescrição.',
+    antes: 'Informar doenças, exames recentes e todos os medicamentos e suplementos que usa.',
+    depois: 'Seguir o plano alimentar e as orientações; avisar a clínica sobre qualquer mal-estar; não usar medicamentos por conta própria.',
+  } },
+  { match: ['sobrancel', 'cílio', 'cilio', 'micropigment'], info: {
+    como: 'Procedimentos nas sobrancelhas e nos cílios (design, henna, micropigmentação, extensão ou lifting) com pigmentos, colas ou produtos específicos.',
+    riscos: 'Vermelhidão, inchaço e sensibilidade; alergia a pigmentos, colas ou produtos; irritação nos olhos; cor ou formato diferente do esperado; na micropigmentação, risco de infecção e necessidade de retoque.',
+    contra: 'Gravidez (para micropigmentação); infecção, irritação ou lesão nos olhos ou na pele da área; alergia conhecida a tintas ou colas; uso de isotretinoína (para micropigmentação).',
+    antes: 'Não usar maquiagem nem lentes de contato no dia; avisar sobre alergias e procedimentos anteriores na área.',
+    depois: 'Não molhar, coçar nem esfregar a área pelo tempo indicado; evitar sol, piscina e sauna; usar só os produtos orientados.',
+  } },
+  { match: ['capilar', 'tricolog'], info: {
+    como: 'Tratamentos para o couro cabeludo e os fios (tricologia, terapias tópicas, microagulhamento, aplicação de ativos) feitos em sessões.',
+    riscos: 'Sensibilidade, coceira ou vermelhidão no couro cabeludo; descamação; alergia a ativos; queda temporária dos fios no início de alguns protocolos.',
+    contra: 'Feridas ou infecção no couro cabeludo; alergia a componentes; gravidez (para alguns ativos); doenças que exigem avaliação médica.',
+    antes: 'Lavar o cabelo conforme orientação; avisar sobre química recente (coloração, alisamento) e medicamentos.',
+    depois: 'Não lavar nem usar química pelo tempo indicado; seguir os produtos de uso em casa orientados.',
+  } },
+];
+
+const GENERIC: RiskInfo = {
+  como: 'Procedimento estético realizado pela profissional conforme avaliação e plano de tratamento.',
+  riscos: 'Vermelhidão, inchaço, sensibilidade e desconforto temporários; alergia a produtos; resultado que varia de pessoa para pessoa.',
+  contra: 'Gravidez e amamentação (conforme o procedimento); lesões ou infecção na área; alergia a componentes; doenças que exijam liberação médica.',
+  antes: 'Informar doenças, alergias, medicamentos e procedimentos recentes.',
+  depois: 'Seguir as orientações da profissional e procurar a clínica em caso de qualquer reação diferente do esperado.',
+};
+
 export function defaultRiskTerms(categoryName: string) {
-  return `Declaro que fui informada sobre como funciona o tratamento de ${categoryName}, seus riscos, possíveis efeitos colaterais, contraindicações e cuidados antes e depois, e que pude tirar minhas dúvidas com a profissional.`;
+  const n = (categoryName || '').toLowerCase();
+  const info = RISKS.find((r) => r.match.some((m) => n.includes(m)))?.info || GENERIC;
+  return [
+    `Como funciona: ${info.como}`,
+    `Riscos e efeitos possíveis: ${info.riscos}`,
+    `Contraindicações: ${info.contra}`,
+    `Cuidados antes: ${info.antes}`,
+    `Cuidados depois: ${info.depois}`,
+    `Declaro que li estas informações sobre ${categoryName}, que pude tirar minhas dúvidas com a profissional e que estou ciente dos riscos.`,
+  ].join('\n\n');
 }
 
 /** Texto de riscos do modelo (ou o padrão da categoria). */
 export function templateRiskTerms(template: Pick<AnamneseTemplate, 'risk_terms' | 'category_name'>) {
-  return template.risk_terms?.trim() || defaultRiskTerms(template.category_name);
+  const custom = template.risk_terms?.trim();
+  // Modelos salvos com o texto curto antigo passam a usar o detalhado.
+  if (!custom || custom.startsWith('Declaro que fui informada sobre como funciona o tratamento de')) return defaultRiskTerms(template.category_name);
+  return custom;
 }
 
 export function buildAnamneseTemplate(category: TreatmentCategory): AnamneseTemplate {
@@ -220,6 +314,6 @@ export function buildTreatmentFormData(
 }
 
 /** Perguntas Sim/Não do modelo ainda sem resposta. */
-export function unansweredQuestions(template: AnamneseTemplate, answers: Record<string, TreatmentAnswer> | undefined) {
-  return templateQuestions(template).filter((q) => q.type === 'yes_no' && !isAnswered(q, answers?.[q.text]));
+export function unansweredQuestions(template: AnamneseTemplate, answers: Record<string, TreatmentAnswer> | undefined, withGeneral = false) {
+  return visibleTemplateQuestions(template, withGeneral).filter((q) => q.type === 'yes_no' && !isAnswered(q, answers?.[q.text]));
 }

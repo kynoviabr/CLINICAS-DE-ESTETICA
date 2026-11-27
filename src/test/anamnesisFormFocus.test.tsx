@@ -25,6 +25,8 @@ describe('AnamnesisFormModal', () => {
       </QueryClientProvider>,
     );
 
+    screen.getAllByRole('checkbox').forEach((box) => fireEvent.click(box));
+    fireEvent.click(screen.getByRole('button', { name: /Concordo e quero começar/ }));
     fireEvent.click(screen.getByRole('button', { name: /Próximo/ }));
     fireEvent.click(screen.getByLabelText('Sim', { selector: '#Já\\ fez\\ cirurgias\\ anteriores\\?-yes' }));
 
