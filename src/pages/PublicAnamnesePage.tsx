@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useParams } from 'react-router-dom';
 import { CheckCircle2, Loader2, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -25,6 +26,7 @@ const MESSAGES: Record<Exclude<LinkStatus['status'], 'ok'>, string> = {
 export default function PublicAnamnesePage() {
   const { token = '' } = useParams<{ token: string }>();
   const [link, setLink] = useState<LinkStatus | null>(null);
+  useDocumentTitle(link?.clinic_name ? `Anamnese · ${link.clinic_name}` : null);
   const [birthDate, setBirthDate] = useState('');
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState('');

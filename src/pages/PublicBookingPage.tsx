@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useParams } from 'react-router-dom';
 import { CheckCircle2, Loader2, MapPin, Phone } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,6 +15,7 @@ type Page = { ok: boolean; clinic: { name: string; logo_url: string | null; prim
 export default function PublicBookingPage() {
   const { slug = '' } = useParams<{ slug: string }>();
   const [page, setPage] = useState<Page | null>(null);
+  useDocumentTitle(page?.clinic?.name ? `Agende sua avaliação · ${page.clinic.name}` : null);
   const [missing, setMissing] = useState(false);
   const [picked, setPicked] = useState<OnlineSlot | null>(null);
   const [name, setName] = useState('');

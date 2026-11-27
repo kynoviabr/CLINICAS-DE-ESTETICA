@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useParams } from 'react-router-dom';
 import {
   FileText,
@@ -72,6 +73,7 @@ interface PublicProposalData {
 export default function PublicProposalPage() {
   const { id: token } = useParams<{ id: string }>();
   const [proposal, setProposal] = useState<PublicProposalData | null>(null);
+  useDocumentTitle(proposal?.clinic?.name ? `Proposta · ${proposal.clinic.name}` : null);
   const [loading, setLoading] = useState(true);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

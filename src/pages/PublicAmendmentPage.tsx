@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -25,6 +26,7 @@ type PublicAmendment = {
 export default function PublicAmendmentPage() {
   const { token = '' } = useParams<{ token: string }>();
   const [data, setData] = useState<PublicAmendment | null>(null);
+  useDocumentTitle(data?.clinic?.name ? `Revisão do contrato · ${data.clinic.name}` : null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [acceptError, setAcceptError] = useState('');
