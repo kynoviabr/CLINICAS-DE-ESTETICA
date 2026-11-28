@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAgendaSlotMinutes } from '@/hooks/useAgendaSlotMinutes';
 import { BrandButton } from '@/components/ui/brand-button';
 import { BrandBadge } from '@/components/ui/brand-badge';
 import { format } from 'date-fns';
@@ -11,6 +12,7 @@ import { DayColumnsView } from './DayColumnsView';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
 export function DayView({ ctx }: { ctx: AgendaPageController }) {
+  const slotMinutes = useAgendaSlotMinutes();
   const [draggingApptId, setDraggingApptId] = useState<string | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
   const isMobile = useIsMobile();
@@ -46,7 +48,8 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
     dayAppts.flatMap((a) => [
       format(getAppointmentStartDate(a), 'HH:mm'),
       format(getAppointmentEndDate(a), 'HH:mm'),
-    ])
+    ]),
+    slotMinutes,
   );
   const professionalIsClosed = hours === null && dayAppts.length === 0;
   const visibleBlocks = professionalIsClosed ? [] : dayBlocks;
@@ -103,7 +106,7 @@ export function DayView({ ctx }: { ctx: AgendaPageController }) {
         <div className="divide-y divide-border/60">
           {slots.map((time) => {
             const slotStartTime = slotDate(time).getTime();
-            const starting = dayAppts.filter((a) => slotOf(format(getAppointmentStartDate(a), 'HH:mm')) === time);
+            const starting = dayAppts.filter((a) => slotOf(format(getAppointmentStartDate(a), 'HH:mm'), slotMinutes) === time);
             const ongoing = dayAppts.filter((a) => {
               const start = getAppointmentStartDate(a).getTime();
               const end = getAppointmentEndDate(a).getTime();

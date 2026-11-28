@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAgendaSlotMinutes } from '@/hooks/useAgendaSlotMinutes';
 import { format } from 'date-fns';
 import { Plus, GripVertical } from 'lucide-react';
 import { availabilityStateAt, dayHoursForMany, daySlots, slotOf } from '@/lib/agenda/daySlots';
@@ -8,6 +9,7 @@ import type { AgendaPageController } from './useAgendaPage';
 
 /** Visão Dia com uma coluna por profissional escolhida (nome no topo). */
 export function DayColumnsView({ ctx, professionalIds }: { ctx: AgendaPageController; professionalIds: string[] }) {
+  const slotMinutes = useAgendaSlotMinutes();
   const [draggingApptId, setDraggingApptId] = useState<string | null>(null);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
 
@@ -39,7 +41,8 @@ export function DayColumnsView({ ctx, professionalIds }: { ctx: AgendaPageContro
     dayAppts.flatMap((a) => [
       format(getAppointmentStartDate(a), 'HH:mm'),
       format(getAppointmentEndDate(a), 'HH:mm'),
-    ])
+    ]),
+    slotMinutes,
   );
   const at = (time: string) => new Date(`${format(currentDate, 'yyyy-MM-dd')}T${time}:00`).getTime();
 
@@ -73,7 +76,7 @@ export function DayColumnsView({ ctx, professionalIds }: { ctx: AgendaPageContro
               <div className="px-2 pt-1.5 text-[11px] font-medium text-muted-foreground tabular-nums">{time}</div>
               {professionalIds.map((id) => {
                 const mine = dayAppts.filter((a) => a.professional_id === id);
-                const starting = mine.filter((a) => slotOf(format(getAppointmentStartDate(a), 'HH:mm')) === time);
+                const starting = mine.filter((a) => slotOf(format(getAppointmentStartDate(a), 'HH:mm'), slotMinutes) === time);
                 const ongoing = mine.filter((a) => {
                   const aStart = getAppointmentStartDate(a).getTime();
                   const aEnd = getAppointmentEndDate(a).getTime();

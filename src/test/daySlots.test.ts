@@ -64,3 +64,12 @@ describe('grade de horários do dia', () => {
     expect(availabilityStateAt(list, 1, ['rafaela'], '08:30')).toBe('closed');
   });
 });
+
+describe('intervalo da agenda configurável', () => {
+  it('gera linhas de 15 em 15 minutos e encaixa o atendimento na linha certa', async () => {
+    const { daySlots, slotOf } = await import('@/lib/agenda/daySlots');
+    expect(daySlots({ start: '09:00', end: '10:00' }, [], 15)).toEqual(['09:00', '09:15', '09:30', '09:45']);
+    expect(slotOf('09:20', 15)).toBe('09:15');
+    expect(slotOf('09:20', 60)).toBe('09:00');
+  });
+});

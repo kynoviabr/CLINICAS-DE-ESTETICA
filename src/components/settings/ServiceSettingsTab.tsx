@@ -92,7 +92,7 @@ export default function ServiceSettingsTab() {
         if (insError) throw insError;
       }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['service-settings'] }); toast({ title: 'Atendimento salvo' }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['service-settings'] }); qc.invalidateQueries({ queryKey: ['agenda-slot-minutes'] }); toast({ title: 'Atendimento salvo' }); },
     onError: fail,
   });
 
@@ -400,6 +400,12 @@ export default function ServiceSettingsTab() {
           <CardContent className="grid grid-cols-2 gap-3">
             <div className="space-y-1"><Label>Antecedência mínima (horas)</Label><Input disabled={!canEdit} type="number" min={0} value={form.min_notice_hours} onChange={(e) => set('min_notice_hours', e.target.value)} /></div>
             <div className="space-y-1"><Label>Agendar até (dias à frente)</Label><Input disabled={!canEdit} type="number" min={1} max={365} value={form.booking_horizon_days} onChange={(e) => set('booking_horizon_days', e.target.value)} /></div>
+            <div className="space-y-1"><Label>Intervalo da agenda</Label>
+              <Select disabled={!canEdit} value={form.slot_minutes} onValueChange={(v) => set('slot_minutes', v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{['10', '15', '20', '30', '45', '60'].map((m) => <SelectItem key={m} value={m}>De {m} em {m} minutos</SelectItem>)}</SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Linhas da agenda e horários oferecidos ao paciente.</p></div>
             <div className="space-y-1"><Label>Intervalo entre atendimentos (min)</Label><Input disabled={!canEdit} type="number" min={0} max={120} value={form.buffer_minutes} onChange={(e) => set('buffer_minutes', e.target.value)} /></div>
             <div className="space-y-1"><Label>Remarcar com (horas de antecedência)</Label><Input disabled={!canEdit} type="number" min={0} value={form.reschedule_notice_hours} onChange={(e) => set('reschedule_notice_hours', e.target.value)} /></div>
             <div className="col-span-2 space-y-1"><Label>Como a IA fala de preço (padrão)</Label>
