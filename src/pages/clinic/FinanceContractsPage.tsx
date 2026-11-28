@@ -21,6 +21,7 @@ import { InstallmentsTable } from '@/components/finance/InstallmentsTable';
 import { ReceivablesCard } from '@/components/finance/ReceivablesCard';
 import { RegisterPaymentDialog } from '@/components/finance/RegisterPaymentDialog';
 import { CorrectPaymentDialog } from '@/components/finance/CorrectPaymentDialog';
+import { TerminalsDialog } from '@/components/finance/TerminalsDialog';
 import { useInstallmentPayments } from '@/components/finance/useInstallmentPayments';
 
 type PeriodMode = 'day' | 'week' | 'month' | 'year' | 'custom';
@@ -140,6 +141,7 @@ export default function FinanceContractsPage() {
   const { clinicId } = useBranding();
   const { role } = useUserRole();
   const payments = useInstallmentPayments();
+  const [terminalsOpen, setTerminalsOpen] = useState(false);
   const { toast } = useToast();
   const [tab, setTab] = useUrlState<'matrix' | 'divergence'>('aba', 'matrix', ['matrix', 'divergence']);
   const [periodMode, setPeriodMode] = useState<PeriodMode>('month');
@@ -657,7 +659,9 @@ export default function FinanceContractsPage() {
         saving={payments.register.isPending}
         onClose={() => payments.setPaying(null)}
         onConfirm={(payment) => payments.register.mutate(payment)}
+        onOpenTerminals={() => setTerminalsOpen(true)}
       />
+      {clinicId && <TerminalsDialog clinicId={clinicId} open={terminalsOpen} onOpenChange={setTerminalsOpen} />}
     </div>
   );
 }

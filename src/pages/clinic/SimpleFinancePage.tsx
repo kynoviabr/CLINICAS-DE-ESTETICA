@@ -18,6 +18,8 @@ import { MonthCashPanel } from '@/components/finance/MonthCashPanel';
 import { useMonthDeposits } from '@/hooks/useMonthDeposits';
 import { RegisterPaymentDialog } from '@/components/finance/RegisterPaymentDialog';
 import { CorrectPaymentDialog } from '@/components/finance/CorrectPaymentDialog';
+import { CardReceivablesCard } from '@/components/finance/CardReceivablesCard';
+import { TerminalsDialog } from '@/components/finance/TerminalsDialog';
 import { useInstallmentPayments } from '@/components/finance/useInstallmentPayments';
 import { useScheduledRevenue } from '@/hooks/useScheduledRevenue';
 import { paymentMethodLabel, todayIso, type ContractInstallment } from '@/lib/finance/installments';
@@ -59,6 +61,7 @@ export default function SimpleFinancePage() {
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalInput, setGoalInput] = useState('');
   const payments = useInstallmentPayments();
+  const [terminalsOpen, setTerminalsOpen] = useState(false);
   const { start, end } = monthBounds(/^\d{4}-\d{2}$/.test(month) ? month : today.slice(0, 7));
 
   const { data: rows = [], isLoading } = useQuery({
@@ -302,13 +305,16 @@ export default function SimpleFinancePage() {
         <MonthCashPanel clinicId={clinicId} month={start.slice(0, 7)} received={[...lists.recebidas, ...monthDeposits.map((d) => ({ paid_method: 'Sinal (Pix)', amount: Number(d.amount) }))]} showExpenses={isEnabled('expenses')} />
       )}
 
+      {clinicId && <CardReceivablesCard clinicId={clinicId} onOpenTerminals={() => setTerminalsOpen(true)} />}
       <CorrectPaymentDialog installment={payments.correcting} busy={payments.undo.isPending} onCancel={() => payments.setCorrecting(null)} onConfirm={(reason) => payments.undo.mutate(reason)} />
       <RegisterPaymentDialog
         installment={payments.paying}
         saving={payments.register.isPending}
         onClose={() => payments.setPaying(null)}
         onConfirm={(payment) => payments.register.mutate(payment)}
+        onOpenTerminals={() => setTerminalsOpen(true)}
       />
+      {clinicId && <TerminalsDialog clinicId={clinicId} open={terminalsOpen} onOpenChange={setTerminalsOpen} />}
     </div>
   );
 }

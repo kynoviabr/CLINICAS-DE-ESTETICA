@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { ContractInstallment } from '@/lib/finance/installments';
+import type { PaymentInput } from './RegisterPaymentDialog';
 
 async function registerInstallmentPayment(
   id: string,
@@ -29,14 +30,23 @@ export function useInstallmentPayments() {
   const [correcting, setCorrecting] = useState<ContractInstallment | null>(null);
 
   const refresh = () => {
-    ['simple-finance', 'finance-contract-detail', 'finance-receivables', 'finance-contracts-matrix', 'dashboard-overdue', 'dashboard-growth', 'dashboard-funnel', 'dashboard-revenue-sessions-chart']
+    ['card-receivables', 'simple-finance', 'finance-contract-detail', 'finance-receivables', 'finance-contracts-matrix', 'dashboard-overdue', 'dashboard-growth', 'dashboard-funnel', 'dashboard-revenue-sessions-chart']
       .forEach((key) => qc.invalidateQueries({ queryKey: [key] }));
   };
 
   const register = useMutation({
-    mutationFn: (payment: { paid_at: string; paid_amount: number; paid_method: string }) => {
+    mutationFn: async (payment: PaymentInput) => {
       if (!paying) throw new Error('Nenhuma parcela selecionada');
-      return registerInstallmentPayment(paying.id, payment);
+      if (payment.kind === 'card') {
+        const { error } = await supabase.rpc('register_card_sale', {
+          p_installment_id: paying.id, p_terminal_id: payment.terminal_id, p_card_type: payment.card_type,
+          p_installments: payment.installments, p_sale_date: payment.sale_date,
+        });
+        if (error) throw error;
+        return;
+      }
+      const { kind: _kind, ...simple } = payment;
+      return registerInstallmentPayment(paying.id, simple);
     },
     onSuccess: () => {
       toast({ title: 'Pagamento registrado' });
