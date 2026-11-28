@@ -12,6 +12,8 @@ export type Settings = {
   accepts_insurance: boolean; insurance_plans: string[]; insurance_notes: string | null;
   offers_evaluation: boolean; evaluation_free: boolean; evaluation_minutes: number; evaluation_price: number | null;
   min_notice_minutes: number; booking_horizon_days: number; buffer_minutes: number; reschedule_notice_hours: number | null;
+  /** Intervalo da agenda (min): de quanto em quanto os horários são oferecidos. */
+  slot_minutes: number;
   price_display: "exact" | "from" | "hidden"; policies: string | null; notes: string | null; faq: { question: string; answer: string }[];
   /** Fuso da clínica em minutos (vem de clinics.timezone). */
   offsetMin: number;
@@ -21,7 +23,7 @@ export const DEFAULTS: Settings = {
   payment_methods: [], max_installments: null, installments_min_value: null, payment_notes: null,
   parking: "unknown", parking_notes: null, accepts_insurance: false, insurance_plans: [], insurance_notes: null,
   offers_evaluation: true, evaluation_free: true, evaluation_minutes: 30, evaluation_price: null,
-  min_notice_minutes: 60, booking_horizon_days: 30, buffer_minutes: 0, reschedule_notice_hours: null,
+  min_notice_minutes: 60, booking_horizon_days: 30, buffer_minutes: 0, reschedule_notice_hours: null, slot_minutes: 30,
   price_display: "exact", policies: null, notes: null, faq: [], offsetMin: -180,
 };
 
@@ -52,7 +54,7 @@ export async function loadAgenda(
     db.from("appointment_blocks").select("professional_id, start_at, end_at").eq("clinic_id", clinicId).lt("start_at", end).gt("end_at", start),
   ]);
   return {
-    offsetMin: s.offsetMin, durationMin, bufferMin: s.buffer_minutes, minNoticeMin: s.min_notice_minutes, horizonDays: s.booking_horizon_days, now: Date.now(),
+    offsetMin: s.offsetMin, durationMin, stepMin: s.slot_minutes || 30, bufferMin: s.buffer_minutes, minNoticeMin: s.min_notice_minutes, horizonDays: s.booking_horizon_days, now: Date.now(),
     clinicHours: (hours || []).map((h) => ({ day_of_week: h.day_of_week, opens_at: hm(h.opens_at), closes_at: hm(h.closes_at) })),
     closures: (closures || []).map((c) => c.closed_on),
     pros,

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAgendaSlotMinutes } from '@/hooks/useAgendaSlotMinutes';
 import { format, isSameDay } from 'date-fns';
 import { Plus, GripVertical } from 'lucide-react';
 import { appointmentDepositState } from '@/lib/finance/deposit';
@@ -8,6 +9,7 @@ import { availabilityStateAt, daySlots, slotOf, weekHours } from '@/lib/agenda/d
 import type { AgendaPageController } from './useAgendaPage';
 
 export function WeekView({ ctx }: { ctx: AgendaPageController }) {
+  const slotMinutes = useAgendaSlotMinutes();
   const [draggingApptId, setDraggingApptId] = useState<string | null>(null);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
 
@@ -45,7 +47,8 @@ export function WeekView({ ctx }: { ctx: AgendaPageController }) {
         format(getAppointmentStartDate(a), 'HH:mm'),
         format(getAppointmentEndDate(a), 'HH:mm'),
       ])
-    )
+    ),
+    slotMinutes,
   );
 
   const at = (day: Date, time: string) => new Date(`${format(day, 'yyyy-MM-dd')}T${time}:00`).getTime();
@@ -86,7 +89,7 @@ export function WeekView({ ctx }: { ctx: AgendaPageController }) {
             <div className="px-2 pt-1.5 text-[11px] font-medium text-muted-foreground tabular-nums">{time}</div>
             {days.map((day) => {
               const dayAppts = getApptsForDay(day);
-              const starting = dayAppts.filter((a) => slotOf(format(getAppointmentStartDate(a), 'HH:mm')) === time);
+              const starting = dayAppts.filter((a) => slotOf(format(getAppointmentStartDate(a), 'HH:mm'), slotMinutes) === time);
               const start = at(day, time);
               const ongoing = dayAppts.filter((a) => {
                 const aStart = getAppointmentStartDate(a).getTime();

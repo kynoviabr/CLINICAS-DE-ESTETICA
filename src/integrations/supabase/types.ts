@@ -902,6 +902,7 @@ export type Database = {
       }
       clinic_service_settings: {
         Row: {
+          slot_minutes: number
           accepts_insurance: boolean
           booking_horizon_days: number
           buffer_minutes: number
@@ -931,6 +932,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          slot_minutes?: number
           accepts_insurance?: boolean
           booking_horizon_days?: number
           buffer_minutes?: number
@@ -960,6 +962,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          slot_minutes?: number
           accepts_insurance?: boolean
           booking_horizon_days?: number
           buffer_minutes?: number
