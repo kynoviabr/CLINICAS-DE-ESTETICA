@@ -133,6 +133,7 @@ export default function SimpleFinancePage() {
           <Link to="/clinic/despesas"><BrandButton variant="outline"><Receipt className="h-4 w-4" /> Despesas</BrandButton></Link>
         )}
         <Link to="/clinic/financeiro/recebimentos"><BrandButton variant="outline"><Wallet className="h-4 w-4" /> Por forma de pagamento</BrandButton></Link>
+        <Link to="/clinic/financeiro/caixa"><BrandButton variant="outline"><Wallet className="h-4 w-4" /> Fluxo de caixa</BrandButton></Link>
         <Link to="/clinic/financeiro/dre"><BrandButton><FileBarChart className="h-4 w-4" /> DRE</BrandButton></Link>
       </PageHeader>
 
