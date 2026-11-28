@@ -1957,6 +1957,13 @@ export type Database = {
       }
       expenses: {
         Row: {
+          supplier: string | null
+          due_date: string | null
+          paid_at: string | null
+          payment_method: string | null
+          installment_group: string | null
+          installment_number: number | null
+          installments_count: number | null
           amount: number
           category: string
           clinic_id: string
@@ -1971,6 +1978,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          supplier?: string | null
+          due_date?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          installment_group?: string | null
+          installment_number?: number | null
+          installments_count?: number | null
           amount: number
           category: string
           clinic_id: string
@@ -1985,6 +1999,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          supplier?: string | null
+          due_date?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          installment_group?: string | null
+          installment_number?: number | null
+          installments_count?: number | null
           amount?: number
           category?: string
           clinic_id?: string

@@ -44,6 +44,7 @@ const NewSalePage = lazy(() => import("./pages/clinic/NewSalePage"));
 const SimpleFinancePage = lazy(() => import("./pages/clinic/SimpleFinancePage"));
 const StockPage = lazy(() => import("./pages/clinic/StockPage"));
 const ExpensesPage = lazy(() => import("./pages/clinic/ExpensesPage"));
+const CashFlowPage = lazy(() => import("./pages/clinic/CashFlowPage"));
 const DrePage = lazy(() => import("./pages/clinic/DrePage"));
 const ReceiptsByMethodPage = lazy(() => import("./pages/clinic/ReceiptsByMethodPage"));
 const ProposalsPage = lazy(() => import("./pages/clinic/ProposalsPage"));
@@ -132,6 +133,7 @@ const App = () => (
                 <Route path="estoque" element={<StockPage />} />
                 <Route path="despesas" element={<ExpensesPage />} />
                 <Route path="financeiro/dre" element={<DrePage />} />
+                <Route path="financeiro/caixa" element={<CashFlowPage />} />
                 <Route path="financeiro/recebimentos" element={<ReceiptsByMethodPage />} />
                 <Route path="finance/contracts" element={<FinanceContractsPage />} />
                 <Route path="appointments" element={<AppointmentsPage />} />
