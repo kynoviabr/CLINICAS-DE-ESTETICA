@@ -20,8 +20,8 @@ import { FeaturesCard } from '@/components/settings/FeaturesCard';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, ClipboardList, FileText, MessageCircle, Bot, QrCode } from 'lucide-react';
-import { AutomationsSettingsTab } from '@/components/settings/AutomationsSettingsTab';
+import { Settings, Palette, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, Tags, DollarSign, SlidersHorizontal, Target, Briefcase, Building2, UserCog, AlertTriangle, Lock, ClipboardList, FileText, MessageCircle, QrCode } from 'lucide-react';
+import { Navigate } from 'react-router-dom';
 import TeamMfaCard from '@/components/settings/TeamMfaCard';
 import { MFA_ENABLED } from '@/lib/auth/mfa';
 import AccessLogList from '@/components/security/AccessLogList';
@@ -251,6 +251,9 @@ export default function SettingsPage() {
   const roleLabel: Record<string, string> = { admin: 'Admin', receptionist: 'Recepcionista', professional: 'Profissional', sales: 'Vendas' };
   const roleBadgeVariant = (r: string) => r === 'admin' ? 'default' : 'outline';
 
+  // Automações virou página própria (menu lateral); links antigos para a aba vão para lá.
+  if (settingsTab === 'automations') return <Navigate to="/clinic/automacoes" replace />;
+
   return (
     <div>
       <PageHeader title="Configurações" description="Gerencie sua clínica" />
@@ -274,14 +277,7 @@ export default function SettingsPage() {
           {show('goals') && <TabsTrigger value="goals"><Target className="w-4 h-4 mr-1" />Metas</TabsTrigger>}
           <TabsTrigger value="parameters"><SlidersHorizontal className="w-4 h-4 mr-1" />Parâmetros</TabsTrigger>
           {role === 'admin' && <TabsTrigger value="whatsapp"><MessageCircle className="w-4 h-4 mr-1" />WhatsApp</TabsTrigger>}
-          {role === 'admin' && <TabsTrigger value="automations"><Bot className="w-4 h-4 mr-1" />Automações</TabsTrigger>}
         </TabsList>
-
-        {role === 'admin' && (
-          <TabsContent value="automations">
-            <AutomationsSettingsTab />
-          </TabsContent>
-        )}
 
         {role === 'admin' && (
           <TabsContent value="whatsapp">

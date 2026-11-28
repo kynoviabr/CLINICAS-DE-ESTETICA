@@ -44,7 +44,7 @@ const navItems: NavItem[] = [
   { to: '/clinic/photos', icon: Camera, label: 'Fotos', roles: ['admin', 'professional'], permissionKey: 'photos.view' },
   { to: '/clinic/feedback', icon: Star, label: 'Avaliações', roles: ['admin', 'receptionist', 'professional'], permissionKey: 'feedback.view' },
   { to: '/clinic/reports', icon: MessageSquare, label: 'Relatórios', roles: ['admin', 'sales'], permissionKey: 'reports.view' },
-  { to: '/clinic/automacoes', icon: Bot, label: 'Automações', roles: ['admin', 'receptionist'], permissionKey: 'settings.view' },
+  { to: '/clinic/automacoes', icon: Bot, label: 'Automações', roles: ['admin'], permissionKey: 'settings.view' },
   { to: '/clinic/settings', icon: Settings, label: 'Configurações', roles: ['admin'], permissionKey: 'settings.view' },
 ];
 
