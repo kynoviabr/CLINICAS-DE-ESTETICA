@@ -990,6 +990,12 @@ export type Database = {
         }
         Relationships: []
       }
+      card_receivables: {
+        Row: { card_type: string; clinic_id: string; contract_id: string | null; created_at: string; created_by: string | null; expected_date: string; fee_amount: number; fee_percent: number; gross: number; id: string; installments_count: number; kind: string; net: number; number: number; reason: string | null; received_at: string | null; sale_date: string; sale_id: string; status: string; terminal_id: string | null; terminal_name: string }
+        Insert: { card_type: string; clinic_id: string; contract_id?: string | null; created_at?: string; created_by?: string | null; expected_date: string; fee_amount?: number; fee_percent?: number; gross: number; id?: string; installments_count?: number; kind?: string; net: number; number?: number; reason?: string | null; received_at?: string | null; sale_date: string; sale_id: string; status?: string; terminal_id?: string | null; terminal_name: string }
+        Update: { card_type?: string; clinic_id?: string; contract_id?: string | null; created_at?: string; created_by?: string | null; expected_date?: string; fee_amount?: number; fee_percent?: number; gross?: number; id?: string; installments_count?: number; kind?: string; net?: number; number?: number; reason?: string | null; received_at?: string | null; sale_date?: string; sale_id?: string; status?: string; terminal_id?: string | null; terminal_name?: string }
+        Relationships: []
+      }
       clinic_settings: {
         Row: {
           clinic_id: string
@@ -1951,6 +1957,13 @@ export type Database = {
       }
       expenses: {
         Row: {
+          supplier: string | null
+          due_date: string | null
+          paid_at: string | null
+          payment_method: string | null
+          installment_group: string | null
+          installment_number: number | null
+          installments_count: number | null
           amount: number
           category: string
           clinic_id: string
@@ -1965,6 +1978,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          supplier?: string | null
+          due_date?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          installment_group?: string | null
+          installment_number?: number | null
+          installments_count?: number | null
           amount: number
           category: string
           clinic_id: string
@@ -1979,6 +1999,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          supplier?: string | null
+          due_date?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          installment_group?: string | null
+          installment_number?: number | null
+          installments_count?: number | null
           amount?: number
           category?: string
           clinic_id?: string
@@ -2247,6 +2274,12 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      payment_terminals: {
+        Row: { active: boolean; advance_days: number; clinic_id: string; created_at: string; credit_1_fee: number; credit_2_6_fee: number; credit_7_12_fee: number; credit_mode: string; debit_days: number; debit_fee: number; id: string; name: string; updated_at: string }
+        Insert: { active?: boolean; advance_days?: number; clinic_id: string; created_at?: string; credit_1_fee?: number; credit_2_6_fee?: number; credit_7_12_fee?: number; credit_mode?: string; debit_days?: number; debit_fee?: number; id?: string; name: string; updated_at?: string }
+        Update: { active?: boolean; advance_days?: number; clinic_id?: string; created_at?: string; credit_1_fee?: number; credit_2_6_fee?: number; credit_7_12_fee?: number; credit_mode?: string; debit_days?: number; debit_fee?: number; id?: string; name?: string; updated_at?: string }
+        Relationships: []
       }
       patient_anamneses: {
         Row: {
@@ -4619,6 +4652,22 @@ export type Database = {
       }
     }
     Functions: {
+      register_card_sale: {
+        Args: { p_card_type: string; p_installment_id: string; p_installments: number; p_sale_date: string; p_terminal_id: string }
+        Returns: string
+      }
+      mark_card_receivable_received: {
+        Args: { p_received_at: string; p_receivable_id: string }
+        Returns: undefined
+      }
+      reverse_card_sale: {
+        Args: { p_kind: string; p_reason: string; p_sale_id: string }
+        Returns: undefined
+      }
+      correct_installment_payment: {
+        Args: { p_installment_id: string; p_reason: string }
+        Returns: undefined
+      }
       contract_cancellation_preview: {
         Args: { p_contract_id: string; p_fee_percent?: number | null }
         Returns: Json

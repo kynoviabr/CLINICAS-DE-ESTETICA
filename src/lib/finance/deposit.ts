@@ -53,7 +53,8 @@ export const DEPOSIT_STATUS: Record<DepositStatus, { label: string; tone: string
 };
 
 /** Sinais que contam como dinheiro recebido pela clínica (o abatido já está na parcela do contrato). */
-export const DEPOSIT_RECEIVED: DepositStatus[] = ['paid', 'retained'];
+// Sinal devolvido continua contando como recebido no mês em que entrou; a devolução aparece no mês em que foi feita (DRE).
+export const DEPOSIT_RECEIVED: DepositStatus[] = ['paid', 'retained', 'refunded'];
 
 /** Valor padrão conforme o tipo do agendamento. */
 export const defaultDepositAmount = (c: DepositConfig, appointmentType: string) =>

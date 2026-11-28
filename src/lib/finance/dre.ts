@@ -2,6 +2,8 @@
  * DRE simplificado da clínica (por mês), sem burocracia:
  *
  *   Receita (recebido no mês)
+ *   (−) Devoluções a pacientes (cancelamentos e sinais devolvidos, no mês em que foram devolvidos)
+ *   (−) Taxas de cartão (o que a maquininha cobrou nas vendas do mês)
  *   (−) Impostos
  *   = Receita líquida
  *   (−) Custo dos atendimentos: material usado + perdas (com Estoque) ou compra de material (sem Estoque)
@@ -34,6 +36,10 @@ export const MATERIAL_PURCHASE_CATEGORY = 'Compra de material';
 
 export type MonthInput = {
   received: number;
+  /** Dinheiro devolvido a pacientes no mês (devolução de cancelamento e sinal devolvido). */
+  refunds?: number;
+  /** Taxas das maquininhas nas vendas do mês. */
+  cardFees?: number;
   materialUsed: number;
   materialLost: number;
   expenses: Array<{ category: string; amount: number }>;
@@ -56,7 +62,9 @@ export function buildDre(input: MonthInput, stockEnabled: boolean): { lines: Dre
 
   const taxes = byCat.get(TAX_CATEGORY) ?? 0;
   const purchases = byCat.get(MATERIAL_PURCHASE_CATEGORY) ?? 0;
-  const net = r2(input.received - taxes);
+  const refunds = r2(input.refunds ?? 0);
+  const cardFees = r2(input.cardFees ?? 0);
+  const net = r2(input.received - refunds - cardFees - taxes);
   const cost = stockEnabled ? r2(input.materialUsed + input.materialLost) : purchases;
   const gross = r2(net - cost);
 
@@ -68,6 +76,8 @@ export function buildDre(input: MonthInput, stockEnabled: boolean): { lines: Dre
 
   const lines: DreLine[] = [
     { key: 'received', label: 'Receita (recebido no mês)', kind: 'revenue', value: r2(input.received) },
+    { key: 'refunds', label: '(−) Devoluções a pacientes', kind: 'deduction', value: refunds, negative: true },
+    { key: 'card_fees', label: '(−) Taxas de cartão', kind: 'deduction', value: cardFees, negative: true },
     { key: 'taxes', label: '(−) Impostos', kind: 'deduction', value: taxes, negative: true },
     { key: 'net', label: '= Receita líquida', kind: 'subtotal', value: net },
   ];
@@ -93,6 +103,8 @@ export function buildDre(input: MonthInput, stockEnabled: boolean): { lines: Dre
 export function sumMonths(months: MonthInput[]): MonthInput {
   return {
     received: r2(months.reduce((s, m) => s + m.received, 0)),
+    refunds: r2(months.reduce((s, m) => s + (m.refunds ?? 0), 0)),
+    cardFees: r2(months.reduce((s, m) => s + (m.cardFees ?? 0), 0)),
     materialUsed: r2(months.reduce((s, m) => s + m.materialUsed, 0)),
     materialLost: r2(months.reduce((s, m) => s + m.materialLost, 0)),
     expenses: months.flatMap((m) => m.expenses),
@@ -133,5 +145,6 @@ export function buildDreTable(columns: MonthInput[], stockEnabled: boolean): Dre
       return { key, label: ref.label, kind: ref.kind, values: built.map((ls) => ls.find((l) => l.key === key)?.value ?? 0) };
     })
     .filter((row) => !(row.kind === 'expense' && row.values.every((v) => v === 0)))
-    .filter((row) => !(row.kind === 'info' && row.values.every((v) => v === 0)));
+    .filter((row) => !(row.kind === 'info' && row.values.every((v) => v === 0)))
+    .filter((row) => !((row.key === 'refunds' || row.key === 'card_fees') && row.values.every((v) => v === 0)));
 }

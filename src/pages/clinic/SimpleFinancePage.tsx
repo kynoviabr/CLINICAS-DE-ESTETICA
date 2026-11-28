@@ -17,6 +17,9 @@ import { Progress } from '@/components/ui/progress';
 import { MonthCashPanel } from '@/components/finance/MonthCashPanel';
 import { useMonthDeposits } from '@/hooks/useMonthDeposits';
 import { RegisterPaymentDialog } from '@/components/finance/RegisterPaymentDialog';
+import { CorrectPaymentDialog } from '@/components/finance/CorrectPaymentDialog';
+import { CardReceivablesCard } from '@/components/finance/CardReceivablesCard';
+import { TerminalsDialog } from '@/components/finance/TerminalsDialog';
 import { useInstallmentPayments } from '@/components/finance/useInstallmentPayments';
 import { useScheduledRevenue } from '@/hooks/useScheduledRevenue';
 import { paymentMethodLabel, todayIso, type ContractInstallment } from '@/lib/finance/installments';
@@ -58,6 +61,7 @@ export default function SimpleFinancePage() {
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalInput, setGoalInput] = useState('');
   const payments = useInstallmentPayments();
+  const [terminalsOpen, setTerminalsOpen] = useState(false);
   const { start, end } = monthBounds(/^\d{4}-\d{2}$/.test(month) ? month : today.slice(0, 7));
 
   const { data: rows = [], isLoading } = useQuery({
@@ -129,6 +133,7 @@ export default function SimpleFinancePage() {
           <Link to="/clinic/despesas"><BrandButton variant="outline"><Receipt className="h-4 w-4" /> Despesas</BrandButton></Link>
         )}
         <Link to="/clinic/financeiro/recebimentos"><BrandButton variant="outline"><Wallet className="h-4 w-4" /> Por forma de pagamento</BrandButton></Link>
+        <Link to="/clinic/financeiro/caixa"><BrandButton variant="outline"><Wallet className="h-4 w-4" /> Fluxo de caixa</BrandButton></Link>
         <Link to="/clinic/financeiro/dre"><BrandButton><FileBarChart className="h-4 w-4" /> DRE</BrandButton></Link>
       </PageHeader>
 
@@ -284,8 +289,8 @@ export default function SimpleFinancePage() {
                         <BrandButton size="sm" onClick={() => payments.setPaying(r)} disabled={payments.register.isPending}>Recebi</BrandButton>
                       )}
                       {r.status === 'pago' && role === 'admin' && (
-                        <BrandButton size="sm" variant="ghost" onClick={() => payments.undo.mutate(r)} disabled={payments.undo.isPending} title="Desfazer o recebimento">
-                          <RotateCcw className="h-4 w-4" /> Estornar
+                        <BrandButton size="sm" variant="ghost" onClick={() => payments.setCorrecting(r)} disabled={payments.undo.isPending} title="Pagamento registrado por engano">
+                          <RotateCcw className="h-4 w-4" /> Corrigir baixa
                         </BrandButton>
                       )}
                     </div>
@@ -301,12 +306,16 @@ export default function SimpleFinancePage() {
         <MonthCashPanel clinicId={clinicId} month={start.slice(0, 7)} received={[...lists.recebidas, ...monthDeposits.map((d) => ({ paid_method: 'Sinal (Pix)', amount: Number(d.amount) }))]} showExpenses={isEnabled('expenses')} />
       )}
 
+      {clinicId && <CardReceivablesCard clinicId={clinicId} onOpenTerminals={() => setTerminalsOpen(true)} />}
+      <CorrectPaymentDialog installment={payments.correcting} busy={payments.undo.isPending} onCancel={() => payments.setCorrecting(null)} onConfirm={(reason) => payments.undo.mutate(reason)} />
       <RegisterPaymentDialog
         installment={payments.paying}
         saving={payments.register.isPending}
         onClose={() => payments.setPaying(null)}
         onConfirm={(payment) => payments.register.mutate(payment)}
+        onOpenTerminals={() => setTerminalsOpen(true)}
       />
+      {clinicId && <TerminalsDialog clinicId={clinicId} open={terminalsOpen} onOpenChange={setTerminalsOpen} />}
     </div>
   );
 }

@@ -23,7 +23,12 @@ import { monthBounds, monthLabel, shiftMonth } from '@/lib/finance/simpleFinance
 import { formatBRL } from '@/lib/proposals/sale';
 
 type Expense = Tables<'expenses'>;
-type Form = { id: string | null; amount: string; date: string; category: string; otherCategory: string; description: string; paid: boolean; recurring: boolean; isCopy: boolean };
+type Form = { id: string | null; amount: string; date: string; category: string; otherCategory: string; description: string; paid: boolean; recurring: boolean; isCopy: boolean;
+  supplier: string; dueDate: string; installments: number; paidAt: string; paymentMethod: string };
+
+const PAY_METHODS: Record<string, string> = { pix: 'Pix', boleto: 'Boleto', credit: 'Cartão de crédito', debit: 'Cartão de débito', transfer: 'Transferência', cash: 'Dinheiro', other: 'Outra' };
+const addMonths = (iso: string, n: number) => { const d = new Date(`${iso}T12:00:00`); d.setMonth(d.getMonth() + n); return d.toISOString().slice(0, 10); };
+const todayStr = () => format(new Date(), 'yyyy-MM-dd');
 
 const OTHER = '__outra__';
 const toNumber = (v: string) => Number(v.replace(/\./g, '').replace(',', '.'));
@@ -90,13 +95,29 @@ export default function ExpensesPage() {
       if (!(amount > 0)) throw new Error('Informe o valor.');
       if (!category) throw new Error('Escolha a categoria.');
       if (!f.date) throw new Error('Informe a data.');
-      const payload = {
-        clinic_id: clinicId!, amount, category, description: f.description.trim() || null,
-        expense_date: f.date, paid: f.paid, recurring: f.isCopy ? false : f.recurring,
+      const base = {
+        clinic_id: clinicId!, category, description: f.description.trim() || null, supplier: f.supplier.trim() || null,
+        expense_date: f.date, paid: f.paid, paid_at: f.paid ? (f.paidAt || todayStr()) : null, payment_method: f.paymentMethod || null,
+        recurring: f.isCopy ? false : f.recurring,
       };
-      const { error } = f.id
-        ? await supabase.from('expenses').update(payload).eq('id', f.id)
-        : await supabase.from('expenses').insert(payload);
+      let error;
+      if (f.id) {
+        ({ error } = await supabase.from('expenses').update({ ...base, amount, due_date: f.dueDate || f.date }).eq('id', f.id));
+      } else if (f.installments > 1 && !f.recurring) {
+        // Compra parcelada: uma conta por parcela, cada uma com seu vencimento; todas na competência da compra.
+        const group = crypto.randomUUID();
+        const n = f.installments;
+        const part = Math.round((amount / n) * 100) / 100;
+        const rows = Array.from({ length: n }, (_, i) => ({
+          ...base, recurring: false, paid: f.paid && i === 0, paid_at: f.paid && i === 0 ? (f.paidAt || todayStr()) : null,
+          amount: i === n - 1 ? Math.round((amount - part * (n - 1)) * 100) / 100 : part,
+          due_date: addMonths(f.dueDate || f.date, i), installment_group: group, installment_number: i + 1, installments_count: n,
+          description: `${f.description.trim() || category} (${i + 1}/${n})`,
+        }));
+        ({ error } = await supabase.from('expenses').insert(rows));
+      } else {
+        ({ error } = await supabase.from('expenses').insert({ ...base, amount, due_date: f.dueDate || f.date }));
+      }
       if (error) throw error;
     },
     onSuccess: () => { refresh(); setForm(null); toast({ title: 'Despesa salva' }); },
@@ -105,7 +126,7 @@ export default function ExpensesPage() {
 
   const togglePaid = useMutation({
     mutationFn: async (e: Expense) => {
-      const { error } = await supabase.from('expenses').update({ paid: !e.paid }).eq('id', e.id);
+      const { error } = await supabase.from('expenses').update({ paid: !e.paid, paid_at: !e.paid ? todayStr() : null }).eq('id', e.id);
       if (error) throw error;
     },
     onSuccess: refresh,
@@ -123,11 +144,13 @@ export default function ExpensesPage() {
   const openNew = () => setForm({
     id: null, amount: '', date: month === format(new Date(), 'yyyy-MM') ? format(new Date(), 'yyyy-MM-dd') : start,
     category: '', otherCategory: '', description: '', paid: true, recurring: false, isCopy: false,
+    supplier: '', dueDate: '', installments: 1, paidAt: todayStr(), paymentMethod: 'pix',
   });
   const openEdit = (e: Expense) => setForm({
     id: e.id, amount: String(e.amount).replace('.', ','), date: e.expense_date,
     category: categories.includes(e.category) ? e.category : OTHER, otherCategory: categories.includes(e.category) ? '' : e.category,
     description: e.description ?? '', paid: e.paid, recurring: e.recurring, isCopy: !!e.recurrence_parent,
+    supplier: e.supplier ?? '', dueDate: e.due_date ?? e.expense_date, installments: 1, paidAt: e.paid_at ?? todayStr(), paymentMethod: e.payment_method ?? 'pix',
   });
 
   if (!isEnabled('expenses')) {
@@ -190,7 +213,10 @@ export default function ExpensesPage() {
                     {e.category}
                     {(e.recurring || e.recurrence_parent) && <span title="Repete todo mês"><Repeat className="h-3.5 w-3.5 text-muted-foreground" /></span>}
                   </p>
-                  {e.description && <p className="truncate text-xs text-muted-foreground">{e.description}</p>}
+                  <p className="truncate text-xs text-muted-foreground">
+                    {[e.supplier, e.description].filter(Boolean).join(' · ')}
+                    {e.paid ? (e.paid_at ? ` · pago em ${format(parseISO(e.paid_at), 'dd/MM')}${e.payment_method ? ` (${PAY_METHODS[e.payment_method] || e.payment_method})` : ''}` : '') : e.due_date ? ` · vence ${format(parseISO(e.due_date), 'dd/MM')}` : ''}
+                  </p>
                 </div>
                 <span className="font-semibold">{formatBRL(Number(e.amount))}</span>
                 <button
@@ -212,17 +238,29 @@ export default function ExpensesPage() {
       </CardContent></Card>
 
       <Dialog open={!!form} onOpenChange={(o) => { if (!o) setForm(null); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>{form?.id ? 'Editar despesa' : 'Nova despesa'}</DialogTitle></DialogHeader>
+        <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
+          <DialogHeader><DialogTitle>{form?.id ? 'Editar conta' : 'Nova conta a pagar'}</DialogTitle></DialogHeader>
           {form && (
             <form className="space-y-3" onSubmit={(ev) => { ev.preventDefault(); save.mutate(form); }}>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5"><Label>Valor (R$) *</Label>
                   <Input inputMode="decimal" autoFocus value={form.amount} onChange={(ev) => setForm({ ...form, amount: ev.target.value })} placeholder="0,00" required />
                 </div>
-                <div className="space-y-1.5"><Label>Data *</Label>
+                <div className="space-y-1.5"><Label>Data da compra *</Label>
                   <Input type="date" value={form.date} onChange={(ev) => setForm({ ...form, date: ev.target.value })} required />
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5"><Label>{form.installments > 1 ? '1º vencimento' : 'Vencimento'}</Label>
+                  <Input type="date" value={form.dueDate} onChange={(ev) => setForm({ ...form, dueDate: ev.target.value })} placeholder="Igual à data" />
+                </div>
+                <div className="space-y-1.5"><Label>Parcelas</Label>
+                  <Input type="number" min={1} max={48} disabled={!!form.id || form.recurring} value={form.installments}
+                    onChange={(ev) => setForm({ ...form, installments: Math.max(1, Math.min(48, Number(ev.target.value) || 1)) })} />
+                </div>
+              </div>
+              <div className="space-y-1.5"><Label>Fornecedor</Label>
+                <Input value={form.supplier} onChange={(ev) => setForm({ ...form, supplier: ev.target.value })} placeholder="Ex.: Distribuidora X, Imobiliária" />
               </div>
               <div className="space-y-1.5"><Label>Categoria *</Label>
                 <Select value={form.category} onValueChange={(v) => v && setForm({ ...form, category: v })}>
@@ -240,9 +278,22 @@ export default function ExpensesPage() {
                 <Input value={form.description} onChange={(ev) => setForm({ ...form, description: ev.target.value })} placeholder="Ex.: Instagram Ads, conta de luz" />
               </div>
               <label className="flex items-center justify-between gap-3 text-sm">
-                <span>Já foi pago</span>
+                <span>Já foi pago{form.installments > 1 && !form.id ? <span className="block text-xs text-muted-foreground">Marca só a 1ª parcela como paga.</span> : null}</span>
                 <Switch checked={form.paid} onCheckedChange={(v) => setForm({ ...form, paid: v })} />
               </label>
+              {form.paid && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5"><Label>Pago em</Label>
+                    <Input type="date" value={form.paidAt} max={todayStr()} onChange={(ev) => setForm({ ...form, paidAt: ev.target.value })} />
+                  </div>
+                  <div className="space-y-1.5"><Label>Forma</Label>
+                    <Select value={form.paymentMethod} onValueChange={(v) => setForm({ ...form, paymentMethod: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{Object.entries(PAY_METHODS).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
               {!form.isCopy && (
                 <label className="flex items-center justify-between gap-3 text-sm">
                   <span>Repete todo mês <span className="block text-xs text-muted-foreground">Aluguel, contador, internet… entra sozinha nos próximos meses.</span></span>
